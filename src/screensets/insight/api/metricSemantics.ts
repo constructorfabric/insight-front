@@ -16,6 +16,14 @@
  *   An alert fires when value is worse than the `alert.trigger` level, and
  *   becomes severe below `alert.bad`. Omit `alert` for metrics that do not
  *   participate in team-level alerts.
+ *
+ * NOTE — operational thresholds below are sensible FE defaults, NOT
+ * tenant-specific policy. A 90% build-success target may be aggressive for
+ * one org and lax for another. Longer term these should come from a
+ * tenant-scoped config endpoint on the backend (per-tenant overrides with
+ * these as fallbacks). Until that API exists, treat the values here as the
+ * single editable place — keep them in sync with whatever product docs
+ * promise the customer.
  */
 
 export type MetricSemantics = {
@@ -83,6 +91,37 @@ export const METRIC_SEMANTICS = {
 } as const satisfies Record<string, MetricSemantics>;
 
 export type MetricSemanticsKey = keyof typeof METRIC_SEMANTICS;
+
+/**
+ * Team-health thresholds for deriveTeamKpis chips (At Risk / Focus / Not
+ * Using AI). Values are fractions of headcount, so the chip status scales
+ * with team size instead of using a fixed absolute "≤ 2 → warn" rule that
+ * collapses for teams larger than a few people.
+ *
+ * Same tenant-config caveat as METRIC_SEMANTICS above.
+ */
+export const TEAM_HEALTH_THRESHOLDS = {
+  /** Strictly below this fraction → status is 'warn'. Below zero means "any". */
+  warnPct: 0.10,
+  /** From this fraction onward → status is 'bad'. */
+  badPct: 0.25,
+} as const;
+
+/**
+ * Translate a count of affected members into a status chip, scaled against
+ * team size. `count===0` is always 'good' so an all-healthy team still reads
+ * 'good' regardless of how small the team is.
+ */
+export function teamHealthStatus(
+  count: number,
+  teamSize: number,
+): 'good' | 'warn' | 'bad' {
+  if (count <= 0 || teamSize <= 0) return 'good';
+  const pct = count / teamSize;
+  if (pct >= TEAM_HEALTH_THRESHOLDS.badPct) return 'bad';
+  if (pct >= TEAM_HEALTH_THRESHOLDS.warnPct) return 'warn';
+  return 'good';
+}
 
 /** Shared status evaluator — same rule on every screen. */
 export function evaluateStatus(

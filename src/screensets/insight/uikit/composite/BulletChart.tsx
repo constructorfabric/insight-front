@@ -7,22 +7,25 @@
 import React from 'react';
 import { Badge } from '@hai3/uikit';
 import { ProgressTrack } from '../base/ProgressTrack';
+import ComingSoon from './ComingSoon';
 import type { BulletMetric } from '../../types';
 
+type KnownStatus = 'good' | 'warn' | 'bad';
+
 // Status class maps
-const STATUS_BAR_CLASS: Record<'good' | 'warn' | 'bad', string> = {
+const STATUS_BAR_CLASS: Record<KnownStatus, string> = {
   good: 'bg-insight-green',
   warn: 'bg-insight-amber',
   bad: 'bg-insight-red',
 };
 
-const STATUS_BADGE_CLASS: Record<'good' | 'warn' | 'bad', string> = {
+const STATUS_BADGE_CLASS: Record<KnownStatus, string> = {
   good: 'bg-insight-green-bg text-insight-green',
   warn: 'bg-insight-amber-bg text-insight-amber',
   bad: 'bg-insight-red-bg text-insight-red',
 };
 
-const STATUS_ARROW: Record<'good' | 'warn' | 'bad', string> = {
+const STATUS_ARROW: Record<KnownStatus, string> = {
   good: '↑',
   warn: '→',
   bad: '↓',
@@ -96,6 +99,12 @@ const BulletChart: React.FC<BulletChartProps> = ({
     }
   };
 
+  // Backend supplied no distribution — render ComingSoon in the bar slot
+  // instead of faking a "good/warn/bad" bar from synthetic fallbacks. Keep
+  // label/sublabel/value so context stays visible.
+  const isUnavailable = status === 'unavailable';
+  const knownStatus: KnownStatus = isUnavailable ? 'warn' : status;
+
   if (mode === 'tile') {
     return (
       <div
@@ -112,9 +121,13 @@ const BulletChart: React.FC<BulletChartProps> = ({
           {unit && <span className="text-sm text-gray-400">{unit}</span>}
           {suffix && <span className="text-xs text-gray-400">{suffix}</span>}
         </div>
-        <Badge className={`text-sm font-semibold gap-1 ${STATUS_BADGE_CLASS[status]}`}>
-          {STATUS_ARROW[status]} {median_label}
-        </Badge>
+        {isUnavailable ? (
+          <ComingSoon variant="chip" />
+        ) : (
+          <Badge className={`text-sm font-semibold gap-1 ${STATUS_BADGE_CLASS[knownStatus]}`}>
+            {STATUS_ARROW[knownStatus]} {median_label}
+          </Badge>
+        )}
       </div>
     );
   }
@@ -146,20 +159,24 @@ const BulletChart: React.FC<BulletChartProps> = ({
         </div>
       </div>
 
-      {/* Track */}
-      <ProgressTrack
-        barLeftPct={bar_left_pct}
-        barWidthPct={bar_width_pct}
-        medianLeftPct={median_left_pct}
-        barColorClass={STATUS_BAR_CLASS[status]}
-      />
-
-      {/* Footer */}
-      <div className="flex justify-between mt-0.5 text-xs text-gray-400">
-        <span>{range_min}</span>
-        <span className="text-gray-500 font-medium">{median_label}</span>
-        <span>{range_max}</span>
-      </div>
+      {/* Track or ComingSoon */}
+      {isUnavailable ? (
+        <div className="mt-1"><ComingSoon variant="row" /></div>
+      ) : (
+        <>
+          <ProgressTrack
+            barLeftPct={bar_left_pct}
+            barWidthPct={bar_width_pct}
+            medianLeftPct={median_left_pct}
+            barColorClass={STATUS_BAR_CLASS[knownStatus]}
+          />
+          <div className="flex justify-between mt-0.5 text-xs text-gray-400">
+            <span>{range_min}</span>
+            <span className="text-gray-500 font-medium">{median_label}</span>
+            <span>{range_max}</span>
+          </div>
+        </>
+      )}
     </div>
   );
 };

@@ -257,7 +257,13 @@ export interface BulletMetric {
   bar_left_pct: number;
   bar_width_pct: number;
   median_left_pct: number;
-  status: 'good' | 'warn' | 'bad';
+  /**
+   * `unavailable` when the backend didn't supply usable distribution data
+   * (value or range null). BulletChart renders ComingSoon in place of the bar
+   * for this status — we don't invent a good/warn/bad from synthetic
+   * fallbacks.
+   */
+  status: 'good' | 'warn' | 'bad' | 'unavailable';
   drill_id: string;
 }
 export interface BulletSection {

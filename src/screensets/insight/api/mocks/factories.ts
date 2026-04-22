@@ -292,19 +292,68 @@ export function mockDeliveryTrendSeries(weeks = 8): RawDeliveryTrendRow[] {
 // ---------------------------------------------------------------------------
 
 /**
- * Team bullet section -- uses BULLET_DEFS from thresholdConfig.
- * Returns RawBulletAggregateRow[] for the given section.
+ * Team bullet section -- uses BULLET_DEFS from thresholdConfig for the list
+ * of metrics, and a local synthetic distribution table (MOCK_BULLET_DIST)
+ * for the median/range values. Production config no longer carries
+ * distribution defaults — only the backend supplies real numbers — so this
+ * seed data is mock-only and lives here.
  */
+const MOCK_BULLET_DIST: Record<string, { median: number; range_min: number; range_max: number }> = {
+  tasks_completed:            { median: 5.8,   range_min: 0,  range_max: 15 },
+  task_dev_time:              { median: 15,    range_min: 8,  range_max: 31 },
+  task_reopen_rate:           { median: 5,     range_min: 0,  range_max: 15 },
+  due_date_compliance:        { median: 72,    range_min: 40, range_max: 100 },
+  estimation_accuracy:        { median: 58,    range_min: 0,  range_max: 100 },
+  commits:                    { median: 50,    range_min: 0,  range_max: 1000 },
+  prs_per_dev:                { median: 6,     range_min: 0,  range_max: 20 },
+  build_success:              { median: 89,    range_min: 78, range_max: 97 },
+  pr_cycle_time:              { median: 22,    range_min: 10, range_max: 35 },
+  bugs_fixed:                 { median: 3,     range_min: 1,  range_max: 8 },
+  overrun_ratio:              { median: 1.5,   range_min: 1,  range_max: 3 },
+  scope_completion:           { median: 79,    range_min: 0,  range_max: 100 },
+  scope_creep:                { median: 19,    range_min: 0,  range_max: 50 },
+  on_time_delivery:           { median: 71,    range_min: 0,  range_max: 100 },
+  avg_slip:                   { median: 3.1,   range_min: 0,  range_max: 6 },
+  active_ai_members:          { median: 7,     range_min: 0,  range_max: 12 },
+  cursor_active:              { median: 6,     range_min: 0,  range_max: 12 },
+  cc_active:                  { median: 3,     range_min: 0,  range_max: 12 },
+  codex_active:               { median: 2,     range_min: 0,  range_max: 12 },
+  team_ai_loc:                { median: 1186,  range_min: 0,  range_max: 50000 },
+  cursor_acceptance:          { median: 58,    range_min: 0,  range_max: 100 },
+  cc_tool_acceptance:         { median: 64,    range_min: 0,  range_max: 100 },
+  cc_tool_accept:             { median: 64,    range_min: 0,  range_max: 100 },
+  cursor_lines:               { median: 200,   range_min: 0,  range_max: 1000 },
+  cursor_agents:              { median: 10,    range_min: 0,  range_max: 100 },
+  cursor_completions:         { median: 40,    range_min: 0,  range_max: 200 },
+  cc_lines:                   { median: 80,    range_min: 0,  range_max: 500 },
+  cc_sessions:                { median: 6,     range_min: 0,  range_max: 40 },
+  chatgpt:                    { median: 0,     range_min: 0,  range_max: 100 },
+  claude_web:                 { median: 0,     range_min: 0,  range_max: 100 },
+  ai_loc_share2:              { median: 14,    range_min: 0,  range_max: 50 },
+  slack_thread_participation: { median: 29,    range_min: 0,  range_max: 80 },
+  slack_message_engagement:   { median: 1.8,   range_min: 0,  range_max: 5 },
+  slack_dm_ratio:             { median: 28,    range_min: 0,  range_max: 100 },
+  m365_teams_messages:        { median: 148,   range_min: 0,  range_max: 400 },
+  m365_emails_sent:           { median: 35,    range_min: 0,  range_max: 120 },
+  m365_files_shared:          { median: 8,     range_min: 0,  range_max: 30 },
+  meeting_hours:              { median: 103,   range_min: 0,  range_max: 300 },
+  zoom_calls:                 { median: 169,   range_min: 0,  range_max: 1200 },
+  meeting_free:               { median: 4,     range_min: 0,  range_max: 30 },
+};
+
 export function mockTeamBulletSection(section: string, seed = 0): RawBulletAggregateRow[] {
   return BULLET_DEFS
     .filter((d) => d.section === section)
-    .map((d, i) => ({
-      metric_key: d.metric_key,
-      value: Math.round(vary(d.median, i + seed, d.median * 0.3) * 10) / 10,
-      median: d.median,
-      range_min: d.range_min,
-      range_max: d.range_max,
-    }));
+    .map((d, i) => {
+      const dist = MOCK_BULLET_DIST[d.metric_key] ?? { median: 0, range_min: 0, range_max: 100 };
+      return {
+        metric_key: d.metric_key,
+        value: Math.round(vary(dist.median, i + seed, Math.max(1, dist.median * 0.3)) * 10) / 10,
+        median: dist.median,
+        range_min: dist.range_min,
+        range_max: dist.range_max,
+      };
+    });
 }
 
 // ---------------------------------------------------------------------------

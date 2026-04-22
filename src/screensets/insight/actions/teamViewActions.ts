@@ -26,6 +26,7 @@ import {
   TEAM_KPIS_BY_PERIOD,
   TEAM_VIEW_CONFIG,
 } from '../api/viewConfigs';
+import { teamHealthStatus } from '../api/metricSemantics';
 import { settled, emptyOdata } from '../utils/settledResult';
 
 // ---------------------------------------------------------------------------
@@ -64,9 +65,11 @@ export function deriveTeamKpis(members: TeamMember[], period: PeriodValue) {
   // Median dev_time_h across members — honest replacement for the hardcoded "13h" chip.
   const devTimeMedian = median(members.map((m) => m.dev_time_h));
 
-  const atRiskStatus:  'good' | 'warn' | 'bad' = atRisk === 0 ? 'good' : atRisk <= 2 ? 'warn' : 'bad';
-  const focusStatus:   'good' | 'warn' | 'bad' = belowFocus === 0 ? 'good' : belowFocus <= 2 ? 'warn' : 'bad';
-  const noAiStatus:    'good' | 'warn' | 'bad' = noAiCount === 0 ? 'good' : noAiCount <= 2 ? 'warn' : 'bad';
+  // Statuses scale with team size (TEAM_HEALTH_THRESHOLDS) — "2 problematic"
+  // is a crisis in a 5-person team and a rounding error in a 100-person one.
+  const atRiskStatus = teamHealthStatus(atRisk, total);
+  const focusStatus  = teamHealthStatus(belowFocus, total);
+  const noAiStatus   = teamHealthStatus(noAiCount, total);
 
   return (TEAM_KPIS_BY_PERIOD[period] ?? TEAM_KPIS_BY_PERIOD['month']).map((k) => {
     if (k.metric_key === 'at_risk_count') return { ...k, value: String(atRisk),  status: atRiskStatus };
@@ -119,12 +122,16 @@ export const loadTeamView = (teamId: string, period: PeriodValue, range: DateRan
       const aiResp       = settled(aiResult,        emptyOdata<RawBulletAggregateRow>(),   'TEAM_BULLET_AI');
 
       const members = transformTeamMembers(membersResp.items, period);
+      // Pass team headcount so member-scale AI bullets (active_ai_members etc.)
+      // show "N / headcount" with the range scaled to team size instead of the
+      // old hardcoded "/ 12".
+      const teamSize = members.length || undefined;
 
       const bulletSections = [
         { id: 'task_delivery',  title: 'Task Delivery',  metrics: transformBulletMetrics(deliveryResp.items, 'task_delivery', period) },
         { id: 'code_quality',   title: 'Code & Quality', metrics: transformBulletMetrics(qualityResp.items,  'code_quality',  period) },
         { id: 'collaboration',  title: 'Collaboration',  metrics: transformBulletMetrics(collabResp.items,   'collaboration', period) },
-        { id: 'ai_adoption',    title: 'AI Adoption',    metrics: transformBulletMetrics(aiResp.items,       'ai_adoption',   period) },
+        { id: 'ai_adoption',    title: 'AI Adoption',    metrics: transformBulletMetrics(aiResp.items,       'ai_adoption',   period, teamSize) },
       ].filter((s) => s.metrics.length > 0);
 
       const teamName = teamId.charAt(0).toUpperCase() + teamId.slice(1);
