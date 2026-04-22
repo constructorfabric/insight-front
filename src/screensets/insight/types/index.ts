@@ -301,7 +301,12 @@ export interface IcKpi {
   period: PeriodValue;
   metric_key: string;
   label: string;
-  value: string;
+  /**
+   * Formatted value, or `null` when the backend returned NULL (source not
+   * ingested yet). Rendered as a ComingSoon chip in KpiStrip instead of a
+   * fake zero.
+   */
+  value: string | null;
   unit: string;
   sublabel: string;
   description?: string;

@@ -197,14 +197,19 @@ export function transformIcKpis(
   if (current === null) return [];
 
   return IC_KPI_DEFS.map((def) => {
-    const curVal = (current[def.raw_field] ?? 0) as number;
-    const prevVal = previous ? ((previous[def.raw_field] ?? 0) as number) : null;
+    // Distinguish "raw value missing" (NULL from backend → source not ingested)
+    // from "raw value is zero" (real measurement). Missing → value:null so the
+    // KpiStrip cell can render ComingSoon. Zero → formatted '0' like any number.
+    const rawCur = current[def.raw_field];
+    const rawPrev = previous?.[def.raw_field];
+    const curVal = rawCur == null ? null : (rawCur as number);
+    const prevVal = rawPrev == null ? null : (rawPrev as number);
 
-    const value = formatValue(curVal, def.format);
+    const value = curVal === null ? null : formatValue(curVal, def.format);
     let delta = '';
     let dt: 'good' | 'warn' | 'bad' | 'neutral' = 'neutral';
 
-    if (prevVal !== null) {
+    if (curVal !== null && prevVal !== null) {
       const diff = curVal - prevVal;
       delta = formatDelta(diff, def);
       dt = deltaType(diff, def.higher_is_better);

@@ -36,7 +36,8 @@ const DELTA_CLASS: Record<string, string> = {
 export interface KpiStripKpi {
   metric_key: string;
   label: string;
-  value: string;
+  /** `null` → cell renders ComingSoon chip instead of a value. */
+  value: string | null;
   unit?: string;
   sublabel?: string;
   description?: string;
@@ -63,6 +64,8 @@ const KpiCell: React.FC<{ kpi: KpiStripKpi; index: number; total: number }> = ({
     index >= 2 ? 'border-t border-gray-100' : '',
   ].filter(Boolean).join(' ');
 
+  const isMissing = kpi.value === null;
+
   return (
     <div className={`relative flex-1 px-3 py-2 ${mobileBorder}`}>
       {/* Vertical separator — desktop flex only */}
@@ -70,16 +73,21 @@ const KpiCell: React.FC<{ kpi: KpiStripKpi; index: number; total: number }> = ({
         <div className="hidden sm:block absolute left-0 top-[15%] h-[70%] w-px bg-gray-200" />
       )}
 
-      {/* Value row */}
-      <div className="flex items-baseline gap-px">
-        <span className="text-xl font-extrabold text-gray-900 leading-tight">{kpi.value}</span>
-        {kpi.unit && (
-          <sup className="text-xs font-semibold text-gray-400">{kpi.unit}</sup>
-        )}
-        {suffix && (
-          <span className="text-2xs text-gray-400 ml-0.5">{suffix}</span>
-        )}
-      </div>
+      {/* Value row — ComingSoon chip when backend returned NULL (source not
+          ingested yet). Otherwise the normal formatted value + unit + suffix. */}
+      {isMissing ? (
+        <ComingSoon variant="chip" />
+      ) : (
+        <div className="flex items-baseline gap-px">
+          <span className="text-xl font-extrabold text-gray-900 leading-tight">{kpi.value}</span>
+          {kpi.unit && (
+            <sup className="text-xs font-semibold text-gray-400">{kpi.unit}</sup>
+          )}
+          {suffix && (
+            <span className="text-2xs text-gray-400 ml-0.5">{suffix}</span>
+          )}
+        </div>
+      )}
 
       {/* Label + optional tooltip */}
       <div className="flex items-center mt-0.5">
@@ -92,8 +100,8 @@ const KpiCell: React.FC<{ kpi: KpiStripKpi; index: number; total: number }> = ({
         <div className="text-2xs text-gray-400">{kpi.sublabel}</div>
       )}
 
-      {/* Delta badge */}
-      {kpi.delta && deltaClass && (
+      {/* Delta badge — suppressed when value is missing (nothing to compare). */}
+      {!isMissing && kpi.delta && deltaClass && (
         <Badge className={`mt-1 text-xs font-bold ${deltaClass}`}>
           {kpi.delta}
         </Badge>
