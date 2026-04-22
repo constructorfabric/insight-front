@@ -242,12 +242,12 @@ export interface TeamMember {
   supervisor_email: string | null;
   tasks_closed: number;
   bugs_fixed: number;
-  dev_time_h: number;
+  dev_time_h: number | null;         // null when [comms/hr] focus metrics absent
   prs_merged: number;
-  build_success_pct: number | null; // null when [ci] connector not configured
-  focus_time_pct: number;
+  build_success_pct: number | null;  // null when [ci] connector not configured
+  focus_time_pct: number | null;     // null when [comms/hr] focus metrics absent
   ai_tools: string[];
-  ai_loc_share_pct: number;
+  ai_loc_share_pct: number | null;   // null when [ai] Cursor row absent for this person
   // trend_label dropped — frontend derives trend from multi-period delta (see FE-08)
 }
 export interface BulletMetric {

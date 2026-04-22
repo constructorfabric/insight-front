@@ -53,12 +53,12 @@ export type RawTeamMemberRow = {
   supervisor_email: string | null;
   tasks_closed: number;
   bugs_fixed: number;
-  dev_time_h: number;
+  dev_time_h: number | null;         // null when focus metrics missing (no silver.class_focus_metrics row)
   prs_merged: number;
   build_success_pct: number | null;
-  focus_time_pct: number;
+  focus_time_pct: number | null;     // null when focus metrics missing
   ai_tools: string[];
-  ai_loc_share_pct: number;
+  ai_loc_share_pct: number | null;   // null when Cursor row absent for this person
 };
 
 // ---------------------------------------------------------------------------

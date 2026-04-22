@@ -20,6 +20,7 @@ import type {
   TeamMember,
   TeamViewData,
   DrillData,
+  DataAvailability,
 } from '../types';
 import type { RawTeamMemberRow, RawBulletAggregateRow, RawDrillRow } from '../api/rawTypes';
 import {
@@ -43,7 +44,18 @@ function median(values: number[]): number | null {
     : sorted[mid]!;
 }
 
-export function deriveTeamKpis(members: TeamMember[], period: PeriodValue) {
+/**
+ * @param availability Optional connector-availability snapshot. When the
+ *                     connector feeding a chip is not `available`, that
+ *                     chip is omitted — we don't flag "N members not using
+ *                     AI" if the AI connector is offline, since `[]` could
+ *                     just mean "no data" rather than "no usage".
+ */
+export function deriveTeamKpis(
+  members: TeamMember[],
+  period: PeriodValue,
+  availability?: DataAvailability,
+) {
   // Data-driven: no members means the backend has nothing for this team in
   // the selected period — return empty so TeamHeroStrip renders ComingSoon
   // uniformly instead of forcing zero counters onto the UI.
@@ -61,32 +73,60 @@ export function deriveTeamKpis(members: TeamMember[], period: PeriodValue) {
       return typeof v === 'number' && Number.isFinite(v) && v < t.trigger;
     }),
   ).length;
-  const focusCount  = members.filter((m) => m.focus_time_pct >= focusTrigger).length;
-  const belowFocus  = total - focusCount;
+  // Only count members whose focus_time_pct is actually present. null from
+  // backend (focus connector unavailable for this person) is NOT "below
+  // target" — it's unknown.
+  const membersWithFocus = members.filter(
+    (m) => typeof m.focus_time_pct === 'number' && Number.isFinite(m.focus_time_pct),
+  );
+  const focusDenom = membersWithFocus.length;
+  const focusCount = membersWithFocus.filter((m) => (m.focus_time_pct as number) >= focusTrigger).length;
+  const belowFocus = focusDenom - focusCount;
+  // ai_tools is still non-nullable at the backend (ClickHouse disallows
+  // Nullable(Array)). Gate this chip on tenant-level availability instead.
   const noAiCount   = members.filter((m) => m.ai_tools.length === 0).length;
 
-  // Median dev_time_h across members — honest replacement for the hardcoded "13h" chip.
-  const devTimeMedian = median(members.map((m) => m.dev_time_h));
+  // Median dev_time_h across members — honest replacement for the hardcoded
+  // "13h" chip. `median()` already skips non-finite values, so null entries
+  // from a person without focus data don't pull the number down.
+  const devTimeMedian = median(
+    members
+      .map((m) => m.dev_time_h)
+      .filter((v): v is number => v != null),
+  );
 
   // Statuses scale with team size (TEAM_HEALTH_THRESHOLDS) — "2 problematic"
   // is a crisis in a 5-person team and a rounding error in a 100-person one.
   const atRiskStatus = teamHealthStatus(atRisk, total);
-  const focusStatus  = teamHealthStatus(belowFocus, total);
+  const focusStatus  = teamHealthStatus(belowFocus, focusDenom);
   const noAiStatus   = teamHealthStatus(noAiCount, total);
 
-  return (TEAM_KPIS_BY_PERIOD[period] ?? TEAM_KPIS_BY_PERIOD['month']).map((k) => {
-    if (k.metric_key === 'at_risk_count') return { ...k, value: String(atRisk),  status: atRiskStatus };
-    if (k.metric_key === 'focus_gte_60')  return { ...k, value: `${focusCount} / ${total}`, sublabel: `${belowFocus} member${belowFocus !== 1 ? 's' : ''} below target`, status: focusStatus };
-    if (k.metric_key === 'not_using_ai')  return { ...k, value: String(noAiCount), status: noAiStatus };
-    if (k.metric_key === 'team_dev_time') {
-      const value = devTimeMedian === null ? '—' : `${devTimeMedian.toFixed(1)}h`;
-      // chipLabel: undefined — TeamHeroStrip uses `kpi.chipLabel ?? kpi.status`
-      // for the badge, so empty string would render an empty badge; undefined
-      // correctly falls back to status.
-      return { ...k, value, sublabel: `Team median \u00b7 ${total} member${total !== 1 ? 's' : ''}`, chipLabel: undefined };
-    }
-    return k;
-  });
+  // Connector-level gates: when a source isn't wired for the tenant, we
+  // don't have grounds to evaluate the chip — omit it rather than showing
+  // "0 at risk" / "all focused" based on missing data. Default to showing
+  // the chip when availability is unknown (caller didn't pass it).
+  const commsAvailable = (availability?.comms ?? 'available') === 'available';
+  const aiAvailable    = (availability?.ai    ?? 'available') === 'available';
+
+  return (TEAM_KPIS_BY_PERIOD[period] ?? TEAM_KPIS_BY_PERIOD['month'])
+    .filter((k) => {
+      if (k.metric_key === 'focus_gte_60' && !commsAvailable) return false;
+      if (k.metric_key === 'not_using_ai' && !aiAvailable)    return false;
+      return true;
+    })
+    .map((k) => {
+      if (k.metric_key === 'at_risk_count') return { ...k, value: String(atRisk),  status: atRiskStatus };
+      if (k.metric_key === 'focus_gte_60')  return { ...k, value: `${focusCount} / ${focusDenom}`, sublabel: `${belowFocus} member${belowFocus !== 1 ? 's' : ''} below target`, status: focusStatus };
+      if (k.metric_key === 'not_using_ai')  return { ...k, value: String(noAiCount), status: noAiStatus };
+      if (k.metric_key === 'team_dev_time') {
+        const value = devTimeMedian === null ? '—' : `${devTimeMedian.toFixed(1)}h`;
+        // chipLabel: undefined — TeamHeroStrip uses `kpi.chipLabel ?? kpi.status`
+        // for the badge, so empty string would render an empty badge; undefined
+        // correctly falls back to status.
+        return { ...k, value, sublabel: `Team median \u00b7 ${total} member${total !== 1 ? 's' : ''}`, chipLabel: undefined };
+      }
+      return k;
+    });
 }
 
 // ---------------------------------------------------------------------------

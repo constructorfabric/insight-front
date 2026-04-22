@@ -28,7 +28,8 @@ const SEVERITY_ICON_BG: Record<Severity, string> = { bad: 'bg-insight-red-bg', w
 
 
 function buildDescription(metricKey: string, m: TeamMember, trigger: number): string {
-  const val  = m[metricKey as keyof TeamMember] as number;
+  const raw  = m[metricKey as keyof TeamMember];
+  const val  = typeof raw === 'number' ? raw : Number.NaN;
   const def  = METRIC_KEYS[metricKey as keyof typeof METRIC_KEYS];
   const unit = def?.unit ?? '';
   const label = def?.label ?? metricKey;
@@ -49,7 +50,12 @@ function computeAlerts(members: TeamMember[], alertThresholds: AlertThreshold[])
   const alerts: AlertItem[] = [];
   for (const m of members) {
     for (const rule of alertThresholds) {
-      const value = m[rule.metric_key as keyof TeamMember] as number;
+      const value = m[rule.metric_key as keyof TeamMember];
+      // Skip when the backend returned null/undefined — "no data" is not
+      // "below target". Without this guard `null < trigger` evaluates to
+      // `true` and every member with an unavailable connector gets an
+      // alert row like "Build success rate below 90% target".
+      if (typeof value !== 'number' || !Number.isFinite(value)) continue;
       if (value < rule.trigger) {
         const severity: Severity = value < rule.bad ? 'bad' : 'warn';
         alerts.push({

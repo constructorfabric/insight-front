@@ -20,6 +20,7 @@ import {
   selectSelectedTeamId,
   selectTeamDrillId,
   selectTeamDrillData,
+  selectTeamAvailability,
 } from '../../slices/teamViewSlice';
 import { selectCurrentUser } from '../../slices/currentUserSlice';
 import { selectCustomRange } from '../../slices/periodSlice';
@@ -114,11 +115,12 @@ const TeamViewScreen: React.FC = () => {
   // the empty-derived KPIs so chips stay consistent with the (empty) member table.
   // Only fall back to the store when members haven't been fetched yet (both sets
   // empty AND still loading).
+  const availability = useAppSelector(selectTeamAvailability);
   const teamKpis = useMemo(
     () => (allMembers.length === 0 && loading
       ? storeTeamKpis
-      : deriveTeamKpis(members, period)),
-    [allMembers.length, loading, members, period, storeTeamKpis],
+      : deriveTeamKpis(members, period, availability ?? undefined)),
+    [allMembers.length, loading, members, period, storeTeamKpis, availability],
   );
   const bulletSections = useAppSelector(selectBulletSections);
   const teamName = useAppSelector(selectTeamName);

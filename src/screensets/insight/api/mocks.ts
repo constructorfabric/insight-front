@@ -159,8 +159,12 @@ function varyMember(r: RawTeamMemberRow, seed: number): Partial<RawTeamMemberRow
     tasks_closed: Math.round(r.tasks_closed * factor),
     bugs_fixed: Math.round(r.bugs_fixed * factor),
     prs_merged: Math.max(1, Math.round(r.prs_merged * factor)),
-    focus_time_pct: Math.min(100, Math.round(r.focus_time_pct * (0.95 + (seed % 10) / 100))),
-    ai_loc_share_pct: Math.min(50, Math.round(r.ai_loc_share_pct * (0.9 + (seed % 15) / 100))),
+    focus_time_pct: r.focus_time_pct == null
+      ? null
+      : Math.min(100, Math.round(r.focus_time_pct * (0.95 + (seed % 10) / 100))),
+    ai_loc_share_pct: r.ai_loc_share_pct == null
+      ? null
+      : Math.min(50, Math.round(r.ai_loc_share_pct * (0.9 + (seed % 15) / 100))),
   };
 }
 
