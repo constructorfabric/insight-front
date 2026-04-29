@@ -64,22 +64,52 @@ const FocusBar: React.FC<{ pct: number | null; threshold: ColumnThreshold | null
 
 type ColHeader = { label: string; sub: string; info?: string };
 
-function buildColHeaders(columnThresholds: ColumnThreshold[]): ColHeader[] {
+interface ColumnVisibility {
+  devTime: boolean;
+  prs: boolean;
+  build: boolean;
+  focus: boolean;
+  aiTools: boolean;
+  aiLoc: boolean;
+}
+
+/**
+ * Hide columns whose data is missing for every visible member. Keeps Name,
+ * Tasks, Bugs Fixed always (those are non-nullable in the seed). When the
+ * table is still loading with no rows yet, default everything to visible so
+ * the layout doesn't pop in.
+ */
+function deriveColumnVisibility(members: TeamMember[]): ColumnVisibility {
+  if (members.length === 0) {
+    return { devTime: true, prs: true, build: true, focus: true, aiTools: true, aiLoc: true };
+  }
+  return {
+    devTime: members.some((m) => m.dev_time_h        !== null),
+    prs:     members.some((m) => m.prs_merged        !== null),
+    build:   members.some((m) => m.build_success_pct !== null),
+    focus:   members.some((m) => m.focus_time_pct    !== null),
+    aiTools: members.some((m) => m.ai_tools.length    >   0),
+    aiLoc:   members.some((m) => m.ai_loc_share_pct  !== null),
+  };
+}
+
+function buildColHeaders(columnThresholds: ColumnThreshold[], cols: ColumnVisibility): ColHeader[] {
   const buildT = getThreshold(columnThresholds, 'build_success_pct');
   const focusT = getThreshold(columnThresholds, 'focus_time_pct');
-  return [
+  const all: (ColHeader | null)[] = [
     { label: 'Name',          sub: '' },
     { label: 'Tasks',         sub: 'closed · Jira' },
     { label: 'Bugs Fixed',    sub: 'bug-type tasks · Jira' },
-    { label: 'Dev Time',      sub: 'time in dev per task · lower = better',
-      info: 'Average time a task spends in "In Progress" state. Lower means faster execution.' },
-    { label: 'Pull Requests', sub: 'merged to main · Bitbucket' },
-    { label: 'Build Success', sub: buildT ? `CI builds passing · target \u2265${buildT.good}%` : 'CI builds passing' },
-    { label: 'Focus Time',    sub: focusT ? `uninterrupted work · target \u2265${focusT.good}%` : 'uninterrupted work' },
-    { label: 'AI Tools',      sub: 'active this month' },
-    { label: 'AI Code Acceptance',  sub: 'Cursor + Claude Code',
-      info: 'Share of authored code lines accepted from AI suggestions out of total lines written in active Cursor sessions.' },
+    cols.devTime ? { label: 'Dev Time',      sub: 'time in dev per task · lower = better',
+      info: 'Average time a task spends in "In Progress" state. Lower means faster execution.' } : null,
+    cols.prs     ? { label: 'Pull Requests', sub: 'merged to main · Bitbucket' } : null,
+    cols.build   ? { label: 'Build Success', sub: buildT ? `CI builds passing · target \u2265${buildT.good}%` : 'CI builds passing' } : null,
+    cols.focus   ? { label: 'Focus Time',    sub: focusT ? `uninterrupted work · target \u2265${focusT.good}%` : 'uninterrupted work' } : null,
+    cols.aiTools ? { label: 'AI Tools',      sub: 'active this month' } : null,
+    cols.aiLoc   ? { label: 'AI Code Acceptance',  sub: 'Cursor + Claude Code',
+      info: 'Share of authored code lines accepted from AI suggestions out of total lines written in active Cursor sessions.' } : null,
   ];
+  return all.filter((c): c is ColHeader => c !== null);
 }
 
 const SkeletonRow: React.FC<{ count: number }> = ({ count }) => (
@@ -97,7 +127,8 @@ export const MembersTable: React.FC<MembersTableProps> = ({ members, columnThres
     e.stopPropagation();
     onCellDrill?.(personId, drillId);
   };
-  const colHeaders = buildColHeaders(columnThresholds);
+  const cols       = deriveColumnVisibility(members);
+  const colHeaders = buildColHeaders(columnThresholds, cols);
   const tBugs  = getThreshold(columnThresholds, 'bugs_fixed');
   const tDev   = getThreshold(columnThresholds, 'dev_time_h');
   const tBuild = getThreshold(columnThresholds, 'build_success_pct');
@@ -163,50 +194,62 @@ export const MembersTable: React.FC<MembersTableProps> = ({ members, columnThres
                       <DrillCell onClick={drill(m.person_id, 'bugs-fixed')} className={colClass(m.bugs_fixed, tBugs, 'text')}>{m.bugs_fixed ?? '—'}</DrillCell>
                     ) : (m.bugs_fixed ?? '—')}
                   </TableCell>
-                  <TableCell className={`px-3 py-2.5 text-sm font-bold ${colClass(m.dev_time_h, tDev, 'text')}`}>
-                    {onCellDrill ? (
-                      <DrillCell onClick={drill(m.person_id, 'cycle-time')} className={colClass(m.dev_time_h, tDev, 'text')}>
-                        {m.dev_time_h !== null ? `${m.dev_time_h}h` : '—'}
-                      </DrillCell>
-                    ) : (m.dev_time_h !== null ? `${m.dev_time_h}h` : '—')}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-sm">
-                    {onCellDrill ? (
-                      <DrillCell onClick={drill(m.person_id, 'pull-requests')}>{m.prs_merged ?? '—'}</DrillCell>
-                    ) : (m.prs_merged ?? '—')}
-                  </TableCell>
-                  <TableCell className={`px-3 py-2.5 text-sm font-bold ${colClass(m.build_success_pct, tBuild, 'text')}`}>
-                    {onCellDrill ? (
-                      <DrillCell onClick={drill(m.person_id, 'builds')} className={colClass(m.build_success_pct, tBuild, 'text')}>
-                        {m.build_success_pct !== null ? `${m.build_success_pct}%` : '—'}
-                      </DrillCell>
-                    ) : (m.build_success_pct !== null ? `${m.build_success_pct}%` : '—')}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <FocusBar pct={m.focus_time_pct} threshold={tFocus} />
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    {m.ai_tools.length === 0 ? (
-                      <span className="text-gray-400">—</span>
-                    ) : (
-                      <div className="flex flex-wrap gap-1">
-                        {m.ai_tools.map((tool) => (
-                          <Badge key={tool} variant="outline" className="text-2xs font-bold px-1.5 py-0 h-auto rounded bg-gray-50 border-gray-200 text-gray-400">
-                            {tool}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell className={`px-3 py-2.5 text-sm font-bold ${colClass(m.ai_loc_share_pct, tAiLoc, 'text')}`}>
-                    {m.ai_loc_share_pct === null ? (
-                      <span className="text-gray-400">—</span>
-                    ) : m.ai_loc_share_pct > 0 ? (
-                      `${m.ai_loc_share_pct}%`
-                    ) : (
-                      <span className="text-gray-400">0%</span>
-                    )}
-                  </TableCell>
+                  {cols.devTime && (
+                    <TableCell className={`px-3 py-2.5 text-sm font-bold ${colClass(m.dev_time_h, tDev, 'text')}`}>
+                      {onCellDrill ? (
+                        <DrillCell onClick={drill(m.person_id, 'cycle-time')} className={colClass(m.dev_time_h, tDev, 'text')}>
+                          {m.dev_time_h !== null ? `${m.dev_time_h}h` : '—'}
+                        </DrillCell>
+                      ) : (m.dev_time_h !== null ? `${m.dev_time_h}h` : '—')}
+                    </TableCell>
+                  )}
+                  {cols.prs && (
+                    <TableCell className="px-3 py-2.5 text-sm">
+                      {onCellDrill ? (
+                        <DrillCell onClick={drill(m.person_id, 'pull-requests')}>{m.prs_merged ?? '—'}</DrillCell>
+                      ) : (m.prs_merged ?? '—')}
+                    </TableCell>
+                  )}
+                  {cols.build && (
+                    <TableCell className={`px-3 py-2.5 text-sm font-bold ${colClass(m.build_success_pct, tBuild, 'text')}`}>
+                      {onCellDrill ? (
+                        <DrillCell onClick={drill(m.person_id, 'builds')} className={colClass(m.build_success_pct, tBuild, 'text')}>
+                          {m.build_success_pct !== null ? `${m.build_success_pct}%` : '—'}
+                        </DrillCell>
+                      ) : (m.build_success_pct !== null ? `${m.build_success_pct}%` : '—')}
+                    </TableCell>
+                  )}
+                  {cols.focus && (
+                    <TableCell className="px-3 py-2.5">
+                      <FocusBar pct={m.focus_time_pct} threshold={tFocus} />
+                    </TableCell>
+                  )}
+                  {cols.aiTools && (
+                    <TableCell className="px-3 py-2.5">
+                      {m.ai_tools.length === 0 ? (
+                        <span className="text-gray-400">—</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {m.ai_tools.map((tool) => (
+                            <Badge key={tool} variant="outline" className="text-2xs font-bold px-1.5 py-0 h-auto rounded bg-gray-50 border-gray-200 text-gray-400">
+                              {tool}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </TableCell>
+                  )}
+                  {cols.aiLoc && (
+                    <TableCell className={`px-3 py-2.5 text-sm font-bold ${colClass(m.ai_loc_share_pct, tAiLoc, 'text')}`}>
+                      {m.ai_loc_share_pct === null ? (
+                        <span className="text-gray-400">—</span>
+                      ) : m.ai_loc_share_pct > 0 ? (
+                        `${m.ai_loc_share_pct}%`
+                      ) : (
+                        <span className="text-gray-400">0%</span>
+                      )}
+                    </TableCell>
+                  )}
                 </TableRow>
               ))
             )}
