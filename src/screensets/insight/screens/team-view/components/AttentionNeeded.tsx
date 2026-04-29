@@ -54,7 +54,12 @@ function computeAlerts(members: TeamMember[], alertThresholds: AlertThreshold[])
   const alerts: AlertItem[] = [];
   for (const m of members) {
     for (const rule of alertThresholds) {
-      const value = m[rule.metric_key as keyof TeamMember] as number;
+      const value = m[rule.metric_key as keyof TeamMember];
+      // Skip missing data — `null < trigger` coerces to true and would
+      // surface phantom alerts for people the analytics layer has no
+      // metrics for (synthetic rows from the IR roster path, or metrics
+      // whose source connector isn't wired).
+      if (typeof value !== 'number' || !Number.isFinite(value)) continue;
       if (value < rule.trigger) {
         const severity: Severity = value < rule.bad ? 'bad' : 'warn';
         alerts.push({
