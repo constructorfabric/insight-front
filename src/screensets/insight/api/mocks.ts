@@ -30,6 +30,7 @@ import type {
   RawLocTrendRow,
   RawDeliveryTrendRow,
 } from './rawTypes';
+import { toLower } from 'lodash';
 import { METRIC_REGISTRY } from './metricRegistry';
 import {
   mockExecRows,
@@ -394,12 +395,22 @@ export const insightMockMap = {
   [`POST /api/analytics/v1/metrics/${METRIC_REGISTRY.EXEC_SUMMARY}/query`]:
     (): ODataResponse<RawExecSummaryRow> => wrap(mockExecRows()),
 
-  // Team members -- returns RawTeamMemberRow[] for the requested team only
+  // Team members -- returns RawTeamMemberRow[].
+  //  - person_id eq '<email>'  → single matching row (IR-roster path)
+  //  - org_unit_id eq '<team>'  → all rows for that team (legacy path)
   [`POST /api/analytics/v1/metrics/${METRIC_REGISTRY.TEAM_MEMBER}/query`]:
     (body: unknown): ODataResponse<RawTeamMemberRow> => {
       const f = odata(body).$filter ?? '';
-      const teamId = team(f);
+      const personMatch = /person_id eq '([^']+)'/.exec(f);
       const seed = filterSeed(f);
+      if (personMatch) {
+        const personId = personMatch[1]!;
+        const target = toLower(personId);
+        const row = mockTeamMemberRows().find((r) => toLower(r.person_id) === target);
+        if (!row) return wrap([]);
+        return wrap([{ ...row, ...varyMember(row, seed) }]);
+      }
+      const teamId = team(f);
       return wrap(mockTeamMemberRowsForTeam(teamId).map((r, i) => ({ ...r, ...varyMember(r, seed + i) })));
     },
 

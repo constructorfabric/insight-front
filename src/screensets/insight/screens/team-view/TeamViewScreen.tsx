@@ -25,6 +25,7 @@ import { selectCurrentUser } from '../../slices/currentUserSlice';
 import { selectCustomRange } from '../../slices/periodSlice';
 import { selectInsightViewMode } from '../../slices/insightUiSlice';
 import { resolveDateRange } from '../../utils/periodToDateRange';
+import { findIdentityNode, flattenSubordinates } from '../../utils/identityTree';
 import { TeamHeroStrip } from './components/TeamHeroStrip';
 import { AttentionNeeded } from './components/AttentionNeeded';
 import { MembersTable } from './components/MembersTable';
@@ -32,6 +33,7 @@ import { TeamBulletSections } from './components/TeamBulletSections';
 import { PeriodSelectorBar } from '../../uikit/composite/PeriodSelectorBar';
 import { ViewModeToggle } from '../../uikit/composite/ViewModeToggle';
 import DrillModal from '../../uikit/composite/DrillModal';
+import TeamMetricsModal from './components/TeamMetricsModal';
 import { INSIGHT_SCREENSET_ID, IC_DASHBOARD_SCREEN_ID, TEAM_VIEW_SCREEN_ID } from '../../ids';
 import { getInitials } from '../../utils/getInitials';
 import type { CustomRange } from '../../types';
@@ -85,28 +87,38 @@ const TeamViewScreen: React.FC = () => {
   const loading = useAppSelector(selectTeamViewLoading);
   const allMembers = useAppSelector(selectMembers);
   const [directReportsOnly, setDirectReportsOnly] = useState(true);
-  // Team Lead sees their own data via "My Dashboard" — exclude from the team table.
-  // When "Direct reports only" toggle is on, narrow to people whose supervisor_email
-  // matches the current user (for managers) or the current user's own supervisor
-  // (siblings in same team, for ICs).
-  const baseMembers = currentUser.role === 'team_lead'
-    ? allMembers.filter((m) => m.person_id !== currentUser.personId)
-    : allMembers;
-  // `teamId` is either an email (executive drilled into a subordinate's team)
-  // or an org_unit_name string. The direct-reports anchor is:
-  //  - the email itself, when teamId is an email;
-  //  - the team_lead's own email, when viewing their own department;
-  //  - none (executive browsing a flat org_unit), so the checkbox is hidden.
-  const teamOwnerEmail = teamId.includes('@')
-    ? teamId.toLowerCase()
-    : currentUser.role === 'team_lead'
-      ? (currentUser._identity?.email ?? currentUser.personId ?? '').toLowerCase() || null
-      : null;
-  const canFilterDirectReports = teamOwnerEmail !== null;
-  const members = directReportsOnly && teamOwnerEmail
-    ? baseMembers.filter((m) =>
-        (m.supervisor_email ?? '').toLowerCase() === teamOwnerEmail,
-      )
+  const [metricsModalOpen, setMetricsModalOpen] = useState(false);
+
+  // Resolve the IR pivot — the node in the current user's IR tree the team
+  // view is anchored to. Roster (and the sidebar menu) are both derived from
+  // this node's subtree, guaranteeing the two surfaces show the same people.
+  //  - email teamId → drill target node anywhere in the tree
+  //  - own department teamId (managerial roles) → viewer is the pivot,
+  //    roster = their entire subtree
+  const pivot = useMemo(() => {
+    const tree = currentUser._identity ?? null;
+    if (!tree) return null;
+    if (teamId.includes('@')) return findIdentityNode(tree, teamId);
+    const isManager = currentUser.role === 'team_lead' || currentUser.role === 'executive';
+    if (isManager && teamId === tree.department) return tree;
+    return null;
+  }, [currentUser._identity, currentUser.role, teamId]);
+
+  const roster = useMemo(
+    () => (pivot ? flattenSubordinates(pivot) : null),
+    [pivot],
+  );
+
+  // Direct-reports filter: roster carries the `is_direct` flag straight from
+  // the IR tree, so the analytics-side `supervisor_email` check is no longer
+  // needed for the toggle to be authoritative.
+  const baseMembers = allMembers;
+  const canFilterDirectReports = roster !== null;
+  const members = canFilterDirectReports && directReportsOnly && roster
+    ? baseMembers.filter((m) => {
+        const entry = roster.find((r) => r.email.toLowerCase() === m.person_id.toLowerCase());
+        return entry?.is_direct === true;
+      })
     : baseMembers;
   const storeTeamKpis = useAppSelector(selectTeamKpis);
   // Recompute KPIs client-side over the currently visible members set. When the
@@ -130,8 +142,14 @@ const TeamViewScreen: React.FC = () => {
 
   useEffect(() => {
     if (!teamId) return;
-    loadTeamView(teamId, period, resolveDateRange(period, customRange));
-  }, [teamId, period, customRange]);
+    loadTeamView(
+      teamId,
+      period,
+      resolveDateRange(period, customRange),
+      roster,
+      pivot?.display_name ?? null,
+    );
+  }, [teamId, period, customRange, roster, pivot]);
 
   const handleNavigateToIc = (personId: string): void => {
     selectIcPerson(personId);
@@ -145,10 +163,6 @@ const TeamViewScreen: React.FC = () => {
   const handleDrillClick = (drillId: string): void => {
     if (!teamId) return;
     openTeamDrill({ kind: 'team', teamId, drillId });
-  };
-
-  const handleMembersDrill = (): void => {
-    handleDrillClick('team-members');
   };
 
   const handleCellDrill = (personId: string, drillId: string): void => {
@@ -229,8 +243,15 @@ const TeamViewScreen: React.FC = () => {
         columnThresholds={teamViewConfig?.column_thresholds ?? []}
         loading={loading}
         onRowClick={handleNavigateToIc}
-        onDetailsDrill={handleMembersDrill}
         onCellDrill={handleCellDrill}
+        onViewAllStats={members.length > 0 ? () => setMetricsModalOpen(true) : undefined}
+      />
+
+      <TeamMetricsModal
+        open={metricsModalOpen}
+        onClose={() => setMetricsModalOpen(false)}
+        members={members}
+        range={resolveDateRange(period, customRange)}
       />
 
       <TeamBulletSections

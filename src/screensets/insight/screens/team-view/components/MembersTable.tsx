@@ -14,8 +14,8 @@ export interface MembersTableProps {
   columnThresholds: ColumnThreshold[];
   loading: boolean;
   onRowClick: (personId: string) => void;
-  onDetailsDrill?: () => void;
   onCellDrill?: (personId: string, drillId: string) => void;
+  onViewAllStats?: () => void;
 }
 
 // Threshold lookup returns null when the key isn't configured — callers
@@ -92,7 +92,7 @@ const SkeletonRow: React.FC<{ count: number }> = ({ count }) => (
   </TableRow>
 );
 
-export const MembersTable: React.FC<MembersTableProps> = ({ members, columnThresholds, loading, onRowClick, onDetailsDrill, onCellDrill }) => {
+export const MembersTable: React.FC<MembersTableProps> = ({ members, columnThresholds, loading, onRowClick, onCellDrill, onViewAllStats }) => {
   const drill = (personId: string, drillId: string) => (e: React.MouseEvent) => {
     e.stopPropagation();
     onCellDrill?.(personId, drillId);
@@ -108,8 +108,8 @@ export const MembersTable: React.FC<MembersTableProps> = ({ members, columnThres
     <div className="px-4 pt-3.5 pb-3 border-b border-gray-200 flex items-center justify-between">
       <span className="text-sm font-bold text-gray-900">Team Members</span>
       <div className="flex items-center gap-3">
-        {onDetailsDrill && (
-          <Button variant="ghost" size="sm" onClick={onDetailsDrill} className="h-auto p-0 text-xs font-medium text-blue-600 hover:text-blue-700">
+        {onViewAllStats && (
+          <Button variant="ghost" size="sm" onClick={onViewAllStats} className="h-auto p-0 text-xs font-medium text-blue-600 hover:text-blue-700">
             View team stats ↗
           </Button>
         )}

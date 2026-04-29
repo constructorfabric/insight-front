@@ -20,6 +20,7 @@ import type {
   TeamMember,
   TeamViewData,
   DrillData,
+  ODataResponse,
 } from '../types';
 import type { RawTeamMemberRow, RawBulletAggregateRow, RawDrillRow } from '../api/rawTypes';
 import {
@@ -99,47 +100,119 @@ export function deriveTeamKpis(members: TeamMember[], period: PeriodValue) {
 // Action
 // ---------------------------------------------------------------------------
 
-export const loadTeamView = (teamId: string, period: PeriodValue, range: DateRange): void => {
+/**
+ * Roster entry passed in from the screen — derived from the IR subtree so the
+ * team-view shows the same people the sidebar menu does. When `null`, the
+ * action falls back to the legacy org_unit_id flow (executive viewing a
+ * department-string `org_unit_name` for which no IR subtree is loaded).
+ */
+export interface TeamRosterEntry {
+  email: string;
+  display_name: string;
+  supervisor_email: string | null;
+}
+
+const buildSyntheticMember = (entry: TeamRosterEntry, period: PeriodValue): TeamMember => ({
+  person_id: entry.email,
+  period,
+  name: entry.display_name,
+  seniority: '',
+  supervisor_email: entry.supervisor_email,
+  tasks_closed: 0,
+  bugs_fixed: 0,
+  dev_time_h: null,
+  prs_merged: null,
+  build_success_pct: null,
+  focus_time_pct: null,
+  ai_tools: [],
+  ai_loc_share_pct: null,
+});
+
+export const loadTeamView = (
+  teamId: string,
+  period: PeriodValue,
+  range: DateRange,
+  roster: TeamRosterEntry[] | null,
+  pivotDisplayName: string | null,
+): void => {
   eventBus.emit(TeamViewEvents.TeamViewLoadStarted);
 
   const api        = apiRegistry.getService(InsightApiService);
   const connectors = apiRegistry.getService(ConnectorManagerService);
 
-  // Lowercase org_unit_id only when it's an email (executive drilled into a
-  // subordinate's person_subtree — analytics stores those as lowercase).
-  // Real org_unit_name strings ("VZ - R&D - Engineering") are kept verbatim.
-  const teamIdNormalized = teamId.includes('@') ? teamId.toLowerCase() : teamId;
-  const teamFilter = `org_unit_id eq '${odataEscapeValue(teamIdNormalized)}' and ${odataDateFilter(range)}`;
+  // Bullet metrics still aggregate at org_unit level — known residual: when
+  // pivot is an email (executive drilldown), these will return empty until
+  // bullets are migrated to the IR-roster path.
+  const dateFilter = odataDateFilter(range);
+  const bulletScope = teamId.includes('@') ? teamId.toLowerCase() : teamId;
+  const bulletFilter = `org_unit_id eq '${odataEscapeValue(bulletScope)}' and ${dateFilter}`;
+
+  // Roster mode: fetch metrics per person from the IR-derived list. Missing
+  // analytics rows render as synthetic empties so headcount stays accurate.
+  // Fallback (roster=null): legacy org_unit_id query — only path remaining is
+  // an executive viewing a department-string org_unit.
+  const memberQueries: Promise<ODataResponse<RawTeamMemberRow>>[] = roster
+    ? roster.map((r) =>
+        api.queryMetric<RawTeamMemberRow>(METRIC_REGISTRY.TEAM_MEMBER, {
+          $filter: `person_id eq '${odataEscapeValue(r.email.toLowerCase())}' and ${dateFilter}`,
+          $top:    1,
+        }),
+      )
+    : [
+        api.queryMetric<RawTeamMemberRow>(METRIC_REGISTRY.TEAM_MEMBER, {
+          $filter:  bulletFilter,
+          $orderby: 'display_name asc',
+          $top:     200,
+        }),
+      ];
 
   void Promise.allSettled([
-    api.queryMetric<RawTeamMemberRow>(METRIC_REGISTRY.TEAM_MEMBER, {
-      $filter:  teamFilter,
-      $orderby: 'display_name asc',
-      $top:     200,
-    }),
-    api.queryMetric<RawBulletAggregateRow>(METRIC_REGISTRY.TEAM_BULLET_DELIVERY, { $filter: teamFilter }),
-    api.queryMetric<RawBulletAggregateRow>(METRIC_REGISTRY.TEAM_BULLET_QUALITY,  { $filter: teamFilter }),
-    api.queryMetric<RawBulletAggregateRow>(METRIC_REGISTRY.TEAM_BULLET_COLLAB,   { $filter: teamFilter }),
-    api.queryMetric<RawBulletAggregateRow>(METRIC_REGISTRY.TEAM_BULLET_AI,       { $filter: teamFilter }),
+    Promise.allSettled(memberQueries),
+    api.queryMetric<RawBulletAggregateRow>(METRIC_REGISTRY.TEAM_BULLET_DELIVERY, { $filter: bulletFilter }),
+    api.queryMetric<RawBulletAggregateRow>(METRIC_REGISTRY.TEAM_BULLET_QUALITY,  { $filter: bulletFilter }),
+    api.queryMetric<RawBulletAggregateRow>(METRIC_REGISTRY.TEAM_BULLET_COLLAB,   { $filter: bulletFilter }),
+    api.queryMetric<RawBulletAggregateRow>(METRIC_REGISTRY.TEAM_BULLET_AI,       { $filter: bulletFilter }),
     connectors.getDataAvailability(),
   ])
-    .then(([membersResult, deliveryResult, qualityResult, collabResult, aiResult, availResult]) => {
-      const membersResp  = settled(membersResult,  emptyOdata<RawTeamMemberRow>(),        'TEAM_MEMBER');
+    .then(([memberResultsSettled, deliveryResult, qualityResult, collabResult, aiResult, availResult]) => {
+      const memberResults = memberResultsSettled.status === 'fulfilled'
+        ? memberResultsSettled.value
+        : [];
       const deliveryResp = settled(deliveryResult,  emptyOdata<RawBulletAggregateRow>(),   'TEAM_BULLET_DELIVERY');
       const qualityResp  = settled(qualityResult,   emptyOdata<RawBulletAggregateRow>(),   'TEAM_BULLET_QUALITY');
       const collabResp   = settled(collabResult,    emptyOdata<RawBulletAggregateRow>(),   'TEAM_BULLET_COLLAB');
       const aiResp       = settled(aiResult,        emptyOdata<RawBulletAggregateRow>(),   'TEAM_BULLET_AI');
 
-      const members = transformTeamMembers(membersResp.items, period);
-      // Pass team headcount so member-scale AI bullets (active_ai_members etc.)
-      // show "N / headcount" with the range scaled to team size instead of the
-      // old hardcoded "/ 12". When the TEAM_MEMBER query was truncated (team
-      // larger than `$top: 200`), `members.length` is capped at 200 — do NOT
-      // use it as denominator; fall back to `undefined` so transformBulletMetrics
-      // renders member-scale bullets as ComingSoon instead of a fake "/ 200".
-      const teamSize = membersResp.page_info.has_next
-        ? undefined
-        : (members.length || undefined);
+      // Collect all returned analytics rows by lowercase person_id.
+      const rowByEmail = new Map<string, RawTeamMemberRow>();
+      let hasNext = false;
+      for (const r of memberResults) {
+        const resp = settled(r, emptyOdata<RawTeamMemberRow>(), 'TEAM_MEMBER');
+        if (resp.page_info.has_next) hasNext = true;
+        for (const row of resp.items) {
+          rowByEmail.set(row.person_id.toLowerCase(), row);
+        }
+      }
+
+      let members: TeamMember[];
+      if (roster) {
+        members = roster.map((entry) => {
+          const row = rowByEmail.get(entry.email.toLowerCase());
+          if (row) return transformTeamMembers([row], period)[0]!;
+          return buildSyntheticMember(entry, period);
+        });
+        members.sort((a, b) => a.name.localeCompare(b.name));
+      } else {
+        members = transformTeamMembers(Array.from(rowByEmail.values()), period);
+        members.sort((a, b) => a.name.localeCompare(b.name));
+      }
+
+      // Headcount drives member-scale AI bullets. In roster mode the count is
+      // authoritative (IR truth); in fallback mode `has_next` means the org
+      // exceeded $top: 200 and we cannot trust the visible count.
+      const teamSize = roster
+        ? (members.length || undefined)
+        : (hasNext ? undefined : (members.length || undefined));
 
       const bulletSections = [
         { id: 'task_delivery',  title: 'Task Delivery',  metrics: transformBulletMetrics(deliveryResp.items, 'task_delivery', period, undefined, 'team') },
@@ -148,7 +221,7 @@ export const loadTeamView = (teamId: string, period: PeriodValue, range: DateRan
         { id: 'ai_adoption',    title: 'AI Adoption',    metrics: transformBulletMetrics(aiResp.items,       'ai_adoption',   period, teamSize, 'team') },
       ].filter((s) => s.metrics.length > 0);
 
-      const teamName = teamId.charAt(0).toUpperCase() + teamId.slice(1);
+      const teamName = pivotDisplayName ?? (teamId.charAt(0).toUpperCase() + teamId.slice(1));
 
       const data: TeamViewData = {
         teamName,
