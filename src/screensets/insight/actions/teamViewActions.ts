@@ -196,12 +196,13 @@ export const loadTeamView = (
 
       let members: TeamMember[];
       if (roster) {
+        // Preserve roster order (IR DFS) so the table matches the sidebar
+        // tree the viewer just navigated through.
         members = roster.map((entry) => {
           const row = rowByEmail.get(entry.email.toLowerCase());
           if (row) return transformTeamMembers([row], period)[0]!;
           return buildSyntheticMember(entry, period);
         });
-        members.sort((a, b) => a.name.localeCompare(b.name));
       } else {
         members = transformTeamMembers(Array.from(rowByEmail.values()), period);
         members.sort((a, b) => a.name.localeCompare(b.name));

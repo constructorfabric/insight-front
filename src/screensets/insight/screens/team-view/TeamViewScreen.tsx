@@ -114,11 +114,12 @@ const TeamViewScreen: React.FC = () => {
   // needed for the toggle to be authoritative.
   const baseMembers = allMembers;
   const canFilterDirectReports = roster !== null;
-  const members = canFilterDirectReports && directReportsOnly && roster
-    ? baseMembers.filter((m) => {
-        const entry = roster.find((r) => r.email.toLowerCase() === m.person_id.toLowerCase());
-        return entry?.is_direct === true;
-      })
+  const directReportEmails = useMemo(() => {
+    if (!roster) return null;
+    return new Set(roster.filter((r) => r.is_direct).map((r) => r.email.toLowerCase()));
+  }, [roster]);
+  const members = canFilterDirectReports && directReportsOnly && directReportEmails
+    ? baseMembers.filter((m) => directReportEmails.has(m.person_id.toLowerCase()))
     : baseMembers;
   const storeTeamKpis = useAppSelector(selectTeamKpis);
   // Recompute KPIs client-side over the currently visible members set. When the
@@ -244,12 +245,12 @@ const TeamViewScreen: React.FC = () => {
         loading={loading}
         onRowClick={handleNavigateToIc}
         onCellDrill={handleCellDrill}
-        onViewAllStats={members.length > 0 ? () => setMetricsModalOpen(true) : undefined}
+        onViewAllStats={members.length > 0 ? () => { setMetricsModalOpen(true); } : undefined}
       />
 
       <TeamMetricsModal
         open={metricsModalOpen}
-        onClose={() => setMetricsModalOpen(false)}
+        onClose={() => { setMetricsModalOpen(false); }}
         members={members}
         range={resolveDateRange(period, customRange)}
       />

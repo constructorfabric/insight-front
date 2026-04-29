@@ -90,6 +90,7 @@ const TeamMetricsModal: React.FC<TeamMetricsModalProps> = ({ open, onClose, memb
 
   useEffect(() => {
     if (!open || members.length === 0) {
+      setLoading(false);
       setCells(new Map());
       setColumns([]);
       return;
