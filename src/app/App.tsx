@@ -29,7 +29,6 @@
 
 import { AppRouter } from '@hai3/react';
 import { Layout } from '@/app/layout';
-import { StudioOverlay } from '@hai3/studio';
 
 function App() {
   return (
@@ -37,7 +36,6 @@ function App() {
       <Layout>
         <AppRouter />
       </Layout>
-      <StudioOverlay />
     </>
   );
 }
