@@ -4,13 +4,15 @@
  * No state imports.
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@hai3/uikit';
+import useLocalStorage from '../../hooks/useLocalStorage';
 
 export interface CollapsibleSectionProps {
   title: string;
   subtitle?: string;
   defaultOpen?: boolean;
+  storageKey?: string;
   children: React.ReactNode;
 }
 
@@ -18,9 +20,10 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
   title,
   subtitle,
   defaultOpen = false,
+  storageKey,
   children,
 }) => {
-  const [open, setOpen] = useState(defaultOpen);
+  const [open, setOpen] = useLocalStorage(storageKey, defaultOpen);
 
   return (
     <Collapsible

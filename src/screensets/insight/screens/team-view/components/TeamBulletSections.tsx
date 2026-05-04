@@ -125,7 +125,7 @@ const AiAdoptionSection: React.FC<{ metrics: BulletMetric[]; onDrillClick?: (id:
   const leftMetrics = filterBulletsByLayoutGroup(metrics, 'ai_members');
   const rightMetrics = AI_RIGHT_GROUPS.flatMap((g) => filterBulletsByLayoutGroup(metrics, g));
   return (
-    <CollapsibleSection title="AI Adoption" defaultOpen={false}>
+    <CollapsibleSection title="AI Adoption" defaultOpen={false} storageKey="insight:team-view:ai-adoption">
       <div className="px-4 py-3">
         <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2.5">Cursor · Claude Code · Codex</div>
         <Legend />
@@ -168,7 +168,7 @@ const CollaborationSection: React.FC<{ metrics: BulletMetric[]; onDrillClick?: (
   }
 
   return (
-    <CollapsibleSection title="Collaboration" defaultOpen={false}>
+    <CollapsibleSection title="Collaboration" defaultOpen={false} storageKey="insight:team-view:collaboration">
       <div className="px-4 py-3">
         <Legend />
         <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-3.5 gap-y-2">

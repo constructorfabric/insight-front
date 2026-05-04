@@ -278,6 +278,7 @@ const IcDashboardScreen: React.FC = () => {
       <CollapsibleSection
         title="LOC Breakdown"
         subtitle="Bitbucket · lines added per period · AI-assisted vs manual vs spec/config"
+        storageKey="insight:ic-dashboard:loc-breakdown"
       >
         <div className="p-4">
           {locTrendStatus === 'loading' && charts.locTrend.length === 0 ? (
@@ -296,6 +297,7 @@ const IcDashboardScreen: React.FC = () => {
       <CollapsibleSection
         title="Delivery Trends"
         subtitle="Jira + Bitbucket · activity counts · Commits, PRs and Tasks are independent signals — not directly comparable"
+        storageKey="insight:ic-dashboard:delivery-trends"
       >
         <div className="p-4">
           {deliveryTrendStatus === 'loading' && charts.deliveryTrend.length === 0 ? (
@@ -311,7 +313,7 @@ const IcDashboardScreen: React.FC = () => {
       </CollapsibleSection>
 
       {/* 7. AI Dev Tools & AI Chat */}
-      <CollapsibleSection title="AI Dev Tools & AI Chat">
+      <CollapsibleSection title="AI Dev Tools & AI Chat" storageKey="insight:ic-dashboard:ai-tools">
         {aiAdoptionStatus === 'loading' && aiToolsMetrics.length === 0 ? (
           <div className="p-4"><ComingSoon variant="card" state="loading" /></div>
         ) : aiAdoptionStatus === 'errored' ? (
@@ -329,7 +331,7 @@ const IcDashboardScreen: React.FC = () => {
       </CollapsibleSection>
 
       {/* 8. Collaboration */}
-      <CollapsibleSection title="Collaboration">
+      <CollapsibleSection title="Collaboration" storageKey="insight:ic-dashboard:collaboration">
         {collaborationStatus === 'loading' && collabMetrics.length === 0 ? (
           <div className="p-4"><ComingSoon variant="card" state="loading" /></div>
         ) : collaborationStatus === 'errored' ? (
