@@ -27,10 +27,31 @@
  * - AuthPlugin handles token injection and 401 → re-auth
  */
 
-import { AppRouter } from '@hai3/react';
+import { useEffect } from 'react';
+import { AppRouter, useNavigation } from '@hai3/react';
 import { Layout } from '@/app/layout';
+import {
+  INSIGHT_SCREENSET_ID,
+  EXECUTIVE_VIEW_SCREEN_ID,
+  MY_DASHBOARD_SCREEN_ID,
+} from '@/screensets/insight/ids';
 
 function App() {
+  // Org overview (executive-view) hidden in prod until data quality lands —
+  // issue #359. Catches deep links / bookmarks / history that resolve to
+  // the screen and bounces them to the personal dashboard. Dev mode keeps
+  // direct URL access so the screen stays demoable while disabled.
+  const { currentScreen, currentScreenset, navigateToScreen } = useNavigation();
+  useEffect(() => {
+    if (import.meta.env.DEV) return;
+    if (
+      currentScreenset === INSIGHT_SCREENSET_ID &&
+      currentScreen === EXECUTIVE_VIEW_SCREEN_ID
+    ) {
+      navigateToScreen(INSIGHT_SCREENSET_ID, MY_DASHBOARD_SCREEN_ID);
+    }
+  }, [currentScreen, currentScreenset, navigateToScreen]);
+
   return (
     <>
       <Layout>

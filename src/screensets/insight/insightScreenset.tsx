@@ -122,7 +122,7 @@ export const insightScreenset: ScreensetConfig = {
   id: INSIGHT_SCREENSET_ID,
   name: 'insight',
   category: ScreensetCategory.Production,
-  defaultScreen: EXECUTIVE_VIEW_SCREEN_ID,
+  defaultScreen: MY_DASHBOARD_SCREEN_ID,
   menu: [
     {
       menuItem: {

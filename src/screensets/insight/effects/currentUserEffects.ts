@@ -14,7 +14,6 @@ import type { CurrentUser } from '../types';
 import type { IdentityPerson } from '@/app/types/identity';
 import {
   INSIGHT_SCREENSET_ID,
-  EXECUTIVE_VIEW_SCREEN_ID,
   TEAM_VIEW_SCREEN_ID,
   IC_DASHBOARD_SCREEN_ID,
   MY_DASHBOARD_SCREEN_ID,
@@ -75,10 +74,10 @@ function buildMenuFromIdentity(user: CurrentUser) {
       // Encode the executive's department so clicking this group actually
       // emits a typed selection (org_unit_name) — otherwise a previously
       // selected subordinate team stays active after navigation.
+      // Org overview (executive-view) intentionally hidden — see issue #359.
       const deptItemId = encodeMenuItemId(TEAM_VIEW_SCREEN_ID, identity.department);
       return [
         myDashItem,
-        { id: EXECUTIVE_VIEW_SCREEN_ID, label: menuKey('executive-view'), icon: 'lucide:building-2' },
         ...(subordinateItems.length > 0
           ? [{
               id: deptItemId,
