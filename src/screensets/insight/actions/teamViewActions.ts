@@ -1,35 +1,23 @@
 /**
  * Team View Actions
  *
- * Queries the Analytics API for team member rows and bullet section metrics,
- * then assembles TeamViewData from the responses.
- * Also fetches data_availability via ConnectorManagerService.
- *
- * Each section runs its own pipeline and emits its own
- * TeamViewSectionLoading / TeamViewSectionLoaded / TeamViewSectionFailed
- * events. A slow section never blocks the rendering of the others.
+ * Post-migration: the screen reads server data through TanStack React Query
+ * (`queries/team.ts`). This module keeps only the drill flow (imperative
+ * from cell-click handlers) and the synchronous KPI derivation used by the
+ * screen to compose the hero strip.
  *
  * Spec: analytics-views-api.md §4.2
  */
 
 import { eventBus, apiRegistry } from '@hai3/react';
-import { TeamViewEvents, type TeamViewSectionData } from '../events/teamViewEvents';
+import { TeamViewEvents } from '../events/teamViewEvents';
 import { InsightApiService } from '../api/insightApiService';
-import { ConnectorManagerService } from '../api/connectorManagerService';
 import { METRIC_REGISTRY } from '../api/metricRegistry';
 import { odataEscapeValue, type DateRange } from '../utils/periodToDateRange';
-import { transformTeamMembers, transformBulletMetrics, transformDrill } from '../api/transforms';
-import type {
-  PeriodValue,
-  TeamMember,
-  DrillData,
-  ODataResponse,
-} from '../types';
-import type { RawTeamMemberRow, RawBulletAggregateRow, RawDrillRow } from '../api/rawTypes';
-import {
-  TEAM_KPIS_BY_PERIOD,
-  TEAM_VIEW_CONFIG,
-} from '../api/viewConfigs';
+import { transformDrill } from '../api/transforms';
+import type { PeriodValue, TeamMember, DrillData } from '../types';
+import type { RawDrillRow } from '../api/rawTypes';
+import { TEAM_KPIS_BY_PERIOD, TEAM_VIEW_CONFIG } from '../api/viewConfigs';
 import { teamHealthStatus } from '../api/metricSemantics';
 
 // ---------------------------------------------------------------------------
@@ -97,179 +85,6 @@ export function deriveTeamKpis(members: TeamMember[], period: PeriodValue) {
     return k;
   });
 }
-
-// ---------------------------------------------------------------------------
-// Action
-// ---------------------------------------------------------------------------
-
-/**
- * Roster entry passed in from the screen — derived from the IR subtree so the
- * team-view shows the same people the sidebar menu does. When `null`, the
- * action falls back to the legacy org_unit_id flow (executive viewing a
- * department-string `org_unit_name` for which no IR subtree is loaded).
- */
-export interface TeamRosterEntry {
-  email: string;
-  display_name: string;
-  supervisor_email: string | null;
-}
-
-const buildSyntheticMember = (entry: TeamRosterEntry, period: PeriodValue): TeamMember => ({
-  person_id: entry.email,
-  period,
-  name: entry.display_name,
-  seniority: '',
-  supervisor_email: entry.supervisor_email,
-  tasks_closed: 0,
-  bugs_fixed: 0,
-  dev_time_h: null,
-  prs_merged: null,
-  build_success_pct: null,
-  focus_time_pct: null,
-  ai_tools: [],
-  ai_loc_share_pct: null,
-});
-
-// Per-section runner: emits Loading, then Loaded on success / Failed on
-// rejection. Sections are independent — one slow query never blocks others.
-function runSection(
-  sectionId: string,
-  pipeline: () => Promise<TeamViewSectionData>,
-): void {
-  eventBus.emit(TeamViewEvents.TeamViewSectionLoading, { sectionId });
-  void pipeline()
-    .then((data) => {
-      eventBus.emit(TeamViewEvents.TeamViewSectionLoaded, { sectionId, data });
-    })
-    .catch((err: unknown) => {
-      eventBus.emit(TeamViewEvents.TeamViewSectionFailed, {
-        sectionId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    });
-}
-
-export const loadTeamView = (
-  teamId: string,
-  period: PeriodValue,
-  range: DateRange,
-  roster: TeamRosterEntry[] | null,
-  pivotDisplayName: string | null,
-  reason: 'team' | 'period' = 'team',
-): void => {
-  eventBus.emit(TeamViewEvents.TeamViewLoadStarted, { reason });
-
-  const api        = apiRegistry.getService(InsightApiService);
-  const connectors = apiRegistry.getService(ConnectorManagerService);
-
-  // Bullet metrics still aggregate at org_unit level — known residual: when
-  // pivot is an email (executive drilldown), these will return empty until
-  // bullets are migrated to the IR-roster path.
-  const bulletScope = teamId.includes('@') ? teamId.toLowerCase() : teamId;
-  const teamScope = `org_unit_id eq '${odataEscapeValue(bulletScope)}'`;
-
-  // ---- Section: team_summary (synchronous — name + static config) ---------
-  // Rendered immediately so the screen header is never empty waiting for
-  // members. teamKpis come from the members section once it lands.
-  const teamName = pivotDisplayName ?? (teamId.charAt(0).toUpperCase() + teamId.slice(1));
-  runSection('team_summary', () => Promise.resolve({
-    kind: 'team_summary',
-    teamName,
-    teamKpis: [],
-    config: TEAM_VIEW_CONFIG,
-  }));
-
-  // ---- Availability (best-effort) -----------------------------------------
-  void connectors.getDataAvailability()
-    .then((availability) => {
-      eventBus.emit(TeamViewEvents.TeamViewAvailabilityLoaded, availability);
-    })
-    .catch(() => {
-      // swallow — availability is informational
-    });
-
-  // ---- Section: members (per-person or bulk) ------------------------------
-  // Roster mode: fetch metrics per person from the IR-derived list. Missing
-  // analytics rows render as synthetic empties so headcount stays accurate.
-  // Fallback (roster=null): legacy org_unit_id query — only path remaining is
-  // an executive viewing a department-string org_unit.
-  const memberQueries: Promise<ODataResponse<RawTeamMemberRow>>[] = roster
-    ? roster.map((r) =>
-        api.queryMetric<RawTeamMemberRow>(METRIC_REGISTRY.TEAM_MEMBER, range, {
-          $filter: `person_id eq '${odataEscapeValue(r.email.toLowerCase())}'`,
-          $top:    1,
-        }),
-      )
-    : [
-        api.queryMetric<RawTeamMemberRow>(METRIC_REGISTRY.TEAM_MEMBER, range, {
-          $filter:  teamScope,
-          $orderby: 'display_name asc',
-          $top:     200,
-        }),
-      ];
-
-  runSection('members', () =>
-    // allSettled inside the section: one missing person row shouldn't fail
-    // the whole roster — synthetic entries cover the gaps. The section only
-    // fails (and shows Retry) when *every* per-person query rejects, which
-    // is unlikely outside a total backend outage.
-    Promise.allSettled(memberQueries).then((settledResults) => {
-      const fulfilled = settledResults.filter(
-        (r): r is PromiseFulfilledResult<ODataResponse<RawTeamMemberRow>> => r.status === 'fulfilled',
-      );
-      if (settledResults.length > 0 && fulfilled.length === 0) {
-        // Total failure — surface as section error so the table renders Retry.
-        throw new Error('TEAM_MEMBER queries all rejected');
-      }
-
-      const rowByEmail = new Map<string, RawTeamMemberRow>();
-      for (const resp of fulfilled) {
-        for (const row of resp.value.items) {
-          rowByEmail.set(row.person_id.toLowerCase(), row);
-        }
-      }
-
-      let members: TeamMember[];
-      if (roster) {
-        // Preserve roster order (IR DFS) so the table matches the sidebar
-        // tree the viewer just navigated through.
-        members = roster.map((entry) => {
-          const row = rowByEmail.get(entry.email.toLowerCase());
-          if (row) return transformTeamMembers([row], period)[0]!;
-          return buildSyntheticMember(entry, period);
-        });
-      } else {
-        members = transformTeamMembers(Array.from(rowByEmail.values()), period);
-        members.sort((a, b) => a.name.localeCompare(b.name));
-      }
-
-      return { kind: 'members', members };
-    }),
-  );
-
-  // ---- Bullet sections (independent) --------------------------------------
-  // Best-effort teamSize from roster when available — IR pivot mode supplies
-  // it synchronously. Fallback path (legacy org_unit_id query) leaves it
-  // undefined, and member-scale bullets render as `unavailable` until the
-  // upstream slice re-derivation lands. Mock mode always has a roster, so
-  // member-scale AI bullets get their headcount denominator immediately.
-  const teamSize = roster?.length;
-  const bulletSection = (sectionId: string, registryKey: keyof typeof METRIC_REGISTRY): void => {
-    runSection(sectionId, () =>
-      api.queryMetric<RawBulletAggregateRow>(METRIC_REGISTRY[registryKey], range, { $filter: teamScope })
-        .then((resp) => ({
-          kind: 'bullet',
-          sectionId,
-          metrics: transformBulletMetrics(resp.items, sectionId, period, teamSize, 'team'),
-        })),
-    );
-  };
-
-  bulletSection('task_delivery', 'TEAM_BULLET_DELIVERY');
-  bulletSection('code_quality',  'TEAM_BULLET_QUALITY');
-  bulletSection('collaboration', 'TEAM_BULLET_COLLAB');
-  bulletSection('ai_adoption',   'TEAM_BULLET_AI');
-};
 
 // ---------------------------------------------------------------------------
 // Drill — redux-managed (team / member / cell)

@@ -15,6 +15,7 @@ version: 1.0
   - [ID Constants](#id-constants)
   - [Slice Keys](#slice-keys)
   - [Event Keys](#event-keys)
+  - [Query Files & Hook Names](#query-files--hook-names)
 - [Imports](#imports)
   - [Import Order](#import-order)
   - [Type Imports](#type-imports)
@@ -47,6 +48,10 @@ Evidence: `src/screensets/insight/slices/executiveViewSlice.ts:12`, `src/app/sli
 ### Event Keys
 Event keys follow `${APP_OR_SCREENSET_ID}/${DOMAIN_ID}/eventName` pattern. Declare as const object, not enum.
 Evidence: `src/app/events/authEvents.ts:11-15`, `src/screensets/insight/events/executiveViewEvents.ts:15-19`
+
+### Query Files & Hook Names
+Server query factories and consumer hooks live in `src/screensets/{name}/queries/{domain}.ts`. Key factories go in `queries/keys.ts`. Consumer hook naming: `use{Domain}{Resource}` in camelCase (`useTeamMembers`, `useTeamBullets`, `useIdentityByEmail`). The `{domain}Queries` factory object stays in the same file.
+Evidence: `src/screensets/insight/queries/team.ts:75-180`, `src/screensets/insight/queries/keys.ts:19-40`
 
 ## Imports
 

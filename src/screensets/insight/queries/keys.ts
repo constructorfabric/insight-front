@@ -30,3 +30,12 @@ export const identityKeys = {
   all:     ['identity'] as const,
   byEmail: (email: string) => [...identityKeys.all, email] as const,
 };
+
+export const teamKeys = {
+  all:          ['team'] as const,
+  member:       (email: string, range: DateRange)               => [...teamKeys.all, 'member',  email, range]              as const,
+  memberBulk:   (orgScope: string, range: DateRange)            => [...teamKeys.all, 'members', orgScope, range]           as const,
+  bullet:       (sectionId: string, orgScope: string,
+                 range: DateRange)                              => [...teamKeys.all, 'bullet',  sectionId, orgScope, range] as const,
+  availability: ()                                              => [...teamKeys.all, 'availability']                       as const,
+};

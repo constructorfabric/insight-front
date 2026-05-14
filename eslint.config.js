@@ -35,6 +35,7 @@ export default [
       '**/*.cjs',
       'scripts/**',
       'eslint-plugin-local/**', // ESLint plugin is CommonJS, has its own linting
+      '.claude/**',               // local agent worktrees (gitignored, may carry stale code)
     ],
   },
 

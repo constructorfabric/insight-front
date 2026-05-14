@@ -65,6 +65,17 @@
 - FORBIDDEN: Sharing API services between screensets.
 - DETECT: grep -rn "@/api/services" src/
 
+## SERVER DATA FETCHING RULES
+- REQUIRED: Fetch server data through TanStack React Query (`@tanstack/react-query`).
+- REQUIRED: Query factories and consumer hooks live in `src/screensets/{name}/queries/{domain}.ts`; key factories in `queries/keys.ts`.
+- REQUIRED: Components/screens consume `use{Domain}{Resource}` hooks from `queries/{domain}.ts` and read `{ data..., status }` from the return value.
+- FORBIDDEN: Direct imports of `useQuery`, `useQueries`, `useSuspenseQuery`, or `queryOptions` from `@tanstack/react-query` outside `src/screensets/**/queries/**`.
+- FORBIDDEN: Inline `queryKey` tuples — always go through `{domain}Keys.{name}(...)`.
+- FORBIDDEN: Storing server-fetched lists/aggregates in Redux slices. Slices keep UI-only state (drill modals, period selection, view mode, current user).
+- REQUIRED: Each query factory sets `staleTime`/`gcTime` explicitly when overriding the app-wide default; analytics screens currently use `staleTime: Infinity, gcTime: 0` (cache only while screen mounted).
+- DETECT: grep -rn "from '@tanstack/react-query'" src/screensets | grep -v "/queries/"
+- DETECT: grep -rn "queryKey:\s*\[" src/screensets | grep -v "/queries/keys.ts"
+
 ## ICON RULES
 - REQUIRED: Menu item icons use Iconify string IDs (e.g., "lucide:home", "lucide:globe").
 - REQUIRED: Icon strings in menu config (e.g., menuItem: { icon: "lucide:palette" }).

@@ -1,33 +1,39 @@
 /**
  * Team View Screen
  * Orchestration-only: no inline components, no inline data arrays.
+ *
+ * Server data is consumed through the `useTeamMembers` / `useTeamBullets`
+ * hooks in `queries/team.ts`. The screen does not see React Query at all —
+ * it asks the hook for `members` and a section status, and renders them.
+ * That mirrors the RTK Query consumer ergonomic.
+ *
+ * Cache lifetime is bound to the screen — `staleTime: Infinity, gcTime: 0`
+ * inside the hook factories — so a navigation away clears everything and a
+ * return refetches from scratch.
+ *
+ * Redux still owns UI-only state (drill modal, period selection, current
+ * user). The migration only moved server cache out.
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useAppSelector, useNavigation, useScreenTranslations, useTranslation, I18nRegistry, Language } from '@hai3/react';
 import { usePeriod } from '../../hooks/usePeriod';
-import { loadTeamView, deriveTeamKpis, openTeamDrill, closeTeamDrill } from '../../actions/teamViewActions';
+import { deriveTeamKpis, openTeamDrill, closeTeamDrill } from '../../actions/teamViewActions';
 import { selectIcPerson } from '../../actions/icDashboardActions';
 import { changePeriod, setDateRange } from '../../actions/periodActions';
 import { changeViewMode } from '../../actions/insightUiActions';
 import {
-  selectMembers,
-  selectTeamKpis,
-  selectBulletSections,
-  selectTeamName,
-  selectTeamViewConfig,
   selectSelectedTeamId,
   selectTeamDrillId,
   selectTeamDrillData,
-  selectTeamSectionStatus,
-  selectTeamSectionError,
-  type SectionStatus,
 } from '../../slices/teamViewSlice';
 import { selectCurrentUser } from '../../slices/currentUserSlice';
 import { selectCustomRange } from '../../slices/periodSlice';
 import { selectInsightViewMode } from '../../slices/insightUiSlice';
 import { resolveDateRange } from '../../utils/periodToDateRange';
 import { findIdentityNode, flattenSubordinates } from '../../utils/identityTree';
+import { useTeamMembers, useTeamBullets } from '../../queries/team';
+import { TEAM_VIEW_CONFIG } from '../../api/viewConfigs';
 import { TeamHeroStrip } from './components/TeamHeroStrip';
 import { AttentionNeeded } from './components/AttentionNeeded';
 import { MembersTable } from './components/MembersTable';
@@ -86,35 +92,12 @@ const TeamViewScreen: React.FC = () => {
   const customRange = useAppSelector(selectCustomRange);
   const teamId = useAppSelector(selectSelectedTeamId);
   const currentUser = useAppSelector(selectCurrentUser);
-  const membersStatus     = useAppSelector(selectTeamSectionStatus('members'));
-  const teamSummaryStatus = useAppSelector(selectTeamSectionStatus('team_summary'));
-  const taskDeliveryStatus  = useAppSelector(selectTeamSectionStatus('task_delivery'));
-  const codeQualityStatus   = useAppSelector(selectTeamSectionStatus('code_quality'));
-  const collaborationStatus = useAppSelector(selectTeamSectionStatus('collaboration'));
-  const aiAdoptionStatus    = useAppSelector(selectTeamSectionStatus('ai_adoption'));
-  const taskDeliveryError   = useAppSelector(selectTeamSectionError('task_delivery'));
-  const codeQualityError    = useAppSelector(selectTeamSectionError('code_quality'));
-  const collaborationError  = useAppSelector(selectTeamSectionError('collaboration'));
-  const aiAdoptionError     = useAppSelector(selectTeamSectionError('ai_adoption'));
-  const sectionStatus: Record<string, SectionStatus | undefined> = {
-    task_delivery:  taskDeliveryStatus,
-    code_quality:   codeQualityStatus,
-    collaboration:  collaborationStatus,
-    ai_adoption:    aiAdoptionStatus,
-  };
-  const sectionErrors: Record<string, string | undefined> = {
-    task_delivery:  taskDeliveryError,
-    code_quality:   codeQualityError,
-    collaboration:  collaborationError,
-    ai_adoption:    aiAdoptionError,
-  };
-  // `members` and `team_summary` block KPI/MembersTable rendering only;
-  // bullet sections render independently via sectionStatus prop.
-  const membersLoading = membersStatus === 'loading' || membersStatus === undefined;
-  const summaryLoading = teamSummaryStatus === 'loading' || teamSummaryStatus === undefined;
-  const allMembers = useAppSelector(selectMembers);
+  const viewMode = useAppSelector(selectInsightViewMode);
+  const drillId = useAppSelector(selectTeamDrillId);
+  const drillData = useAppSelector(selectTeamDrillData);
   const [directReportsOnly, setDirectReportsOnly] = useState(true);
   const [metricsModalOpen, setMetricsModalOpen] = useState(false);
+  const { navigateToScreen } = useNavigation();
 
   // Resolve the IR pivot — the node in the current user's IR tree the team
   // view is anchored to. Roster (and the sidebar menu) are both derived from
@@ -136,9 +119,31 @@ const TeamViewScreen: React.FC = () => {
     [pivot],
   );
 
-  // Direct-reports filter: roster carries the `is_direct` flag straight from
-  // the IR tree, so the analytics-side `supervisor_email` check is no longer
-  // needed for the toggle to be authoritative.
+  const range = useMemo(
+    () => resolveDateRange(period, customRange),
+    [period, customRange],
+  );
+
+  // ── Server data via custom hooks ─────────────────────────────────────────
+  const { members: allMembers, status: membersStatus } = useTeamMembers(
+    roster,
+    teamId,
+    range,
+    period,
+  );
+
+  // teamSize for member-scale AI bullets. Roster is authoritative when
+  // present; in fallback mode we use the response count, which understates
+  // when `has_next` is true ($top: 200) — same residual as before.
+  const teamSize = roster ? roster.length : (allMembers.length || undefined);
+
+  const {
+    sections: bulletSections,
+    status:   sectionStatus,
+    errors:   sectionErrors,
+  } = useTeamBullets(teamId, range, period, teamSize);
+
+  // ── Derived UI state ─────────────────────────────────────────────────────
   const baseMembers = allMembers;
   const canFilterDirectReports = roster !== null;
   const directReportEmails = useMemo(() => {
@@ -148,19 +153,18 @@ const TeamViewScreen: React.FC = () => {
   const members = canFilterDirectReports && directReportsOnly && directReportEmails
     ? baseMembers.filter((m) => directReportEmails.has(m.person_id.toLowerCase()))
     : baseMembers;
-  const storeTeamKpis = useAppSelector(selectTeamKpis);
-  // Recompute KPIs client-side over the currently visible members set. When the
-  // directReportsOnly filter yields an empty set (e.g., IC with no reports), use
-  // the empty-derived KPIs so chips stay consistent with the (empty) member table.
-  // Only fall back to the store when members haven't been fetched yet (both sets
-  // empty AND still loading).
+
+  // Recompute KPIs client-side over the currently visible members set. When
+  // the directReportsOnly filter yields an empty set (e.g., IC with no
+  // reports), use the empty-derived KPIs so chips stay consistent with the
+  // (empty) member table.
+  const membersLoading = membersStatus === 'loading' || membersStatus === undefined;
   const teamKpis = useMemo(
-    () => (allMembers.length === 0 && (membersLoading || summaryLoading)
-      ? storeTeamKpis
+    () => (allMembers.length === 0 && membersLoading
+      ? []
       : deriveTeamKpis(members, period)),
-    [allMembers.length, membersLoading, summaryLoading, members, period, storeTeamKpis],
+    [allMembers.length, membersLoading, members, period],
   );
-  const bulletSections = useAppSelector(selectBulletSections);
 
   // ────────────────────────────────────────────────────────────────────────
   // Direct-reports scoping for member-scale AI metrics.
@@ -183,7 +187,7 @@ const TeamViewScreen: React.FC = () => {
 
   const scopedBulletSections: BulletSection[] = useMemo(() => {
     if (!scopingActive) return bulletSections;
-    const teamSize = members.length;
+    const scopedTeamSize = members.length;
     const recompute: Record<string, number> = {
       active_ai_members: members.filter((m) => m.ai_tools.length > 0).length,
       cursor_active:     members.filter((m) => m.ai_tools.includes('Cursor')).length,
@@ -196,16 +200,16 @@ const TeamViewScreen: React.FC = () => {
         ...sec,
         metrics: sec.metrics.map((m) => {
           if (!(m.metric_key in recompute)) return m;
-          const value = recompute[m.metric_key];
-          const valuePct = teamSize > 0
-            ? Math.min(100, (value / teamSize) * 100)
+          const value = recompute[m.metric_key]!;
+          const valuePct = scopedTeamSize > 0
+            ? Math.min(100, (value / scopedTeamSize) * 100)
             : 0;
           return {
             ...m,
             value: String(value),
-            unit: `/ ${teamSize}`,
+            unit: `/ ${scopedTeamSize}`,
             range_min: '0',
-            range_max: String(teamSize),
+            range_max: String(scopedTeamSize),
             // Median is meaningless against a filtered N — drop it instead
             // of carrying the whole-team median across.
             median: '—',
@@ -223,32 +227,9 @@ const TeamViewScreen: React.FC = () => {
     ? `AI Adoption is scoped to direct reports (${members.length} of ${allMembers.length} members). Other sections still reflect the whole team.`
     : null;
 
-  const teamName = useAppSelector(selectTeamName);
-  const teamViewConfig = useAppSelector(selectTeamViewConfig);
-  const viewMode = useAppSelector(selectInsightViewMode);
-  const drillId = useAppSelector(selectTeamDrillId);
-  const drillData = useAppSelector(selectTeamDrillData);
-  const { navigateToScreen } = useNavigation();
-
-  // Same pattern as IcDashboardScreen — period change keeps current numbers on
-  // screen as stale; team change wipes them.
-  const lastTeamRef = React.useRef<string | null>(null);
-  useEffect(() => {
-    if (!teamId) return;
-    const reason: 'team' | 'period' =
-      lastTeamRef.current !== null && lastTeamRef.current === teamId
-        ? 'period'
-        : 'team';
-    loadTeamView(
-      teamId,
-      period,
-      resolveDateRange(period, customRange),
-      roster,
-      pivot?.display_name ?? null,
-      reason,
-    );
-    lastTeamRef.current = teamId;
-  }, [teamId, period, customRange, roster, pivot]);
+  // teamName is synchronous — derived from the IR pivot, no server roundtrip.
+  const teamName = pivot?.display_name ?? (teamId.charAt(0).toUpperCase() + teamId.slice(1));
+  const teamViewConfig = TEAM_VIEW_CONFIG;
 
   const handleNavigateToIc = (personId: string): void => {
     selectIcPerson(personId);
@@ -261,12 +242,12 @@ const TeamViewScreen: React.FC = () => {
 
   const handleDrillClick = (drillId: string): void => {
     if (!teamId) return;
-    openTeamDrill({ kind: 'team', teamId, drillId }, resolveDateRange(period, customRange));
+    openTeamDrill({ kind: 'team', teamId, drillId }, range);
   };
 
   const handleCellDrill = (personId: string, drillId: string): void => {
     if (!personId) return;
-    openTeamDrill({ kind: 'cell', personId, drillId }, resolveDateRange(period, customRange));
+    openTeamDrill({ kind: 'cell', personId, drillId }, range);
   };
 
   return (
@@ -352,7 +333,7 @@ const TeamViewScreen: React.FC = () => {
         open={metricsModalOpen}
         onClose={() => { setMetricsModalOpen(false); }}
         members={members}
-        range={resolveDateRange(period, customRange)}
+        range={range}
       />
 
       {scopedBulletNote && (
