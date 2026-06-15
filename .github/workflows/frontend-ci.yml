@@ -1,0 +1,38 @@
+name: Frontend CI
+
+# This repo IS the frontend (separate from constructorfabric/insight) — runs on
+# every PR. Implements G-3: the Vitest render-contract suite must gate the UI so
+# a server error never silently regresses to "No data" (#1336/#1337).
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      # SHA-pinned + no token persistence (supply-chain hardening).
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+      # corepack honors packageManager: pnpm@10.33.0 in package.json (no version drift).
+      - name: Enable corepack (pnpm)
+        run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Blocking gates — both green on main today.
+      - name: Typecheck
+        run: pnpm run typecheck
+      - name: Unit tests (Vitest — render contracts)
+        run: pnpm run test
+
+      # Report-only until the 3 pre-existing lint errors on main are cleared,
+      # then drop continue-on-error to make it blocking (the ratchet).
+      - name: Lint (report-only for now)
+        run: pnpm run lint
+        continue-on-error: true
