@@ -20,13 +20,34 @@ const initialState: ThemeProviderState = {
 
 const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
+const THEMES: readonly Theme[] = ["dark", "light", "system"];
+
+/**
+ * Read the persisted theme, tolerating a hostile / stale `localStorage`.
+ *
+ * The value is user-controllable storage, so it cannot be trusted as a `Theme`:
+ * a stale key, a manual edit, or a value with whitespace (e.g. `"light dark"`)
+ * would otherwise flow into `classList.add(theme)` and throw
+ * `InvalidCharacterError`, crashing the whole app at the React error boundary
+ * (Refs #1294). Validate against the known set and fall back to the default.
+ * `localStorage` access itself can throw (Safari private mode) — guard that too.
+ */
+function readStoredTheme(storageKey: string, fallback: Theme): Theme {
+  try {
+    const stored = localStorage.getItem(storageKey);
+    return THEMES.includes(stored as Theme) ? (stored as Theme) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export function ThemeProvider({
   children,
   defaultTheme = "system",
   storageKey = "theme",
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem(storageKey) as Theme) || defaultTheme,
+  const [theme, setTheme] = useState<Theme>(() =>
+    readStoredTheme(storageKey, defaultTheme),
   );
 
   useEffect(() => {
