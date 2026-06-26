@@ -146,3 +146,35 @@ export function odataDateFilter(range: DateRange): string {
 export function odataEscapeValue(value: string): string {
   return value.replace(/'/g, "''");
 }
+
+export type Granularity = "day" | "week" | "month" | "quarter";
+
+export function bucketGranularity(range: DateRange): Granularity {
+  const [fy, fm, fd] = range.from.split("-").map(Number);
+  const [ty, tm, td] = range.to.split("-").map(Number);
+  const from = new Date(fy, (fm ?? 1) - 1, fd ?? 1);
+  const to = new Date(ty, (tm ?? 1) - 1, td ?? 1);
+  const days = Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1;
+  if (days <= 10) return "day";
+  if (days <= 45) return "week";
+  if (days <= 180) return "month";
+  return "quarter";
+}
+
+export function bucketStart(isoDate: string, g: Granularity): string {
+  const [y, m, day] = isoDate.split("-").map(Number);
+  const d = new Date(y, (m ?? 1) - 1, day ?? 1);
+  switch (g) {
+    case "day":
+      return isoDate;
+    case "week": {
+      const mondayOffset = (d.getDay() + 6) % 7;
+      d.setDate(d.getDate() - mondayOffset);
+      return toISODate(d);
+    }
+    case "month":
+      return toISODate(new Date(y, (m ?? 1) - 1, 1));
+    case "quarter":
+      return toISODate(new Date(y, Math.floor(((m ?? 1) - 1) / 3) * 3, 1));
+  }
+}
