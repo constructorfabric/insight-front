@@ -238,8 +238,8 @@ export function icDrilldownBatchQueryOptions(opts: IcDrilldownBatchOpts) {
 
       return {
         histograms,
-        delivery: deliveryRows ? transformDeliveryTrend(deliveryRows, period) : null,
-        loc: locRows ? transformLocTrend(locRows, period) : null,
+        delivery: deliveryRows ? transformDeliveryTrend(deliveryRows, range) : null,
+        loc: locRows ? transformLocTrend(locRows, range) : null,
         sectionTrend: sectionTrendRows
           ? pivotLongToWide(sectionTrendRows)
           : null,

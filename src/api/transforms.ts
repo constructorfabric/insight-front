@@ -38,6 +38,12 @@ import {
 } from './catalog-client';
 import { evaluateStatus } from './metric-semantics';
 import type { PeerStats } from '@/lib/peers';
+import {
+  type DateRange,
+  type Granularity,
+  bucketGranularity,
+  bucketStart,
+} from './period-to-date-range';
 
 /** Format strings the IC KPI catalog rows surface. */
 type IcKpiFormat = 'integer' | 'decimal1' | 'percent' | 'hours';
@@ -115,23 +121,24 @@ function deltaType(
 const WEEKDAY_FMT = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
 const MONTH_FMT   = new Intl.DateTimeFormat(undefined, { month: 'short' });
 
-function formatDateLabel(isoDate: string, period: PeriodValue): string {
+function formatDateLabel(isoDate: string, g: Granularity): string {
   // Parse as local-midnight so label reflects the user's timezone, not UTC.
   const [y, m, day] = isoDate.split('-').map(Number);
   const d = new Date(y, (m ?? 1) - 1, day ?? 1);
-  switch (period) {
-    case 'week':
+  switch (g) {
+    case 'day':
       // Short weekday label in the user's locale (e.g. "Mon", "Пн", "月").
       return WEEKDAY_FMT.format(d);
-    case 'month': {
-      // Week number within the month: W1, W2, ...
+    case 'week': {
+      // Month-qualified week-of-month ("May W2") so weeks stay distinct across
+      // month boundaries.
       const weekNum = Math.ceil(d.getDate() / 7);
-      return `W${weekNum}`;
+      return `${MONTH_FMT.format(d)} W${weekNum}`;
     }
-    case 'quarter':
+    case 'month':
       // Short month label in the user's locale.
       return MONTH_FMT.format(d);
-    case 'year': {
+    case 'quarter': {
       const q = Math.floor(d.getMonth() / 3) + 1;
       return `Q${q}`;
     }
@@ -478,26 +485,46 @@ export function transformBulletMetrics(
 
 export function transformLocTrend(
   rows: RawLocTrendRow[],
-  period: PeriodValue,
+  range: DateRange,
 ): LocDataPoint[] {
-  return rows.map((r) => ({
-    label: formatDateLabel(r.date_bucket, period),
-    codeLoc: r.code_loc,
-    specLines: r.spec_lines,
-    configLoc: r.config_loc,
-  }));
+  const g = bucketGranularity(range);
+  const byBucket = new Map<string, LocDataPoint>();
+  for (const r of rows) {
+    const key = bucketStart(r.date_bucket, g);
+    let point = byBucket.get(key);
+    if (!point) {
+      point = { label: formatDateLabel(key, g), codeLoc: 0, specLines: 0, configLoc: 0 };
+      byBucket.set(key, point);
+    }
+    point.codeLoc += r.code_loc;
+    point.specLines += r.spec_lines;
+    point.configLoc += r.config_loc;
+  }
+  return [...byBucket.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([, point]) => point);
 }
 
 export function transformDeliveryTrend(
   rows: RawDeliveryTrendRow[],
-  period: PeriodValue,
+  range: DateRange,
 ): DeliveryDataPoint[] {
-  return rows.map((r) => ({
-    label: formatDateLabel(r.date_bucket, period),
-    commits: r.commits,
-    prsMerged: r.prs_merged,
-    tasksDone: r.tasks_done,
-  }));
+  const g = bucketGranularity(range);
+  const byBucket = new Map<string, DeliveryDataPoint>();
+  for (const r of rows) {
+    const key = bucketStart(r.date_bucket, g);
+    let point = byBucket.get(key);
+    if (!point) {
+      point = { label: formatDateLabel(key, g), commits: 0, prsMerged: 0, tasksDone: 0 };
+      byBucket.set(key, point);
+    }
+    point.commits += r.commits;
+    point.prsMerged = (point.prsMerged ?? 0) + (r.prs_merged ?? 0);
+    point.tasksDone += r.tasks_done;
+  }
+  return [...byBucket.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([, point]) => point);
 }
 
 export function transformTeamMembers(

@@ -146,7 +146,7 @@ export function useIcLocTrend(
         range,
         { $filter: personScope(personId) }
       );
-      return transformLocTrend(resp.items, period);
+      return transformLocTrend(resp.items, range);
     },
   });
 }
@@ -164,7 +164,7 @@ export function useIcDeliveryTrend(
         range,
         { $filter: personScope(personId) }
       );
-      return transformDeliveryTrend(resp.items, period);
+      return transformDeliveryTrend(resp.items, range);
     },
   });
 }
@@ -403,11 +403,11 @@ export function useIcDashboardData(
         ),
         locTrend: transformLocTrend(
           get<RawLocTrendRow>("loc_trend") ?? [],
-          period,
+          range,
         ),
         deliveryTrend: transformDeliveryTrend(
           get<RawDeliveryTrendRow>("delivery_trend") ?? [],
-          period,
+          range,
         ),
         timeOff: (() => {
           const rows = get<RawTimeOffRow>("time_off");
