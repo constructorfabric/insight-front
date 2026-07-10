@@ -13,7 +13,8 @@
  *   - A degenerate department cohort (`n < MIN_DEPT_COHORT_N`) → neutral.
  */
 
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { authStore } from "@/auth/auth-store";
@@ -31,6 +32,7 @@ import {
   renderWithCatalogClient,
 } from "@/test/catalog-test-utils";
 import type { DeptCohorts, PeerStats } from "@/lib/peers";
+import type { PeerStoryEntry } from "@/lib/metrics/peer-story";
 import { MembersHeatmap } from "./index";
 import type {
   BulletMetric,
@@ -84,6 +86,25 @@ function makeBullet(overrides: Partial<BulletMetric> = {}): BulletMetric {
 /** PeerStats with a healthy cohort size (above MIN_DEPT_COHORT_N). */
 function stats(overrides: Partial<PeerStats> = {}): PeerStats {
   return { p25: 4, p50: 5, p75: 6, min: 2, max: 10, n: 10, ...overrides };
+}
+
+function makeEntry(overrides: Partial<PeerStoryEntry> = {}): PeerStoryEntry {
+  return {
+    key: "git.commits",
+    label: "Commits",
+    value: 12,
+    unit: null,
+    format: "integer",
+    higherIsBetter: true,
+    neutral: false,
+    observed: true,
+    stats: stats({ p25: 5, p50: 8, p75: 10 }),
+    status: "top",
+    gapPct: 0.5,
+    gapDelta: 4,
+    severity: 0.5,
+    ...overrides,
+  };
 }
 
 // Mirrors the production family routing in `fetchDeptDistributions`: the
@@ -245,5 +266,87 @@ describe("<MembersHeatmap>", () => {
       expect(fetchCatalog).toHaveBeenCalled();
     });
     expect(screen.queryByText(/^\d+ issues?$/)).not.toBeInTheDocument();
+  });
+
+  it("details sheet shows the full metric set: grid columns + remaining bullets + unified entries, deduped", async () => {
+    const user = userEvent.setup();
+    fetchCatalog.mockResolvedValue(
+      buildCatalogResponse([
+        {
+          metric_key: "task_delivery_bullet_rows.mean_time_to_resolution",
+          higher_is_better: false,
+          schema_status: "ok",
+        },
+        {
+          metric_key: "collaboration_bullet_rows.code_review_speed",
+          higher_is_better: true,
+          schema_status: "ok",
+        },
+      ]),
+    );
+    const bulletsByPerson = new Map<string, BulletMetric[]>([
+      [
+        "alice@example.com",
+        [
+          // Covered by the MTTR grid column → must NOT duplicate in the sheet.
+          makeBullet({ value: "30" }),
+          // Not a grid column → previously dropped by the 7-column cap.
+          makeBullet({
+            section: "collaboration",
+            metric_key: "code_review_speed",
+            label: "Code review speed",
+            value: "9",
+            unit: "",
+          }),
+        ],
+      ],
+    ]);
+    const deptCohorts = deptMap([
+      // MTTR 30 above p75 (lower is better) → bottom.
+      ["Engineering", "mean_time_to_resolution", stats({ p25: 4, p50: 5, p75: 6 })],
+      // Review speed 9 above p75 (higher is better) → top.
+      ["Engineering", "code_review_speed", stats({ p25: 4, p50: 5, p75: 6 })],
+    ]);
+    const metricEntriesByPerson = new Map<string, PeerStoryEntry[]>([
+      [
+        "alice@example.com",
+        [
+          makeEntry(),
+          // Dot-suffix collides with the team_row `prs_merged` column → deduped.
+          makeEntry({ key: "git.prs_merged", label: "PRs merged", value: 99 }),
+        ],
+      ],
+    ]);
+    renderWithCatalogClient(
+      <MembersHeatmap
+        members={[makeMember()]}
+        bulletsByPerson={bulletsByPerson}
+        deptCohorts={deptCohorts}
+        metricEntriesByPerson={metricEntriesByPerson}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Alice" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Open in IC view" }),
+    );
+
+    const sheet = within(await screen.findByRole("dialog", { name: "Alice" }));
+    // All three status buckets: MTTR bottom, review speed + Commits top,
+    // cohort-less team_row columns neutral.
+    expect(sheet.getByText("Needs attention")).toBeInTheDocument();
+    expect(sheet.getByText("Strong points")).toBeInTheDocument();
+    // (bucket title and the per-row in-pack status label share this text)
+    expect(sheet.getAllByText("On par").length).toBeGreaterThan(0);
+    // Legacy bullet beyond the 7 columns, colored vs its dept cohort.
+    expect(sheet.getByText("Code review speed")).toBeInTheDocument();
+    // Unified-path entry with its own formatting and cohort median.
+    expect(sheet.getByText("Commits")).toBeInTheDocument();
+    expect(sheet.getByText("median 8")).toBeInTheDocument();
+    // Column-covered sources are deduped: one MTTR row (from the grid cell,
+    // not the bullet), one PRs-merged row (not the `git.prs_merged` twin).
+    expect(sheet.getAllByText("Mean time to resolution")).toHaveLength(1);
+    expect(sheet.getAllByText("PRs merged")).toHaveLength(1);
+    expect(sheet.queryByText("99")).not.toBeInTheDocument();
   });
 });

@@ -15,10 +15,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useSettings } from "@/hooks/use-settings";
+import { formatMetricValue } from "@/lib/format";
 import {
   bulletCatalogKey,
   type CatalogByKey,
 } from "@/lib/insight/v2/peer-status";
+import type { PeerStoryEntry } from "@/lib/metrics/peer-story";
 import { MIN_DEPT_COHORT_N } from "@/lib/insight/v2/team-member-status";
 import {
   applyFocus,
@@ -245,6 +247,13 @@ export interface MembersHeatmapProps {
   previousBulletsByPerson?: Map<string, BulletMetric[]>;
   previousMembers?: Map<string, TeamMember>;
   /**
+   * Per-person entries from the unified-metrics groups (git/ai), keyed by
+   * lowercase `person_id`. Sheet-only: these groups carry their own cohort
+   * (each entry's status is vs the person's own org unit, resolved by the
+   * peer view), so they don't ride the dept-cohort maps the grid colors from.
+   */
+  metricEntriesByPerson?: Map<string, PeerStoryEntry[]>;
+  /**
    * Per-department metric distributions, split by source family (`kpi` for
    * the team_row columns, `bullet` for member bullet comparisons). Each
    * member is colored against THEIR OWN department's distribution; a member
@@ -260,6 +269,7 @@ export function MembersHeatmap({
   previousBulletsByPerson,
   previousMembers,
   deptCohorts,
+  metricEntriesByPerson,
 }: MembersHeatmapProps) {
   const { focusMode } = useSettings();
   const { byMetricKey } = useCatalog();
@@ -402,19 +412,61 @@ export function MembersHeatmap({
     topCount: r.topCount,
   }));
 
+  // The sheet shows the member's FULL metric set, not just the 7 grid
+  // columns (#1729): grid cells first (they carry WoW/dept context the
+  // user just clicked through), then the remaining legacy bullets, then
+  // the unified-path (git/ai) entries. Bullets and entries that a column
+  // already covers are deduped — team_row columns overlap unified keys by
+  // dot-suffix (`git.prs_merged` ≈ `prs_merged`) and by display label.
   const sheetRows: MemberDetailRow[] = useMemo(() => {
     if (!sheetMember) return [];
     const row = rows.find((r) => r.member.person_id === sheetMember.person_id);
     if (!row) return [];
-    return row.cells.map((c) => ({
+    const columnKeys = new Set(COLUMNS.map(metricKeyForColumn));
+    const columnLabels = new Set(COLUMNS.map((c) => c.label.toLowerCase()));
+    const fromCells: MemberDetailRow[] = row.cells.map((c) => ({
+      key: c.col.key,
       label: c.col.label,
-      short: c.col.short,
-      value: c.value,
-      unit: c.unit,
+      display: c.value == null ? "—" : `${Math.round(c.value)}${c.unit ?? ""}`,
+      medianDisplay:
+        c.median != null ? `${Math.round(c.median)}${c.unit ?? ""}` : null,
       status: c.status,
-      median: c.median,
     }));
-  }, [rows, sheetMember]);
+    const fromBullets: MemberDetailRow[] = row.bullets
+      .filter((b) => !columnKeys.has(b.metric_key))
+      .map((b) => {
+        const stats = deptStatsFor(cohorts.bullet, row.orgUnitId, b.metric_key);
+        const unitSuffix = b.unit ? ` ${b.unit}` : "";
+        return {
+          key: b.metric_key,
+          label: b.label,
+          display: `${b.value}${unitSuffix}`,
+          medianDisplay:
+            stats != null
+              ? `${Math.round(stats.p50 * 10) / 10}${unitSuffix}`
+              : null,
+          status: deptBulletStatus(b, cohorts.bullet, row.orgUnitId, byMetricKey),
+        };
+      });
+    const fromMetrics: MemberDetailRow[] = (
+      metricEntriesByPerson?.get(row.member.person_id.toLowerCase()) ?? []
+    )
+      .filter(
+        (e) =>
+          !columnKeys.has(e.key.split(".").pop() ?? e.key) &&
+          !columnLabels.has(e.label.toLowerCase()),
+      )
+      .map((e) => ({
+        key: e.key,
+        label: e.label,
+        display: formatMetricValue(e.value, e.format, e.unit),
+        medianDisplay: e.stats
+          ? formatMetricValue(e.stats.p50, e.format, e.unit)
+          : null,
+        status: e.status,
+      }));
+    return [...fromCells, ...fromBullets, ...fromMetrics];
+  }, [rows, sheetMember, cohorts.bullet, byMetricKey, metricEntriesByPerson]);
 
   const handleMemberClick = (m: TeamMember) => {
     setSheetMember(m);

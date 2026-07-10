@@ -3,7 +3,11 @@ import {
   forEntity,
   type NormalizedMetricResult,
 } from "@/lib/metrics/collection";
-import { toPeerStats } from "@/lib/metrics/peer-story";
+import {
+  buildPeerStoryEntries,
+  toPeerStats,
+  type PeerStoryEntry,
+} from "@/lib/metrics/peer-story";
 import {
   peerStatusVsQuartiles,
   type PeerStatusWithNeutral,
@@ -79,6 +83,30 @@ export function teamMetricStandings(
             : "warn";
     return [{ metric, top, inPack, bottom, scored, status }];
   });
+}
+
+/**
+ * Per-person entries across every unified-metrics group, keyed by member id —
+ * the heatmap's member details sheet source for groups the legacy per-member
+ * bullet fetch no longer covers. `byGroup` resolves a group id to its fetched
+ * result map; groups still loading resolve undefined and contribute nothing.
+ */
+export function memberMetricEntries(
+  defs: MetricGroup[],
+  byGroup: (groupId: string) => Map<string, NormalizedMetricResult> | undefined,
+  memberIds: string[],
+): Map<string, PeerStoryEntry[]> {
+  const out = new Map<string, PeerStoryEntry[]>();
+  for (const memberId of memberIds) {
+    const entries = defs.flatMap((def) => {
+      const byKey = byGroup(def.id);
+      return byKey
+        ? buildPeerStoryEntries(def.collection, byKey, memberId)
+        : [];
+    });
+    if (entries.length > 0) out.set(memberId, entries);
+  }
+  return out;
 }
 
 /**

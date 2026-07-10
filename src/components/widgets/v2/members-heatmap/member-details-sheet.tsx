@@ -16,12 +16,13 @@ import { cn } from "@/lib/utils";
 import type { TeamMember } from "@/types/insight";
 
 export interface MemberDetailRow {
+  /** Stable identity (metric key) — labels can repeat across sources. */
+  key: string;
   label: string;
-  short: string;
-  value: number | null;
-  unit: string;
+  /** Preformatted value — sources format differently (legacy vs unified). */
+  display: string;
+  medianDisplay: string | null;
   status: PeerStatusWithNeutral;
-  median: number | null;
 }
 
 export interface MemberDetailsSheetProps {
@@ -110,17 +111,15 @@ function Bucket({
       <ul className="flex flex-col gap-2">
         {rows.map((r) => (
           <li
-            key={r.label}
+            key={r.key}
             className="flex items-baseline justify-between gap-3 rounded-md border px-3 py-2"
           >
             <span className="min-w-0 truncate text-sm">{r.label}</span>
             <span className="flex shrink-0 items-baseline gap-2 text-sm">
-              <span className="font-medium tabular-nums">
-                {r.value == null ? "—" : `${Math.round(r.value)}${r.unit}`}
-              </span>
-              {r.median != null ? (
+              <span className="font-medium tabular-nums">{r.display}</span>
+              {r.medianDisplay != null ? (
                 <span className="text-xs text-muted-foreground">
-                  median {Math.round(r.median)}{r.unit}
+                  median {r.medianDisplay}
                 </span>
               ) : null}
               <span className={cn("text-xs", PEER_TEXT[focused])}>

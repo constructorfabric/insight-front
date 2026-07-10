@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  memberMetricEntries,
   memberMetricStanding,
   metricBelowCounts,
   teamMetricStandings,
@@ -127,6 +128,38 @@ describe("teamMetricStandings / metricBelowCounts", () => {
     const counts = metricBelowCounts(def, byKey, members);
     expect(counts.get("a@x.com")).toBe(1);
     expect(counts.get("c@x.com")).toBeUndefined();
+  });
+});
+
+describe("memberMetricEntries", () => {
+  const byKey = normalizeMetricResults([
+    metricWithPeers([
+      { id: "a@x.com", value: 2 },
+      { id: "b@x.com", value: 20 },
+      { id: "empty@x.com", value: null },
+    ]),
+  ]);
+  const def = defWith(byKey.get("ai.active_days")!);
+
+  it("builds per-person entries keyed by member id, own-cohort status included", () => {
+    const out = memberMetricEntries(
+      [def],
+      (id) => (id === def.id ? byKey : undefined),
+      ["a@x.com", "b@x.com", "empty@x.com"],
+    );
+    expect(out.get("a@x.com")?.map((e) => [e.key, e.status])).toEqual([
+      ["ai.active_days", "bottom"],
+    ]);
+    expect(out.get("b@x.com")?.map((e) => [e.key, e.status])).toEqual([
+      ["ai.active_days", "top"],
+    ]);
+    // No period value for this person → no entry, no map key.
+    expect(out.has("empty@x.com")).toBe(false);
+  });
+
+  it("contributes nothing for groups whose data has not resolved", () => {
+    const out = memberMetricEntries([def], () => undefined, ["a@x.com"]);
+    expect(out.size).toBe(0);
   });
 });
 

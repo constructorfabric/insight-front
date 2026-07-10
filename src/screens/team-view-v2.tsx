@@ -23,7 +23,10 @@ import {
   metricGroups,
   type GroupId,
 } from "@/lib/insight/groups";
-import { metricBelowCounts } from "@/lib/insight/team-metrics";
+import {
+  memberMetricEntries,
+  metricBelowCounts,
+} from "@/lib/insight/team-metrics";
 import { orderRowsForSection } from "@/lib/insight/v2/metric-order";
 import { hasBulletValue } from "@/lib/insight/v2/peer-status";
 import { teamSectionStatusByMetric } from "@/lib/insight/v2/team-member-status";
@@ -152,6 +155,15 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
     }
   }
 
+  // Per-person unified-path entries (git/ai) feed the heatmap's member
+  // details sheet — the legacy per-member bullet fetch no longer covers
+  // groups that flipped to `kind: "metrics"`.
+  const metricEntriesByPerson = memberMetricEntries(
+    metricGroups(),
+    (id) => metricGroupData.get(id)?.byKey,
+    memberEntityIds,
+  );
+
   const sectionsPending = sectionsQ.isPending;
   const sectionsFetching = sectionsQ.isFetching;
   // Only a metric group's revalidation dims the page (replacing data already
@@ -221,6 +233,7 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
                 bulletsByPerson={bulletsQ.data}
                 previousBulletsByPerson={prevBulletsQ.data}
                 deptCohorts={deptDistQ.data}
+                metricEntriesByPerson={metricEntriesByPerson}
               />
             )}
 
