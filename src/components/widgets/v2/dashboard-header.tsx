@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { IcViewToggle } from "@/components/ic-view-toggle";
 import { PeriodSelectorBar } from "@/components/widgets/period-selector-bar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -8,6 +10,8 @@ export interface DashboardHeaderProps {
   subtitle?: string | null;
   person: string;
   hasReports: boolean;
+  /** Extra screen-specific controls, rendered before the period selector. */
+  actions?: ReactNode;
 }
 
 export function DashboardHeader({
@@ -15,6 +19,7 @@ export function DashboardHeader({
   subtitle,
   person,
   hasReports,
+  actions,
 }: DashboardHeaderProps) {
   const { period, customRange, setPeriod, setCustomRange } = usePeriod();
 
@@ -30,12 +35,15 @@ export function DashboardHeader({
         </div>
         <IcViewToggle person={person} hasReports={hasReports} />
       </div>
-      <PeriodSelectorBar
-        period={period}
-        customRange={customRange}
-        onPeriodChange={setPeriod}
-        onRangeChange={setCustomRange}
-      />
+      <div className="flex flex-wrap items-center gap-2">
+        {actions}
+        <PeriodSelectorBar
+          period={period}
+          customRange={customRange}
+          onPeriodChange={setPeriod}
+          onRangeChange={setCustomRange}
+        />
+      </div>
     </header>
   );
 }

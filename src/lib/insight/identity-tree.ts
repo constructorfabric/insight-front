@@ -46,3 +46,17 @@ export function flattenSubordinates(pivot: IdentityPerson): RosterEntry[] {
   walk(pivot, pivot.email, true);
   return out;
 }
+
+/**
+ * Narrow a roster to the pivot's direct reports when `directOnly` is set.
+ *
+ * `null` passes through unchanged so callers keep their "roster not loaded
+ * yet" gate regardless of the toggle state.
+ */
+export function scopeRosterToDirectReports(
+  roster: RosterEntry[] | null,
+  directOnly: boolean,
+): RosterEntry[] | null {
+  if (!roster || !directOnly) return roster;
+  return roster.filter((r) => r.is_direct);
+}

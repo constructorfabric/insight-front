@@ -10,12 +10,14 @@ import { TeamMembersAttention } from "@/components/widgets/v2/team-members-atten
 import { TeamMetricGroupCard } from "@/components/widgets/metric-views/team-metric-group-card";
 import type { TeamMemberRef } from "@/components/widgets/metric-views/team-collection-drilldown";
 import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { useCatalog } from "@/api/use-catalog";
 import { usePeriod } from "@/hooks/use-period";
 import {
   flattenSubordinates,
   findIdentityNode,
+  scopeRosterToDirectReports,
 } from "@/lib/insight/identity-tree";
 import {
   GROUPS,
@@ -61,6 +63,7 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
   const { period, dateRange, setPeriod } = usePeriod();
   const { byMetricKey } = useCatalog();
   const [openGroup, setOpenGroup] = useState<GroupId | null>(null);
+  const [directReportsOnly, setDirectReportsOnly] = useState(true);
 
   // Close any open drilldown when the viewed team changes. Render-phase
   // reset against the previous id rather than an effect (no cascading commit).
@@ -79,9 +82,15 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
     return null;
   }, [viewerTree, teamId]);
 
-  const roster = useMemo(
+  const fullRoster = useMemo(
     () => (pivot ? flattenSubordinates(pivot) : null),
     [pivot],
+  );
+  // Scoping the roster scopes everything downstream — members, heatmap
+  // bullets, legacy sections, and metric collections all derive from it.
+  const roster = useMemo(
+    () => scopeRosterToDirectReports(fullRoster, directReportsOnly),
+    [fullRoster, directReportsOnly],
   );
   const teamName = pivot?.display_name ?? teamId;
   const teamSize = roster?.length;
@@ -176,13 +185,34 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
   const showFullSpinner =
     sectionsPending || membersQ.isPending || (isAllEmpty && isFetching);
 
+  const memberCountLabel = `${members.length} member${members.length === 1 ? "" : "s"}`;
+  const scopeLabel = directReportsOnly
+    ? `Direct reports of ${teamName}`
+    : `${teamName}'s department`;
+
   return (
     <div className="flex flex-col">
       <DashboardHeader
         title={`Team of ${teamName}`}
-        subtitle={`${members.length} member${members.length === 1 ? "" : "s"}`}
+        subtitle={
+          fullRoster ? `${scopeLabel} · ${memberCountLabel}` : memberCountLabel
+        }
         person={teamId}
         hasReports
+        actions={
+          fullRoster ? (
+            <label className="text-foreground flex cursor-pointer items-center gap-2 text-sm select-none">
+              <Switch
+                checked={directReportsOnly}
+                onCheckedChange={setDirectReportsOnly}
+              />
+              <span>Direct reports only</span>
+              <span className="text-muted-foreground text-xs">
+                ({roster?.length ?? 0}/{fullRoster.length})
+              </span>
+            </label>
+          ) : null
+        }
       />
       <main className="flex flex-1 flex-col gap-8 p-4 md:p-6">
         {showFullSpinner ? (
