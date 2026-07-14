@@ -268,6 +268,84 @@ describe("<MembersHeatmap>", () => {
     expect(screen.queryByText(/^\d+ issues?$/)).not.toBeInTheDocument();
   });
 
+  it("grid grows a column per roster bullet and unified entry, deduped against the curated set (#1729)", async () => {
+    fetchCatalog.mockResolvedValue(
+      buildCatalogResponse([
+        {
+          metric_key: "task_delivery_bullet_rows.mean_time_to_resolution",
+          higher_is_better: false,
+          schema_status: "ok",
+        },
+        {
+          metric_key: "collaboration_bullet_rows.code_review_speed",
+          higher_is_better: true,
+          schema_status: "ok",
+        },
+      ]),
+    );
+    const bulletsByPerson = new Map<string, BulletMetric[]>([
+      [
+        "alice@example.com",
+        [
+          // Covered by the curated MTTR column → no second column.
+          makeBullet({ value: "30" }),
+          makeBullet({
+            section: "collaboration",
+            metric_key: "code_review_speed",
+            label: "Code review speed",
+            value: "9",
+            unit: "",
+          }),
+        ],
+      ],
+    ]);
+    const metricEntriesByPerson = new Map<string, PeerStoryEntry[]>([
+      [
+        "alice@example.com",
+        [
+          makeEntry(),
+          // Dot-suffix collides with the team_row `prs_merged` column → deduped.
+          makeEntry({ key: "git.prs_merged", label: "PRs merged", value: 99 }),
+        ],
+      ],
+    ]);
+    renderWithCatalogClient(
+      <MembersHeatmap
+        members={[makeMember()]}
+        bulletsByPerson={bulletsByPerson}
+        deptCohorts={deptMap([
+          ["Engineering", "mean_time_to_resolution", stats()],
+        ])}
+        metricEntriesByPerson={metricEntriesByPerson}
+      />,
+    );
+
+    // Non-curated bullet and unified entries become sortable columns.
+    expect(
+      await screen.findByRole("button", {
+        name: "Code review speed — sort by this column",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Commits — sort by this column" }),
+    ).toBeInTheDocument();
+    // Key/label collisions collapse into the curated columns.
+    expect(
+      screen.getAllByRole("button", {
+        name: "Mean time to resolution — sort by this column",
+      }),
+    ).toHaveLength(1);
+    expect(
+      screen.getAllByRole("button", {
+        name: "PRs merged — sort by this column",
+      }),
+    ).toHaveLength(1);
+    // Unified cell renders the entry's value with its own-cohort status.
+    expect(
+      screen.getByRole("button", { name: "Alice — Commits: 12 — Top 25%" }),
+    ).toBeInTheDocument();
+  });
+
   it("details sheet shows the full metric set: grid columns + remaining bullets + unified entries, deduped", async () => {
     const user = userEvent.setup();
     fetchCatalog.mockResolvedValue(
