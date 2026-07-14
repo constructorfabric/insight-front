@@ -4,7 +4,8 @@
  * `flattenSubordinates` marks depth-1 reports `is_direct`;
  * `scopeRosterToDirectReports` narrows a roster to those entries when the
  * "Direct reports only" toggle is on, and passes `null` through so screens
- * keep their roster-not-loaded gate.
+ * keep their roster-not-loaded gate. `hasIndirectReports` tells screens
+ * whether that toggle can change anything at all (#1756).
  */
 
 import { describe, expect, it } from "vitest";
@@ -12,6 +13,7 @@ import { describe, expect, it } from "vitest";
 import type { IdentityPerson } from "@/types/insight";
 import {
   flattenSubordinates,
+  hasIndirectReports,
   scopeRosterToDirectReports,
   type RosterEntry,
 } from "./identity-tree";
@@ -61,5 +63,23 @@ describe("scopeRosterToDirectReports", () => {
   it("passes null through regardless of the toggle", () => {
     expect(scopeRosterToDirectReports(null, true)).toBeNull();
     expect(scopeRosterToDirectReports(null, false)).toBeNull();
+  });
+});
+
+describe("hasIndirectReports", () => {
+  it("is true when the roster has at least one indirect report", () => {
+    expect(hasIndirectReports(flattenSubordinates(pivot))).toBe(true);
+  });
+
+  it("is false when every report is direct (no subteams)", () => {
+    const flat = flattenSubordinates(
+      person("dave@x.io", [person("fay@x.io"), person("gil@x.io")]),
+    );
+    expect(hasIndirectReports(flat)).toBe(false);
+  });
+
+  it("is false for an empty or missing roster", () => {
+    expect(hasIndirectReports([])).toBe(false);
+    expect(hasIndirectReports(null)).toBe(false);
   });
 });

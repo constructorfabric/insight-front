@@ -60,3 +60,12 @@ export function scopeRosterToDirectReports(
   if (!roster || !directOnly) return roster;
   return roster.filter((r) => r.is_direct);
 }
+
+/**
+ * True when the roster has at least one indirect report. When every entry is
+ * direct, scoping to direct reports cannot change the roster, so the
+ * "Direct reports only" toggle would be a no-op and should be hidden.
+ */
+export function hasIndirectReports(roster: RosterEntry[] | null): boolean {
+  return roster?.some((r) => !r.is_direct) ?? false;
+}

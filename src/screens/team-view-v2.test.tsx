@@ -10,6 +10,8 @@
  *     subtitle to "X's department".
  *   - the scoped roster is what `useTeamMembers` receives — scoping happens
  *     upstream of the fetch, not as a client-side row filter.
+ *   - the toggle is hidden when the team has no indirect reports, where it
+ *     could never change the roster (#1756).
  *
  * Child widgets are stubbed: this file tests the roster/toggle wiring, not
  * widget render rules (those have their own component tests).
@@ -17,7 +19,7 @@
 
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { RosterEntry } from "@/lib/insight/identity-tree";
 import type {
@@ -137,16 +139,26 @@ const viewerTree = person("alice@x.io", "Alice", [
   person("erin@x.io", "Erin"),
 ]);
 
+// Dave's team is flat: every report is direct, so scoping is a no-op (#1756).
+const flatTree = person("dave@x.io", "Dave", [
+  person("fay@x.io", "Fay"),
+  person("gil@x.io", "Gil"),
+]);
+
+let currentTree = viewerTree;
+
 vi.mock("@/queries/ic-dashboard", () => ({
-  useIcPerson: () => ({ ...queryState, data: viewerTree }),
+  useIcPerson: () => ({ ...queryState, data: currentTree }),
 }));
 
 import { TeamViewV2Screen } from "./team-view-v2";
 
-function renderScreen() {
-  return render(
-    <TeamViewV2Screen teamId="alice@x.io" viewerEmail="alice@x.io" />,
-  );
+beforeEach(() => {
+  currentTree = viewerTree;
+});
+
+function renderScreen(teamId = "alice@x.io") {
+  return render(<TeamViewV2Screen teamId={teamId} viewerEmail={teamId} />);
 }
 
 describe("TeamViewV2Screen direct-reports scoping", () => {
@@ -184,6 +196,27 @@ describe("TeamViewV2Screen direct-reports scoping", () => {
       "bob@x.io",
       "carol@x.io",
       "erin@x.io",
+    ]);
+  });
+
+  it("hides the toggle for a team with no subteams (#1756)", () => {
+    currentTree = flatTree;
+    renderScreen("dave@x.io");
+
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+    expect(screen.queryByText("Direct reports only")).not.toBeInTheDocument();
+    // Without the toggle the scope label is meaningless too — the subtitle
+    // is just the member count, and the full roster reaches the queries.
+    expect(screen.getByText("2 members")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Direct reports of|department/),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("heatmap")).toHaveTextContent("Fay,Gil");
+
+    const lastRoster = useTeamMembers.mock.lastCall?.[1];
+    expect(lastRoster?.map((r) => r.email)).toEqual([
+      "fay@x.io",
+      "gil@x.io",
     ]);
   });
 });

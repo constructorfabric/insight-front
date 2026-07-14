@@ -17,6 +17,7 @@ import { usePeriod } from "@/hooks/use-period";
 import {
   flattenSubordinates,
   findIdentityNode,
+  hasIndirectReports,
   scopeRosterToDirectReports,
 } from "@/lib/insight/identity-tree";
 import {
@@ -89,11 +90,18 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
     () => (pivot ? flattenSubordinates(pivot) : null),
     [pivot],
   );
+  // With no indirect reports, direct reports == the whole team, so the
+  // toggle could never change the roster — hide it (#1756).
+  const canScopeToDirectReports = hasIndirectReports(fullRoster);
   // Scoping the roster scopes everything downstream — members, heatmap
   // bullets, legacy sections, and metric collections all derive from it.
   const roster = useMemo(
-    () => scopeRosterToDirectReports(fullRoster, directReportsOnly),
-    [fullRoster, directReportsOnly],
+    () =>
+      scopeRosterToDirectReports(
+        fullRoster,
+        canScopeToDirectReports && directReportsOnly,
+      ),
+    [fullRoster, canScopeToDirectReports, directReportsOnly],
   );
   const teamName = pivot?.display_name ?? teamId;
   const teamSize = roster?.length;
@@ -207,12 +215,14 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
       <DashboardHeader
         title={`Team of ${teamName}`}
         subtitle={
-          fullRoster ? `${scopeLabel} · ${memberCountLabel}` : memberCountLabel
+          canScopeToDirectReports
+            ? `${scopeLabel} · ${memberCountLabel}`
+            : memberCountLabel
         }
         person={teamId}
         hasReports
         actions={
-          fullRoster ? (
+          canScopeToDirectReports && fullRoster ? (
             <label className="text-foreground flex cursor-pointer items-center gap-2 text-sm select-none">
               <Switch
                 checked={directReportsOnly}

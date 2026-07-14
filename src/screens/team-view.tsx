@@ -17,6 +17,7 @@ import { usePeriod, useViewMode } from "@/hooks/use-period";
 import {
   flattenSubordinates,
   findIdentityNode,
+  hasIndirectReports,
 } from "@/lib/insight/identity-tree";
 import { getInitials } from "@/lib/insight/get-initials";
 import { useTeamKpis } from "@/lib/insight/team-kpis";
@@ -104,7 +105,10 @@ export function TeamViewScreen({ teamId, viewerEmail }: TeamViewScreenProps) {
   const membersQ = useTeamMembers(teamId, roster, period, dateRange);
   const allMembers = membersQ.data ?? [];
 
-  const canFilterDirectReports = roster !== null;
+  const hasRoster = roster !== null;
+  // Only offer the direct-reports filter when it can change the roster —
+  // with no subteams every report is direct and the toggle is a no-op (#1756).
+  const canFilterDirectReports = hasIndirectReports(roster);
   const directReportEmails = useMemo(() => {
     if (!roster) return null;
     return new Set(
@@ -213,7 +217,7 @@ export function TeamViewScreen({ teamId, viewerEmail }: TeamViewScreenProps) {
             </div>
           </div>
           <div className="shrink-0">
-            <IcViewToggle person={teamId} hasReports={canFilterDirectReports} />
+            <IcViewToggle person={teamId} hasReports={hasRoster} />
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
