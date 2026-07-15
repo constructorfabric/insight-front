@@ -1,5 +1,11 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { ChevronDown, ChevronRight, User, Users } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Megaphone,
+  User,
+  Users,
+} from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -59,7 +65,11 @@ function PersonNode({
           style={{ paddingLeft: `${0.5 + depth * 0.875}rem` }}
         >
           {hasReports ? (
-            open ? <ChevronDown /> : <ChevronRight />
+            open ? (
+              <ChevronDown />
+            ) : (
+              <ChevronRight />
+            )
           ) : (
             <span className="w-4 shrink-0" />
           )}
@@ -98,10 +108,10 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-1.5">
-          <div className="bg-sidebar-primary text-sidebar-primary-foreground flex size-7 items-center justify-center rounded-md font-semibold">
+          <div className="flex size-7 items-center justify-center rounded-md bg-sidebar-primary font-semibold text-sidebar-primary-foreground">
             I
           </div>
-          <span className="text-sidebar-foreground font-semibold tracking-tight">
+          <span className="font-semibold tracking-tight text-sidebar-foreground">
             {t("common.app_name")}
           </span>
         </div>
@@ -113,49 +123,56 @@ export function AppSidebar() {
               <DevImpersonationHint />
             ) : viewer ? (
               <SidebarMenu>
-                <PersonNode
-                  node={viewer}
-                  depth={0}
-                  activeEmail={activeEmail}
-                />
+                <PersonNode node={viewer} depth={0} activeEmail={activeEmail} />
               </SidebarMenu>
             ) : null}
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              isActive={pathname === "/whats-new"}
+              render={<Link to="/whats-new" />}
+            >
+              <Megaphone />
+              <span>{t("whats_new.nav_label")}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
         <SidebarV2Settings />
         <ThemeSwitcher />
-        {viewerEmail ? (
-          (() => {
-            const primaryEmail = viewer?.email ?? viewerEmail;
-            const primary = viewer?.display_name || primaryEmail;
-            const showSecondary = primary !== primaryEmail;
-            return (
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton size="lg" className="cursor-default">
-                    <Avatar className="size-8 shrink-0">
-                      <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs font-semibold">
-                        {getInitials(primary) || "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                      <span className="text-sidebar-foreground truncate text-sm font-medium">
-                        {primary}
-                      </span>
-                      {showSecondary ? (
-                        <span className="text-sidebar-foreground/60 truncate text-xs">
-                          {primaryEmail}
+        {viewerEmail
+          ? (() => {
+              const primaryEmail = viewer?.email ?? viewerEmail;
+              const primary = viewer?.display_name || primaryEmail;
+              const showSecondary = primary !== primaryEmail;
+              return (
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton size="lg" className="cursor-default">
+                      <Avatar className="size-8 shrink-0">
+                        <AvatarFallback className="bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground">
+                          {getInitials(primary) || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                        <span className="truncate text-sm font-medium text-sidebar-foreground">
+                          {primary}
                         </span>
-                      ) : null}
-                    </div>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            );
-          })()
-        ) : null}
+                        {showSecondary ? (
+                          <span className="truncate text-xs text-sidebar-foreground/60">
+                            {primaryEmail}
+                          </span>
+                        ) : null}
+                      </div>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              );
+            })()
+          : null}
       </SidebarFooter>
     </Sidebar>
   );

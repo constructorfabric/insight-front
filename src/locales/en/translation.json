@@ -105,6 +105,91 @@
       "label": "New metrics UI"
     }
   },
+  "whats_new": {
+    "nav_label": "What's new",
+    "eyebrow": "Insight · What's new",
+    "title": "What's new — 13 July 2026",
+    "lead_html": "This update makes your dashboards <strong>more complete and more accurate</strong>. Data now flows and is attributed to the right people across Git, Jira, collaboration and Zoom, and several metrics that were showing wrong or empty values have been corrected. No new screens this time — everything below improves what you already use.",
+    "stamp": {
+      "highlights_label": "Highlights",
+      "highlights": "9 improvements",
+      "focus_label": "Focus",
+      "focus": "data accuracy & completeness"
+    },
+    "in_short_html": "<strong>In short:</strong> more of your team's activity now shows up correctly — Bitbucket reviews, Jira task delivery, collaboration and Zoom meetings are back and attributed properly, long-range Git charts are readable, and AI cost is shown as real money.",
+    "improvements_label": "Improvements you'll notice",
+    "items": {
+      "direct_reports_toggle": {
+        "category": "Team dashboards",
+        "title": "“Direct reports only” toggle is back",
+        "description_html": "Filter a team down to just your direct reports — members, heatmap and metrics all update together. <strong>On by default,</strong> and hidden automatically for teams without sub-teams, where it had no effect."
+      },
+      "member_expand_full_metrics": {
+        "category": "Team dashboards",
+        "title": "Full metrics when you expand a team member",
+        "description_html": "Expanding a person now opens their <strong>complete metric set</strong> instead of a trimmed subset — so you can assess someone without switching screens."
+      },
+      "bitbucket_prs": {
+        "category": "Git & code reviews",
+        "title": "Bitbucket pull requests now counted",
+        "description_html": "Pull-request activity from Bitbucket is attributed to the right person. <strong>Review metrics that used to show zero</strong> now reflect real work."
+      },
+      "consistent_git_metrics": {
+        "category": "Git & code reviews",
+        "title": "Consistent commit & lines-of-code metrics",
+        "description_html": "Commit and LOC figures now come from a single shared source, so <strong>Git activity is reported the same way across connectors.</strong>"
+      },
+      "readable_git_charts": {
+        "category": "Git & code reviews",
+        "title": "Readable quarterly & yearly Git charts",
+        "description_html": "Long-range charts no longer repeat the same label over and over. <strong>Quarterly and annual trends are now legible.</strong>"
+      },
+      "jira_task_delivery": {
+        "category": "Task delivery",
+        "title": "Jira Task Delivery metrics now populate",
+        "description_html": "Closed tasks are detected by their status <i>category</i> rather than English-only status names, so <strong>non-English and custom “Done” workflows report correctly.</strong>"
+      },
+      "zoom_data": {
+        "category": "Collaboration",
+        "title": "Zoom meeting data restored",
+        "description_html": "The Zoom sync was hitting an API limit and stalled for about ten days. It's fixed, so <strong>meeting activity repopulates</strong> going forward."
+      },
+      "ai_adoption_graphs": {
+        "category": "AI adoption",
+        "title": "AI adoption graphs fixed",
+        "description_html": "AI-adoption graphs now show <strong>real distributions with honest “no data” states</strong> instead of blanks or misleading zeros."
+      },
+      "claude_code_cost": {
+        "category": "AI adoption",
+        "title": "Claude Code cost shown as currency",
+        "description_html": "The “Claude Code Cost” metric now displays as <strong>money</strong> instead of a raw number of cents — no more figures that looked inflated."
+      }
+    },
+    "gaps": {
+      "title": "Still on our list",
+      "items": {
+        "identity": "<strong>People without a matching email</strong> aren't attributed yet — this can still leave some Bitbucket and Jira metrics incomplete. Identity resolution is in progress.",
+        "gitlab_loc": "<strong>GitLab lines-of-code</strong> still shows 0. The commit and LOC fix above applies elsewhere; GitLab LOC is being worked on.",
+        "jira_kpis": "<strong>Some Jira KPIs</strong> may still be blank or slow to load on freshly set-up environments."
+      }
+    },
+    "coming": {
+      "label": "Coming next",
+      "items": {
+        "metrics_engine": {
+          "category": "Platform",
+          "title": "One accurate metrics engine",
+          "description": "Bringing all metric families onto a single engine, with correct “no data” states in place of misleading zeros everywhere."
+        },
+        "people_matching": {
+          "category": "Platform",
+          "title": "Better people matching",
+          "description": "Attributing work to the right person even across multiple or missing email addresses — the root cause behind the gaps above."
+        }
+      }
+    },
+    "footer": "Insight · what's new · 13 July 2026"
+  },
   "auth": {
     "callback": {
       "completing": "Completing sign-in...",
