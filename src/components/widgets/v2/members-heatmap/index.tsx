@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { ArrowDown, ArrowUp } from "lucide-react";
 
 import { useCatalog } from "@/api/use-catalog";
@@ -275,7 +276,6 @@ export function MembersHeatmap({
   const { byMetricKey } = useCatalog();
   const [sortKey, setSortKey] = useState<SortKey>("issues");
   const [sheetMember, setSheetMember] = useState<TeamMember | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Cohort = each member's OWN department distribution (per-(org_unit_id,
   // metric_key) quartiles fetched by the screen). A member's cell colour =
@@ -517,14 +517,6 @@ export function MembersHeatmap({
                 key={row.member.person_id}
                 row={row}
                 focusMode={focusMode}
-                bulletStats={cohorts.bullet}
-                byMetricKey={byMetricKey}
-                expanded={expandedId === row.member.person_id}
-                onToggleExpand={() =>
-                  setExpandedId((cur) =>
-                    cur === row.member.person_id ? null : row.member.person_id,
-                  )
-                }
                 onOpenSheet={() => handleMemberClick(row.member)}
               />
             ))}
@@ -644,22 +636,13 @@ function HeatmapCell({
 function MemberRow({
   row,
   focusMode,
-  bulletStats,
-  byMetricKey,
-  expanded,
-  onToggleExpand,
   onOpenSheet,
 }: {
   row: RowShape;
   focusMode: FocusMode;
-  bulletStats: DeptStatsMap;
-  byMetricKey: CatalogByKey;
-  expanded: boolean;
-  onToggleExpand: () => void;
   onOpenSheet: () => void;
 }) {
-  const { member, cells, belowCount, topCount, worstMetricLabel, bullets, orgUnitId } =
-    row;
+  const { member, cells, belowCount, topCount, worstMetricLabel } = row;
   const issueText =
     belowCount > 0
       ? `${belowCount} issue${belowCount === 1 ? "" : "s"}`
@@ -674,7 +657,6 @@ function MemberRow({
                 <button
                   type="button"
                   className="truncate text-left text-sm font-medium leading-tight hover:underline"
-                  aria-expanded={expanded}
                 >
                   {member.name}
                 </button>
@@ -691,11 +673,19 @@ function MemberRow({
                 {belowCount} below department peers · {topCount} in top
               </p>
               <div className="mt-3 flex flex-col gap-1.5">
-                <Button size="sm" onClick={onOpenSheet}>
+                <Button
+                  size="sm"
+                  render={
+                    <Link
+                      to="/ic/$person/personal"
+                      params={{ person: member.person_id }}
+                    />
+                  }
+                >
                   Open in IC view
                 </Button>
-                <Button size="sm" variant="outline" onClick={onToggleExpand}>
-                  {expanded ? "Collapse details" : "Expand details"}
+                <Button size="sm" variant="outline" onClick={onOpenSheet}>
+                  Expand details
                 </Button>
               </div>
             </PopoverContent>
@@ -725,77 +715,7 @@ function MemberRow({
           focusMode={focusMode}
         />
       ))}
-      {expanded ? (
-        <ExpandedBullets
-          bullets={bullets}
-          columnCount={cells.length}
-          focusMode={focusMode}
-          bulletStats={bulletStats}
-          orgUnitId={orgUnitId}
-          byMetricKey={byMetricKey}
-        />
-      ) : null}
     </>
-  );
-}
-
-function ExpandedBullets({
-  bullets,
-  columnCount,
-  focusMode,
-  bulletStats,
-  orgUnitId,
-  byMetricKey,
-}: {
-  bullets: BulletMetric[];
-  columnCount: number;
-  focusMode: FocusMode;
-  bulletStats: DeptStatsMap;
-  orgUnitId: string | null;
-  byMetricKey: CatalogByKey;
-}) {
-  const RANK: Record<PeerStatusWithNeutral, number> = {
-    bottom: 0,
-    in_pack: 1,
-    top: 2,
-    neutral: 3,
-  };
-  const annotated = bullets.map((b) => ({
-    bullet: b,
-    status: deptBulletStatus(b, bulletStats, orgUnitId, byMetricKey),
-  }));
-  annotated.sort((a, b) => RANK[a.status] - RANK[b.status]);
-  return (
-    <div
-      className="border-t border-border/60 px-3 py-3"
-      style={{ gridColumn: `1 / span ${columnCount + 1}` }}
-    >
-      <p className="mb-2 text-xs font-medium text-muted-foreground">
-        All metrics
-      </p>
-      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-        {annotated.map(({ bullet: b, status }) => {
-          const focused = applyFocus(status, focusMode);
-          return (
-            <span
-              key={b.metric_key}
-              className={cn(
-                "flex items-center justify-between gap-2 rounded-sm border border-border/40 px-2 py-1.5 text-xs",
-                PEER_CELL[focused],
-              )}
-            >
-              <span className="truncate font-medium" title={b.label}>
-                {b.label}
-              </span>
-              <span className="shrink-0 font-mono tabular-nums">
-                {b.value}
-                {b.unit ? ` ${b.unit}` : ""}
-              </span>
-            </span>
-          );
-        })}
-      </div>
-    </div>
   );
 }
 

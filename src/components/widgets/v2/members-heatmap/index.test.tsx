@@ -26,6 +26,38 @@ vi.mock("@/api/catalog-client", async () => {
   return { ...actual, fetchCatalog: vi.fn() };
 });
 
+// The member popup renders a router `<Link>` to the IC page; these tests
+// don't exercise navigation, so stub Link to a plain anchor (with the
+// `$person` param interpolated so the href is assertable) rather than
+// standing up a full router context.
+vi.mock("@tanstack/react-router", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@tanstack/react-router")>();
+  return {
+    ...actual,
+    Link: ({
+      to,
+      params,
+      children,
+      ...rest
+    }: {
+      to?: string;
+      params?: Record<string, string>;
+      children?: React.ReactNode;
+    }) => (
+      <a
+        href={(to ?? "").replace(
+          "$person",
+          encodeURIComponent(params?.person ?? ""),
+        )}
+        {...rest}
+      >
+        {children}
+      </a>
+    ),
+  };
+});
+
 import * as catalogClient from "@/api/catalog-client";
 import {
   buildCatalogResponse,
@@ -327,8 +359,13 @@ describe("<MembersHeatmap>", () => {
     );
 
     await user.click(await screen.findByRole("button", { name: "Alice" }));
+    // "Open in IC view" navigates to the member's page; the sheet opens via
+    // "Expand details".
+    expect(
+      await screen.findByRole("link", { name: "Open in IC view" }),
+    ).toHaveAttribute("href", "/ic/alice%40example.com/personal");
     await user.click(
-      await screen.findByRole("button", { name: "Open in IC view" }),
+      screen.getByRole("button", { name: "Expand details" }),
     );
 
     const sheet = within(await screen.findByRole("dialog", { name: "Alice" }));
