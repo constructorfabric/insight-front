@@ -300,6 +300,50 @@ describe("<MembersHeatmap>", () => {
     expect(screen.queryByText(/^\d+ issues?$/)).not.toBeInTheDocument();
   });
 
+  it("clicking a column header sorts rows by that column's value", async () => {
+    const user = userEvent.setup();
+    fetchCatalog.mockResolvedValue(buildCatalogResponse([]));
+    renderWithCatalogClient(
+      <MembersHeatmap
+        members={[
+          makeMember({
+            person_id: "alice@example.com",
+            name: "Alice",
+            tasks_closed: 8,
+          }),
+          makeMember({
+            person_id: "bob@example.com",
+            name: "Bob",
+            tasks_closed: 15,
+          }),
+        ]}
+      />,
+    );
+    const memberNameOrder = () =>
+      screen
+        .getAllByRole("button")
+        .map((b) => b.textContent?.trim())
+        .filter((t) => t === "Alice" || t === "Bob");
+
+    // Default sort is "issues"; with none, ties break by name → Alice first.
+    expect(memberNameOrder()[0]).toBe("Alice");
+
+    // tasks_closed is higher-is-better → Bob (15) sorts above Alice (8).
+    await user.click(
+      screen.getByRole("button", { name: "Tasks closed — sort by this column" }),
+    );
+    expect(memberNameOrder()[0]).toBe("Bob");
+
+    // MTTR is lower-is-better; neither member has the bullet, so order
+    // falls back to stable null handling (no crash, list intact).
+    await user.click(
+      screen.getByRole("button", {
+        name: "Mean time to resolution — sort by this column",
+      }),
+    );
+    expect(memberNameOrder().length).toBeGreaterThan(0);
+  });
+
   it("details sheet shows the full metric set: grid columns + remaining bullets + unified entries, deduped", async () => {
     const user = userEvent.setup();
     fetchCatalog.mockResolvedValue(
