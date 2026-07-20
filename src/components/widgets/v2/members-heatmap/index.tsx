@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowDown, ArrowUp } from "lucide-react";
 
-import { useCatalog } from "@/api/use-catalog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -17,27 +16,33 @@ import {
 } from "@/components/ui/tooltip";
 import { useSettings } from "@/hooks/use-settings";
 import { formatMetricValue } from "@/lib/format";
+import { HEATMAP_METRIC_KEYS } from "@/lib/insight/groups";
 import {
-  bulletCatalogKey,
-  type CatalogByKey,
-} from "@/lib/insight/v2/peer-status";
-import type { PeerStoryEntry } from "@/lib/metrics/peer-story";
-import { MIN_DEPT_COHORT_N } from "@/lib/insight/v2/team-member-status";
+  forEntity,
+  type NormalizedMetricResult,
+} from "@/lib/metrics/collection";
+import {
+  computeDelta,
+  deltaStatus,
+  formatTileDelta,
+  type MetricDelta,
+} from "@/lib/metrics/delta";
+import { normalizePersonId } from "@/lib/metrics/entity";
+import { derivePeerStanding } from "@/lib/metrics/peer-standing";
+import { worstEntry, type PeerStoryEntry } from "@/lib/metrics/peer-story";
+import type { MetricDirection, MetricFormat } from "@/api/metric-results-client";
 import {
   applyFocus,
   PEER_CELL,
   PEER_FILL,
   PEER_LABEL,
   PEER_TEXT,
-  peerStatusVsQuartiles,
-  type DeptCohorts,
-  type DeptStatsMap,
   type FocusMode,
-  type PeerStats,
   type PeerStatusWithNeutral,
 } from "@/lib/peers";
+import { applyFocusStatus, STATUS_TEXT_CLASS } from "@/lib/status";
 import { cn } from "@/lib/utils";
-import type { BulletMetric, TeamMember } from "@/types/insight";
+import type { TeamMember } from "@/types/insight";
 
 import {
   MemberDetailsSheet,
@@ -45,332 +50,140 @@ import {
 } from "./member-details-sheet";
 import { TriageList, type TriageRow } from "./triage-list";
 
-const WOW_THRESHOLD = 0.05;
-
-/**
- * Per-member-department lookup of a metric's distribution. Returns null when
- * the member has no department, the department has no row for the metric, or
- * the cohort is degenerate (`n < MIN_DEPT_COHORT_N`) — all of which collapse
- * the cell to a neutral "No peer data" status.
- */
-function deptStatsFor(
-  statsMap: DeptStatsMap,
-  orgUnitId: string | null,
-  metricKey: string,
-): PeerStats | null {
-  if (!orgUnitId) return null;
-  const stats = statsMap.get(orgUnitId)?.get(metricKey);
-  if (!stats || stats.n < MIN_DEPT_COHORT_N) return null;
-  return stats;
-}
-
-const EMPTY_DEPT_COHORTS: DeptCohorts = { kpi: new Map(), bullet: new Map() };
-
-function computeWowPct(
-  current: number | null,
-  previous: number | null,
-): number | null {
-  if (current == null || previous == null) return null;
-  if (!Number.isFinite(current) || !Number.isFinite(previous)) return null;
-  if (Math.abs(previous) < 1e-9) return null;
-  return (current - previous) / previous;
-}
-
-type TeamRowKey =
-  | "tasks_closed"
-  | "prs_merged"
-  | "bugs_fixed"
-  | "focus_time_pct"
-  | "ai_loc_share_pct";
-
-interface BaseColumn {
+interface Column {
+  /** Metric key — column identity + sort key. */
   key: string;
   label: string;
-  short: string;
-  unit: string;
-  higher_is_better: boolean;
-  mobile: boolean;
+  unit: string | null;
+  format: MetricFormat;
+  direction: MetricDirection;
 }
 
-interface TeamRowColumn extends BaseColumn {
-  source: "team_row";
-  teamRowField: TeamRowKey;
-}
-
-interface BulletColumn extends BaseColumn {
-  source: "bullet";
-  metricKey: string;
-}
-
-type ColumnDef = TeamRowColumn | BulletColumn;
-
-// FE-controlled column layout: `label`/`short`/`unit`/`mobile`/`source`
-// are display concerns the wire response doesn't carry, and the
-// `team_row` source columns reference `TeamMember` wire fields with no
-// matching catalog row (e.g. `tasks_closed` from `RawTeamMemberRow`).
-// `higher_is_better` is therefore left compile-in here even though
-// bullet-source widgets (#80, wave 3) source it from `useCatalog`.
-// A future wave can fold the bullet-source `higher_is_better` entries
-// into a catalog lookup once team_row policy thresholds also move to
-// the wire.
-const COLUMNS: ColumnDef[] = [
-  {
-    key: "tasks_closed",
-    label: "Tasks closed",
-    short: "Tasks",
-    unit: "",
-    higher_is_better: true,
-    mobile: true,
-    source: "team_row",
-    teamRowField: "tasks_closed",
-  },
-  {
-    key: "mean_time_to_resolution",
-    label: "Mean time to resolution",
-    short: "MTTR",
-    unit: "d",
-    higher_is_better: false,
-    mobile: true,
-    source: "bullet",
-    metricKey: "mean_time_to_resolution",
-  },
-  {
-    key: "prs_merged",
-    label: "PRs merged",
-    short: "PRs",
-    unit: "",
-    higher_is_better: true,
-    mobile: true,
-    source: "team_row",
-    teamRowField: "prs_merged",
-  },
-  {
-    key: "bugs_fixed",
-    label: "Bugs fixed",
-    short: "Bugs",
-    unit: "",
-    higher_is_better: true,
-    mobile: false,
-    source: "team_row",
-    teamRowField: "bugs_fixed",
-  },
-  {
-    key: "focus_time_pct",
-    label: "Focus time",
-    short: "Focus %",
-    unit: "%",
-    higher_is_better: true,
-    mobile: false,
-    source: "team_row",
-    teamRowField: "focus_time_pct",
-  },
-  {
-    key: "ai_loc_share_pct",
-    label: "AI lines share",
-    short: "AI %",
-    unit: "%",
-    higher_is_better: true,
-    mobile: false,
-    source: "team_row",
-    teamRowField: "ai_loc_share_pct",
-  },
-  {
-    key: "meeting_hours",
-    label: "Meeting hours",
-    short: "Mtg h",
-    unit: "h",
-    higher_is_better: false,
-    mobile: false,
-    source: "bullet",
-    metricKey: "meeting_hours",
-  },
-];
-
-function getNumericTeamRow(m: TeamMember, key: TeamRowKey): number | null {
-  const raw = m[key];
-  return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
-}
-
-function getNumericBullet(
-  rows: BulletMetric[] | undefined,
-  metricKey: string,
-): number | null {
-  const r = rows?.find((b) => b.metric_key === metricKey);
-  if (!r) return null;
-  const n = Number(r.value);
-  return Number.isFinite(n) ? n : null;
-}
-
-function valueForColumn(
-  col: ColumnDef,
-  member: TeamMember,
-  bullets: BulletMetric[] | undefined,
-): number | null {
-  if (col.source === "team_row") {
-    return getNumericTeamRow(member, col.teamRowField);
-  }
-  return getNumericBullet(bullets, col.metricKey);
-}
-
-/** The dept-distribution `metric_key` a heatmap column is colored against. */
-function metricKeyForColumn(col: ColumnDef): string {
-  return col.source === "team_row" ? col.teamRowField : col.metricKey;
+function columnFor(metric: NormalizedMetricResult): Column {
+  return {
+    key: metric.metric_key,
+    label: metric.label,
+    unit: metric.unit,
+    format: metric.format,
+    direction: metric.direction,
+  };
 }
 
 /**
- * Peer status of a bullet against the member's OWN department distribution,
- * oriented by the catalog's `higher_is_better`. Mirrors `peerStatusForRow`
- * but reads the member-department cohort map instead of the row's own `peer`,
- * so each member is judged against department peers (not the displayed roster).
+ * Which end of the scale reads as "better", or `null` for a neutral metric
+ * that carries no better/worse judgment. Never collapse `direction` to a
+ * boolean: a neutral metric is a fact, not a score, and must not be tinted
+ * or ranked as if higher were good.
  */
-function deptBulletStatus(
-  b: BulletMetric,
-  bulletStats: DeptStatsMap,
-  orgUnitId: string | null,
-  byMetricKey: CatalogByKey,
-): PeerStatusWithNeutral {
-  if (b.schema_error) return "neutral";
-  const value = Number(b.value);
-  if (!Number.isFinite(value)) return "neutral";
-  const raw = deptStatsFor(bulletStats, orgUnitId, b.metric_key);
-  if (!raw) return "neutral";
-  const m = byMetricKey(bulletCatalogKey(b));
-  if (!m) return "neutral";
-  // Cohort and bullet share the catalog unit (no FE rescaling) → compare raw.
-  return peerStatusVsQuartiles(value, raw, m.higher_is_better);
+function betterWhenHigher(direction: MetricDirection): boolean | null {
+  if (direction === "higher_is_better") return true;
+  if (direction === "lower_is_better") return false;
+  return null;
+}
+
+function displayValue(value: number | null, col: Column): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return formatMetricValue(value, col.format, col.unit);
 }
 
 type SortKey = "name" | "issues" | string;
 
 export interface MembersHeatmapProps {
   members: TeamMember[];
-  bulletsByPerson?: Map<string, BulletMetric[]>;
-  previousBulletsByPerson?: Map<string, BulletMetric[]>;
-  previousMembers?: Map<string, TeamMember>;
+  /** Current-period value + peer standing per heatmap metric key. */
+  heatmapByKey: Map<string, NormalizedMetricResult>;
+  /** Previous-period value per heatmap metric key (period view only). */
+  previousHeatmapByKey: Map<string, NormalizedMetricResult>;
   /**
-   * Per-person entries from the unified-metrics groups (git/ai), keyed by
-   * lowercase `person_id`. Sheet-only: these groups carry their own cohort
-   * (each entry's status is vs the person's own org unit, resolved by the
-   * peer view), so they don't ride the dept-cohort maps the grid colors from.
+   * Per-member below-peer counts across ALL group collections, keyed by
+   * normalized person id. Drives the "N issues" chip and the issues sort — the
+   * full standing, not just the heatmap's own columns.
    */
-  metricEntriesByPerson?: Map<string, PeerStoryEntry[]>;
+  metricBelowByMember: Map<string, number>;
   /**
-   * Per-department metric distributions, split by source family (`kpi` for
-   * the team_row columns, `bullet` for member bullet comparisons). Each
-   * member is colored against THEIR OWN department's distribution; a member
-   * whose department is absent or degenerate (`n < MIN_DEPT_COHORT_N`)
-   * renders neutral.
+   * Per-person peer-story entries across all groups, keyed by normalized person
+   * id. Backs the details sheet and the "worst" headline; each entry's standing
+   * is vs the person's own org unit (resolved by the peer view).
    */
-  deptCohorts?: DeptCohorts;
+  metricEntriesByPerson: Map<string, PeerStoryEntry[]>;
 }
 
 export function MembersHeatmap({
   members,
-  bulletsByPerson,
-  previousBulletsByPerson,
-  previousMembers,
-  deptCohorts,
+  heatmapByKey,
+  previousHeatmapByKey,
+  metricBelowByMember,
   metricEntriesByPerson,
 }: MembersHeatmapProps) {
   const { focusMode } = useSettings();
-  const { byMetricKey } = useCatalog();
   const [sortKey, setSortKey] = useState<SortKey>("issues");
   const [sheetMember, setSheetMember] = useState<TeamMember | null>(null);
 
-  // Cohort = each member's OWN department distribution (per-(org_unit_id,
-  // metric_key) quartiles fetched by the screen). A member's cell colour =
-  // their position vs department peers, not vs the displayed roster.
-  const cohorts: DeptCohorts = deptCohorts ?? EMPTY_DEPT_COHORTS;
+  // FE owns the key list + order; each present metric contributes a column.
+  const columns = useMemo(
+    () =>
+      HEATMAP_METRIC_KEYS.flatMap((key) => {
+        const metric = heatmapByKey.get(key);
+        return metric ? [columnFor(metric)] : [];
+      }),
+    [heatmapByKey],
+  );
 
   const rows = useMemo(() => {
-    const built = members.map((m) => {
-      const personIdKey = m.person_id.toLowerCase();
-      const bullets = bulletsByPerson?.get(personIdKey);
-      const prevBullets = previousBulletsByPerson?.get(personIdKey);
-      const prevMember = previousMembers?.get(personIdKey);
-      const cells = COLUMNS.map((col) => {
-        const value = valueForColumn(col, m, bullets);
-        const previous = prevMember
-          ? valueForColumn(col, prevMember, prevBullets)
+    return members.map((m) => {
+      const entityId = normalizePersonId(m.person_id);
+      const entries = metricEntriesByPerson.get(entityId) ?? [];
+      const cells: CellShape[] = columns.map((col) => {
+        const metric = heatmapByKey.get(col.key)!;
+        const data = forEntity(metric, entityId);
+        const standing = derivePeerStanding(metric.direction, {
+          value: data.value,
+          peer: data.peer,
+        });
+        const prevMetric = previousHeatmapByKey.get(col.key);
+        const previous = prevMetric
+          ? forEntity(prevMetric, entityId).value
           : null;
-        // Bullet-source columns honor the wave-1 schema_status='error'
-        // contract: a broken-catalog bullet's heatmap cell renders the
-        // value but suppresses peer coloring (status → 'neutral'). The
-        // belowCount/topCount chips therefore don't count broken
-        // metrics, matching the same rule applied to the bullet-derived
-        // attention surfaces above.
-        const sourceBullet =
-          col.source === "bullet"
-            ? (bullets ?? []).find((b) => b.metric_key === col.metricKey)
-            : null;
-        const rawStats = deptStatsFor(
-          col.source === "team_row" ? cohorts.kpi : cohorts.bullet,
-          m.org_unit_id,
-          metricKeyForColumn(col),
-        );
-        const colSchemaError = sourceBullet?.schema_error === true;
-        const status: PeerStatusWithNeutral =
-          !colSchemaError && value !== null && rawStats
-            ? peerStatusVsQuartiles(value, rawStats, col.higher_is_better)
-            : "neutral";
+        // Period-over-period move via the shared, computation-aware delta
+        // (percentage points for percent ratios, relative % otherwise) — the
+        // same helper the KPI tiles use. Only meaningful for observed members.
+        const delta = standing.observed
+          ? computeDelta(
+              data.value,
+              previous,
+              metric.computation,
+              metric.format,
+            )
+          : null;
         return {
           col,
-          value,
+          value: data.value,
           previous,
-          status,
-          median: rawStats?.p50 ?? null,
-          unit: sourceBullet?.unit ?? col.unit,
+          delta,
+          status: standing.rank,
+          median: standing.stats?.p50 ?? null,
+          observed: standing.observed,
         };
       });
-      const belowCount = cells.filter((c) => c.status === "bottom").length;
-      const topCount = cells.filter((c) => c.status === "top").length;
-      const worstBullet =
-        (bullets ?? [])
-          .map((b) => {
-            const value = Number(b.value);
-            const rawStats = deptStatsFor(
-              cohorts.bullet,
-              m.org_unit_id,
-              b.metric_key,
-            );
-            const catalogRow = byMetricKey(bulletCatalogKey(b));
-            const higherIsBetter = catalogRow?.higher_is_better ?? true;
-            let gap = 0;
-            if (
-              !b.schema_error &&
-              catalogRow &&
-              rawStats &&
-              Number.isFinite(value) &&
-              Math.abs(rawStats.p50) > 1e-9
-            ) {
-              const raw = (value - rawStats.p50) / Math.abs(rawStats.p50);
-              gap = higherIsBetter ? raw : -raw;
-            }
-            return {
-              bullet: b,
-              ps: deptBulletStatus(
-                b,
-                cohorts.bullet,
-                m.org_unit_id,
-                byMetricKey,
-              ),
-              gap,
-            };
-          })
-          .filter((e) => e.ps === "bottom")
-          .sort((a, b) => a.gap - b.gap)[0]?.bullet ?? null;
+      const belowCount = metricBelowByMember.get(entityId) ?? 0;
+      const topCount = entries.filter((e) => e.status === "top").length;
       return {
         member: m,
-        bullets: bullets ?? [],
-        orgUnitId: m.org_unit_id,
+        entityId,
         cells,
         belowCount,
         topCount,
-        worstMetricLabel: worstBullet?.label ?? null,
+        worstMetricLabel: worstEntry(entries)?.label ?? null,
       };
     });
-    return built;
-  }, [members, bulletsByPerson, previousBulletsByPerson, previousMembers, cohorts, byMetricKey]);
+  }, [
+    members,
+    columns,
+    heatmapByKey,
+    previousHeatmapByKey,
+    metricBelowByMember,
+    metricEntriesByPerson,
+  ]);
 
   const sortedRows = useMemo(() => {
     const copy = [...rows];
@@ -383,90 +196,60 @@ export function MembersHeatmap({
           a.member.name.localeCompare(b.member.name),
       );
     } else {
-      const colIdx = COLUMNS.findIndex((c) => c.key === sortKey);
-      const col = COLUMNS[colIdx];
+      const colIdx = columns.findIndex((c) => c.key === sortKey);
+      const col = columns[colIdx];
       if (col) {
         copy.sort((a, b) => {
-          const av = a.cells[colIdx]?.value ?? Number.POSITIVE_INFINITY;
-          const bv = b.cells[colIdx]?.value ?? Number.POSITIVE_INFINITY;
-          return col.higher_is_better ? bv - av : av - bv;
+          const ac = a.cells[colIdx];
+          const bc = b.cells[colIdx];
+          // Members the source never measured sort last in either direction —
+          // an unmeasured cell (or a zero-filled sum with no observation) is
+          // not a best or worst score. Mirrors the "—" the cell renders.
+          const aMissing =
+            !ac?.observed || ac.value == null || !Number.isFinite(ac.value);
+          const bMissing =
+            !bc?.observed || bc.value == null || !Number.isFinite(bc.value);
+          if (aMissing || bMissing) return Number(aMissing) - Number(bMissing);
+          // lower-is-better ranks smallest first; higher-is-better and neutral
+          // rank largest first (neutral's order is arbitrary but stable — it
+          // implies no "best").
+          return betterWhenHigher(col.direction) === false
+            ? ac!.value! - bc!.value!
+            : bc!.value! - ac!.value!;
         });
       }
     }
     return copy;
-  }, [rows, sortKey]);
+  }, [rows, sortKey, columns]);
 
   const gridStyle = {
-    gridTemplateColumns: `minmax(140px, max-content) repeat(${COLUMNS.length}, minmax(56px, 1fr))`,
+    gridTemplateColumns: `minmax(140px, max-content) repeat(${columns.length}, minmax(56px, 1fr))`,
   };
 
   const triageRows: TriageRow[] = sortedRows.map((r) => ({
     member: r.member,
-    cells: r.cells.map((c) => ({
-      label: c.col.label,
-      short: c.col.short,
-      value: c.value,
-      status: c.status,
-    })),
     belowCount: r.belowCount,
     topCount: r.topCount,
+    worstMetricLabel: r.worstMetricLabel,
   }));
 
-  // The sheet shows the member's FULL metric set, not just the 7 grid
-  // columns (#1729): grid cells first (they carry WoW/dept context the
-  // user just clicked through), then the remaining legacy bullets, then
-  // the unified-path (git/ai) entries. Bullets and entries that a column
-  // already covers are deduped — team_row columns overlap unified keys by
-  // dot-suffix (`git.prs_merged` ≈ `prs_merged`) and by display label.
+  // The sheet renders the member's FULL standing (every group), not just the
+  // heatmap columns — the unified peer-story entries carry each metric's own
+  // value, cohort median, and standing.
   const sheetRows: MemberDetailRow[] = useMemo(() => {
     if (!sheetMember) return [];
-    const row = rows.find((r) => r.member.person_id === sheetMember.person_id);
-    if (!row) return [];
-    const columnKeys = new Set(COLUMNS.map(metricKeyForColumn));
-    const columnLabels = new Set(COLUMNS.map((c) => c.label.toLowerCase()));
-    const fromCells: MemberDetailRow[] = row.cells.map((c) => ({
-      key: c.col.key,
-      label: c.col.label,
-      display: c.value == null ? "—" : `${Math.round(c.value)}${c.unit ?? ""}`,
-      medianDisplay:
-        c.median != null ? `${Math.round(c.median)}${c.unit ?? ""}` : null,
-      status: c.status,
+    const entries =
+      metricEntriesByPerson.get(normalizePersonId(sheetMember.person_id)) ?? [];
+    return entries.map((e) => ({
+      key: e.key,
+      label: e.label,
+      display: formatMetricValue(e.value, e.format, e.unit),
+      medianDisplay: e.stats
+        ? formatMetricValue(e.stats.p50, e.format, e.unit)
+        : null,
+      status: e.status,
     }));
-    const fromBullets: MemberDetailRow[] = row.bullets
-      .filter((b) => !columnKeys.has(b.metric_key))
-      .map((b) => {
-        const stats = deptStatsFor(cohorts.bullet, row.orgUnitId, b.metric_key);
-        const unitSuffix = b.unit ? ` ${b.unit}` : "";
-        return {
-          key: b.metric_key,
-          label: b.label,
-          display: `${b.value}${unitSuffix}`,
-          medianDisplay:
-            stats != null
-              ? `${Math.round(stats.p50 * 10) / 10}${unitSuffix}`
-              : null,
-          status: deptBulletStatus(b, cohorts.bullet, row.orgUnitId, byMetricKey),
-        };
-      });
-    const fromMetrics: MemberDetailRow[] = (
-      metricEntriesByPerson?.get(row.member.person_id.toLowerCase()) ?? []
-    )
-      .filter(
-        (e) =>
-          !columnKeys.has(e.key.split(".").pop() ?? e.key) &&
-          !columnLabels.has(e.label.toLowerCase()),
-      )
-      .map((e) => ({
-        key: e.key,
-        label: e.label,
-        display: formatMetricValue(e.value, e.format, e.unit),
-        medianDisplay: e.stats
-          ? formatMetricValue(e.stats.p50, e.format, e.unit)
-          : null,
-        status: e.status,
-      }));
-    return [...fromCells, ...fromBullets, ...fromMetrics];
-  }, [rows, sheetMember, cohorts.bullet, byMetricKey, metricEntriesByPerson]);
+  }, [sheetMember, metricEntriesByPerson]);
 
   const handleMemberClick = (m: TeamMember) => {
     setSheetMember(m);
@@ -504,7 +287,7 @@ export function MembersHeatmap({
         <div className="hidden overflow-x-auto sm:block">
           <div className="inline-grid min-w-full gap-1" style={gridStyle}>
             <div aria-hidden />
-            {COLUMNS.map((c) => (
+            {columns.map((c) => (
               <ColumnHeader
                 key={c.key}
                 col={c}
@@ -536,18 +319,21 @@ export function MembersHeatmap({
 }
 
 interface CellShape {
-  col: ColumnDef;
+  col: Column;
   value: number | null;
   previous: number | null;
+  /** Period-over-period move (computation-aware); null when unobservable. */
+  delta: MetricDelta | null;
   status: PeerStatusWithNeutral;
   median: number | null;
-  unit: string;
+  /** False when the source never observed this member — a zero-filled sum
+   *  reads 0, but an unmeasured member has no value to show. */
+  observed: boolean;
 }
 
 interface RowShape {
   member: TeamMember;
-  bullets: BulletMetric[];
-  orgUnitId: string | null;
+  entityId: string;
   cells: CellShape[];
   belowCount: number;
   topCount: number;
@@ -564,19 +350,18 @@ function HeatmapCell({
   focusMode: FocusMode;
 }) {
   const focused = applyFocus(cell.status, focusMode);
-  const { col, value, previous, median, unit } = cell;
-  const wowPct = computeWowPct(value, previous);
-  const showWow = wowPct != null && Math.abs(wowPct) >= WOW_THRESHOLD;
-  const wowUp = wowPct != null && wowPct > 0;
-  const improving = showWow && wowUp === col.higher_is_better;
+  const { col, value, previous, delta, median, observed } = cell;
+  // Show the trend arrow only when the delta rounds to a real change (the
+  // KPI-tile suppression rule); direction from the sign, favorability from
+  // the shared deltaStatus (neutral metric → muted, no good/bad).
+  const deltaText = delta ? formatTileDelta(delta) : null;
+  const showWow = deltaText != null;
+  const wowUp = delta != null && delta.value > 0;
   const WowIcon = wowUp ? ArrowUp : ArrowDown;
-  const wowTint = improving
-    ? PEER_TEXT[applyFocus("top", focusMode)]
-    : PEER_TEXT[applyFocus("bottom", focusMode)];
-  const display =
-    value == null
-      ? "—"
-      : `${Math.round(value)}${unit ?? ""}`;
+  const wowTint = delta
+    ? STATUS_TEXT_CLASS[applyFocusStatus(deltaStatus(delta, col.direction), focusMode)]
+    : "text-muted-foreground";
+  const display = observed ? displayValue(value, col) : "—";
   return (
     <Popover>
       <PopoverTrigger
@@ -610,7 +395,7 @@ function HeatmapCell({
           </p>
           <p className="text-xs text-muted-foreground">
             {median != null
-              ? `Dept median: ${Math.round(median * 10) / 10}${unit ?? ""}`
+              ? `Dept median: ${formatMetricValue(median, col.format, col.unit)}`
               : "No peer data"}
           </p>
           <p className={cn("mt-1 text-xs font-medium", PEER_TEXT[focused])}>
@@ -618,13 +403,9 @@ function HeatmapCell({
           </p>
           {showWow && previous != null ? (
             <p className="mt-1 text-xs text-muted-foreground tabular-nums">
-              week-over-week:{" "}
-              <span className={cn("font-medium", wowTint)}>
-                {wowUp ? "+" : ""}
-                {Math.round((wowPct ?? 0) * 100)}%
-              </span>{" "}
-              (was {Math.round(previous)}
-              {unit ?? ""})
+              vs previous period:{" "}
+              <span className={cn("font-medium", wowTint)}>{deltaText}</span>{" "}
+              (was {formatMetricValue(previous, col.format, col.unit)})
             </p>
           ) : null}
         </div>
@@ -724,7 +505,7 @@ function ColumnHeader({
   active,
   onClick,
 }: {
-  col: ColumnDef;
+  col: Column;
   active: boolean;
   onClick: () => void;
 }) {
@@ -735,13 +516,14 @@ function ColumnHeader({
           <button
             type="button"
             onClick={onClick}
+            title={col.label}
             className={cn(
-              "flex h-9 cursor-pointer items-center justify-center text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground",
+              "flex h-9 cursor-pointer items-center justify-center px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground",
               active && "text-foreground underline underline-offset-4",
             )}
             aria-label={`${col.label} — sort by this column`}
           >
-            <span className="truncate">{col.short}</span>
+            <span className="truncate">{col.label}</span>
           </button>
         }
       />
@@ -750,7 +532,11 @@ function ColumnHeader({
           <span className="font-medium">{col.label}</span>
           <span className="text-background/70">
             {col.unit ? `${col.unit} · ` : ""}
-            {col.higher_is_better ? "higher is better" : "lower is better"} ·
+            {betterWhenHigher(col.direction) === true
+              ? "higher is better · "
+              : betterWhenHigher(col.direction) === false
+                ? "lower is better · "
+                : ""}
             click to sort
           </span>
         </span>
@@ -784,4 +570,3 @@ function LegendSwatch({
     </span>
   );
 }
-

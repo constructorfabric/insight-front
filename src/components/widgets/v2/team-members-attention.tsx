@@ -1,54 +1,42 @@
 import { Link } from "@tanstack/react-router";
 
-import { useCatalog } from "@/api/use-catalog";
 import { Card, CardContent } from "@/components/ui/card";
 import { useSettings } from "@/hooks/use-settings";
-import { memberMetricPeerStatus } from "@/lib/insight/v2/team-member-status";
 import { normalizePersonId } from "@/lib/metrics/entity";
-import { applyFocus, PEER_TEXT, type DeptCohorts } from "@/lib/peers";
+import { worstEntry, type PeerStoryEntry } from "@/lib/metrics/peer-story";
+import { applyFocus, PEER_TEXT } from "@/lib/peers";
 import { cn } from "@/lib/utils";
-import type { BulletMetric, TeamMember } from "@/types/insight";
+import type { TeamMember } from "@/types/insight";
 
 export interface TeamMembersAttentionProps {
   members: TeamMember[];
-  bulletsByPerson?: Map<string, BulletMetric[]>;
   /**
-   * Per-department metric distributions split by source family; bullets are
-   * counted against the `bullet` family. Each member is counted "below"
-   * against THEIR OWN department; a member with an absent or degenerate
-   * cohort (`n < MIN_DEPT_COHORT_N`) is not counted.
+   * Per-member below-peer counts across all group collections, keyed by
+   * normalized person id. Each member is counted against THEIR OWN department
+   * cohort (resolved by the peer view).
    */
-  deptCohorts?: DeptCohorts;
+  metricBelowByMember: Map<string, number>;
   /**
-   * Additional per-member below-peer counts from metrics-backed groups
-   * (`metricBelowCounts` in `lib/insight/team-metrics.ts`), keyed by
-   * lowercased person id. Merged into the legacy bullet counts.
+   * Per-person peer-story entries across all groups, keyed by normalized person
+   * id — the source of each member's "worst" headline metric.
    */
-  metricBelowByMember?: Map<string, number>;
+  metricEntriesByPerson: Map<string, PeerStoryEntry[]>;
 }
 
 export function TeamMembersAttention({
   members,
-  bulletsByPerson,
-  deptCohorts,
   metricBelowByMember,
+  metricEntriesByPerson,
 }: TeamMembersAttentionProps) {
   const { focusMode } = useSettings();
-  const { byMetricKey } = useCatalog();
 
   const attention = members
     .map((m) => {
-      const bullets = bulletsByPerson?.get(m.person_id.toLowerCase()) ?? [];
-      let belowCount =
-        metricBelowByMember?.get(normalizePersonId(m.person_id)) ?? 0;
-      for (const b of bullets) {
-        if (
-          memberMetricPeerStatus(m, b, deptCohorts, byMetricKey) === "bottom"
-        ) {
-          belowCount += 1;
-        }
-      }
-      return { member: m, belowCount };
+      const entityId = normalizePersonId(m.person_id);
+      const belowCount = metricBelowByMember.get(entityId) ?? 0;
+      const worstLabel =
+        worstEntry(metricEntriesByPerson.get(entityId) ?? [])?.label ?? null;
+      return { member: m, belowCount, worstLabel };
     })
     .filter((x) => x.belowCount > 0)
     .sort((a, b) => b.belowCount - a.belowCount)
@@ -71,7 +59,7 @@ export function TeamMembersAttention({
         <CardContent className="flex flex-col gap-2 text-sm">
           <span className="text-[11px] text-muted-foreground">{subtitle}</span>
           <ul className="grid grid-cols-1 gap-x-8 gap-y-1 md:grid-cols-2">
-            {attention.map(({ member, belowCount }) => (
+            {attention.map(({ member, belowCount, worstLabel }) => (
               <li key={member.person_id}>
                 <Link
                   to="/ic/$person/personal"
@@ -81,10 +69,15 @@ export function TeamMembersAttention({
                   <span className="min-w-0 truncate text-foreground">
                     {member.name}
                   </span>
+                  {worstLabel ? (
+                    <span className="min-w-0 truncate text-xs text-muted-foreground">
+                      worst: {worstLabel}
+                    </span>
+                  ) : null}
                   <span
                     className={cn(
-                      "shrink-0 font-mono font-bold tabular-nums",
-                      PEER_TEXT[badStatus]
+                      "ml-auto shrink-0 font-mono font-bold tabular-nums",
+                      PEER_TEXT[badStatus],
                     )}
                   >
                     {belowCount}

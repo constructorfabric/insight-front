@@ -23,14 +23,9 @@ function rollupStatus(
 
 export interface TriageRow {
   member: TeamMember;
-  cells: {
-    label: string;
-    short: string;
-    value: number | null;
-    status: PeerStatusWithNeutral;
-  }[];
   belowCount: number;
   topCount: number;
+  worstMetricLabel: string | null;
 }
 
 export interface TriageListProps {
@@ -43,7 +38,6 @@ export function TriageList({ rows, onMemberClick }: TriageListProps) {
   return (
     <div className="flex flex-col gap-2">
       {rows.map((r) => {
-        const worst = r.cells.find((c) => c.status === "bottom");
         const status = applyFocus(
           rollupStatus(r.belowCount, r.topCount),
           focusMode,
@@ -71,9 +65,9 @@ export function TriageList({ rows, onMemberClick }: TriageListProps) {
                     <span className="text-xs text-muted-foreground">on par</span>
                   )}
                 </div>
-                {worst ? (
+                {r.belowCount > 0 && r.worstMetricLabel ? (
                   <p className="truncate text-xs text-muted-foreground">
-                    worst: {worst.label}
+                    worst: {r.worstMetricLabel}
                   </p>
                 ) : null}
               </div>

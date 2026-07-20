@@ -1,4 +1,4 @@
-import { formatMetricNumber, formatMetricValue, formatPp } from "@/lib/format";
+import { formatMetricNumber, formatMetricValue } from "@/lib/format";
 import {
   KPI_ROW,
   groupIdForMetricKey,
@@ -11,7 +11,7 @@ import {
 import { peerStatusToStatus } from "@/lib/insight/v2/peer-status";
 import { formatGapMagnitude } from "@/lib/metrics/gap";
 import { derivePeerStanding } from "@/lib/metrics/peer-standing";
-import { computeDelta, type MetricDelta } from "@/lib/metrics/delta";
+import { computeDelta, deltaStatus, formatTileDelta } from "@/lib/metrics/delta";
 import type { FocusMode } from "@/lib/peers";
 import { applyFocusStatus, type Status } from "@/lib/status";
 
@@ -38,27 +38,6 @@ export interface KpiTileData {
   groupId: GroupId | null;
 }
 
-function deltaStatus(
-  delta: MetricDelta,
-  direction: NormalizedMetricResult["direction"]
-): Status {
-  if (direction === "neutral" || delta.value === 0) return "neutral";
-  const favorable =
-    direction === "lower_is_better" ? delta.value < 0 : delta.value > 0;
-  return favorable ? "good" : "bad";
-}
-
-/** Display-rounded delta; null when it rounds to zero (no "+0%" badges). */
-function formatTileDelta(delta: MetricDelta): string | null {
-  if (delta.kind === "pp_change") {
-    return Math.round(Math.abs(delta.value)) === 0
-      ? null
-      : formatPp(delta.value, 0);
-  }
-  const rounded = Math.round(delta.value);
-  if (rounded === 0) return null;
-  return `${rounded > 0 ? "+" : ""}${rounded}%`;
-}
 
 /** Metric-collection results → tiles, in `KPI_ROW` order. */
 export function metricKpiTiles(

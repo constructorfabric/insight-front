@@ -110,10 +110,15 @@ vi.mock("@/queries/team-view", () => ({
   }),
 }));
 
-vi.mock("@/queries/v2/team-extras", () => ({
-  useTeamMemberBullets: () => ({ ...queryState, data: undefined }),
-  useTeamMemberBulletsPrevious: () => ({ ...queryState, data: undefined }),
-  useDeptDistributions: () => ({ ...queryState, data: undefined }),
+vi.mock("@/queries/v2/team-heatmap", () => ({
+  useTeamHeatmap: () => ({
+    byKey: new Map(),
+    previousByKey: new Map(),
+    isPending: false,
+    isFetching: false,
+    isError: false,
+    refetch: () => {},
+  }),
 }));
 
 vi.mock("@/queries/metric-results", () => ({

@@ -1,35 +1,25 @@
 /**
  * Component-render coverage for `<MembersHeatmap>`.
  *
- * Verifies the catalog-driven heatmap colors each member against THAT
- * member's own department distribution (`deptCohorts` keyed by
- * `org_unit_id → metric_key → PeerStats`) and respects the wave-1
- * DESIGN §3.3 rules on its bullet-derived cells:
- *   - bullet that lands in the bottom quartile of the member's dept drives
- *     the "N issues" chip.
- *   - `schema_error` rows are filtered from the "below peers" count.
- *   - Missing-id rows (no catalog row) are filtered out — without a
- *     `higher_is_better` signal the bullet-based worst-pick can't classify.
- *   - A degenerate department cohort (`n < MIN_DEPT_COHORT_N`) → neutral.
+ * The heatmap runs entirely on unified `/v1/metric-results` data: each cell's
+ * value is the member's period value and its colour is the member's standing vs
+ * THEIR OWN department cohort (the peer view), derived once by
+ * `derivePeerStanding`. Covers:
+ *   - a bottom-quartile cell renders the value coloured "Bottom 25%".
+ *   - a member with no usable peer stats renders "No peer data" (neutral).
+ *   - the "N issues" chip + issues sort come from `metricBelowByMember`
+ *     (across all groups), not the heatmap's own columns.
+ *   - clicking a column header sorts by that column honouring its direction.
+ *   - the details sheet renders the member's full peer-story, bucketed.
  */
 
-import { screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import { authStore } from "@/auth/auth-store";
-
-vi.mock("@/api/catalog-client", async () => {
-  const actual = await vi.importActual<typeof import("@/api/catalog-client")>(
-    "@/api/catalog-client",
-  );
-  return { ...actual, fetchCatalog: vi.fn() };
-});
+import { describe, expect, it, vi } from "vitest";
 
 // The member popup renders a router `<Link>` to the IC page; these tests
 // don't exercise navigation, so stub Link to a plain anchor (with the
-// `$person` param interpolated so the href is assertable) rather than
-// standing up a full router context.
+// `$person` param interpolated so the href is assertable).
 vi.mock("@tanstack/react-router", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@tanstack/react-router")>();
@@ -58,21 +48,18 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
   };
 });
 
-import * as catalogClient from "@/api/catalog-client";
-import {
-  buildCatalogResponse,
-  renderWithCatalogClient,
-} from "@/test/catalog-test-utils";
-import type { DeptCohorts, PeerStats } from "@/lib/peers";
-import type { PeerStoryEntry } from "@/lib/metrics/peer-story";
-import { MembersHeatmap } from "./index";
 import type {
-  BulletMetric,
-  PeriodValue,
-  TeamMember,
-} from "@/types/insight";
-
-const fetchCatalog = catalogClient.fetchCatalog as ReturnType<typeof vi.fn>;
+  MetricDirection,
+  MetricFormat,
+} from "@/api/metric-results-client";
+import type {
+  NormalizedMetricResult,
+  PeerEntityStats,
+} from "@/lib/metrics/collection";
+import type { PeerStoryEntry } from "@/lib/metrics/peer-story";
+import type { PeerStatusWithNeutral } from "@/lib/peers";
+import { MembersHeatmap } from "./index";
+import type { PeriodValue, TeamMember } from "@/types/insight";
 
 function makeMember(overrides: Partial<TeamMember> = {}): TeamMember {
   return {
@@ -94,30 +81,44 @@ function makeMember(overrides: Partial<TeamMember> = {}): TeamMember {
   };
 }
 
-function makeBullet(overrides: Partial<BulletMetric> = {}): BulletMetric {
+function peerRow(
+  id: string,
+  s: Partial<Omit<PeerEntityStats, "entity_id">> = {},
+): PeerEntityStats {
   return {
-    period: "month" as PeriodValue,
-    section: "task_delivery",
-    metric_key: "mean_time_to_resolution",
-    label: "Mean Time to Resolution",
-    value: "30",
-    unit: "d",
-    range_min: "0",
-    range_max: "60",
-    median: "10",
-    median_label: "",
-    bar_left_pct: 0,
-    bar_width_pct: 50,
-    median_left_pct: 25,
-    status: "bad",
-    drill_id: "",
-    ...overrides,
+    entity_id: id,
+    target_value: s.target_value ?? 1,
+    p25: s.p25 ?? null,
+    median: s.median ?? null,
+    p75: s.p75 ?? null,
+    min: s.min ?? null,
+    max: s.max ?? null,
+    n: s.n ?? 12,
   };
 }
 
-/** PeerStats with a healthy cohort size (above MIN_DEPT_COHORT_N). */
-function stats(overrides: Partial<PeerStats> = {}): PeerStats {
-  return { p25: 4, p50: 5, p75: 6, min: 2, max: 10, n: 10, ...overrides };
+function metric(cfg: {
+  key: string;
+  label: string;
+  direction?: MetricDirection;
+  format?: MetricFormat;
+  unit?: string | null;
+  period: Array<{ id: string; value: number | null }>;
+  peer?: PeerEntityStats[];
+}): NormalizedMetricResult {
+  return {
+    metric_key: cfg.key,
+    label: cfg.label,
+    unit: cfg.unit ?? null,
+    computation: "sum",
+    format: cfg.format ?? "integer",
+    direction: cfg.direction ?? "higher_is_better",
+    period: {
+      view: "period",
+      values: cfg.period.map((p) => ({ entity_id: p.id, value: p.value })),
+    },
+    peer: cfg.peer ? { view: "peer", values: cfg.peer } : undefined,
+  };
 }
 
 function makeEntry(overrides: Partial<PeerStoryEntry> = {}): PeerStoryEntry {
@@ -130,7 +131,7 @@ function makeEntry(overrides: Partial<PeerStoryEntry> = {}): PeerStoryEntry {
     higherIsBetter: true,
     neutral: false,
     observed: true,
-    stats: stats({ p25: 5, p50: 8, p75: 10 }),
+    stats: { p25: 5, p50: 8, p75: 10, min: 2, max: 14, n: 10 },
     status: "top",
     gapPct: 0.5,
     gapDelta: 4,
@@ -139,189 +140,134 @@ function makeEntry(overrides: Partial<PeerStoryEntry> = {}): PeerStoryEntry {
   };
 }
 
-// Mirrors the production family routing in `fetchDeptDistributions`: the
-// team_row heatmap keys live in the `kpi` family, everything else in `bullet`.
-const KPI_FAMILY_KEYS = new Set([
-  "tasks_closed",
-  "bugs_fixed",
-  "prs_merged",
-  "focus_time_pct",
-  "ai_loc_share_pct",
-]);
-
-function deptMap(
-  rows: Array<[orgUnit: string, metricKey: string, s: PeerStats]>,
-): DeptCohorts {
-  const out: DeptCohorts = { kpi: new Map(), bullet: new Map() };
-  for (const [orgUnit, metricKey, s] of rows) {
-    const target = KPI_FAMILY_KEYS.has(metricKey) ? out.kpi : out.bullet;
-    let byMetric = target.get(orgUnit);
-    if (!byMetric) {
-      byMetric = new Map();
-      target.set(orgUnit, byMetric);
-    }
-    byMetric.set(metricKey, s);
-  }
-  return out;
-}
+const NO_PREV = new Map<string, NormalizedMetricResult>();
+const NO_BELOW = new Map<string, number>();
+const NO_ENTRIES = new Map<string, PeerStoryEntry[]>();
 
 describe("<MembersHeatmap>", () => {
-  beforeEach(() => {
-    authStore.reset();
-    authStore.setAuthenticated({
-      personId: "p-1",
-      email: "bob.park@example.com",
-      tenantId: "t-1",
-      roles: ["user"],
-    });
-    fetchCatalog.mockReset();
-  });
-  afterEach(() => {
-    authStore.reset();
-  });
-
-  it("counts a bottom-quartile bullet vs the member's department toward the 'N issues' chip", async () => {
-    fetchCatalog.mockResolvedValue(
-      buildCatalogResponse([
-        {
-          metric_key: "task_delivery_bullet_rows.mean_time_to_resolution",
-          higher_is_better: false,
-          schema_status: "ok",
-        },
-      ]),
-    );
-    // Alice's MTTR (30, higher = worse) sits above her department's p75 (6),
-    // so her cell is 'bottom' ⇒ 1 issue. Coloring is per-department, not vs
-    // the displayed roster.
-    const bulletsByPerson = new Map<string, BulletMetric[]>([
-      ["alice@example.com", [makeBullet({ value: "30" })]],
-    ]);
-    const deptCohorts = deptMap([
-      ["Engineering", "mean_time_to_resolution", stats({ p25: 4, p50: 5, p75: 6 })],
-    ]);
-    renderWithCatalogClient(
-      <MembersHeatmap
-        members={[makeMember({ person_id: "alice@example.com", name: "Alice" })]}
-        bulletsByPerson={bulletsByPerson}
-        deptCohorts={deptCohorts}
-      />,
-    );
-    await waitFor(() => {
-      // The chip is rendered twice — once in the mobile triage list,
-      // once in the desktop grid. Both should agree.
-      expect(screen.getAllByText("1 issue").length).toBeGreaterThan(0);
-    });
-  });
-
-  it("schema_error bullet does NOT contribute to the 'issues' count", async () => {
-    fetchCatalog.mockResolvedValue(
-      buildCatalogResponse([
-        {
-          metric_key: "task_delivery_bullet_rows.mean_time_to_resolution",
-          higher_is_better: false,
-          schema_status: "error",
-        },
-      ]),
-    );
-    const bulletsByPerson = new Map<string, BulletMetric[]>([
+  it("colours a bottom-quartile cell against the member's peer cohort", async () => {
+    // Alice's resolution time (30, lower = better) sits above her cohort p75
+    // (6) ⇒ bottom quartile. The cell shows the value and reads "Bottom 25%".
+    const heatmapByKey = new Map<string, NormalizedMetricResult>([
       [
-        "alice@example.com",
-        [makeBullet({ value: "30", schema_error: true })],
+        "tasks.resolution_time",
+        metric({
+          key: "tasks.resolution_time",
+          label: "Resolution time",
+          direction: "lower_is_better",
+          unit: "d",
+          period: [{ id: "alice@example.com", value: 30 }],
+          peer: [
+            peerRow("alice@example.com", {
+              target_value: 30,
+              p25: 4,
+              median: 5,
+              p75: 6,
+              min: 2,
+              max: 10,
+            }),
+          ],
+        }),
       ],
     ]);
-    const deptCohorts = deptMap([
-      ["Engineering", "mean_time_to_resolution", stats()],
-    ]);
-    renderWithCatalogClient(
+    render(
       <MembersHeatmap
         members={[makeMember()]}
-        bulletsByPerson={bulletsByPerson}
-        deptCohorts={deptCohorts}
+        heatmapByKey={heatmapByKey}
+        previousHeatmapByKey={NO_PREV}
+        metricBelowByMember={NO_BELOW}
+        metricEntriesByPerson={NO_ENTRIES}
       />,
     );
-    await waitFor(() => {
-      expect(screen.queryByText(/^\d+ issues?$/)).not.toBeInTheDocument();
-    });
+    expect(
+      await screen.findByRole("button", {
+        name: "Alice — Resolution time: 30 d — Bottom 25%",
+      }),
+    ).toBeInTheDocument();
   });
 
-  it("a degenerate department cohort (n < 5) renders neutral — no 'issues' chip", async () => {
-    fetchCatalog.mockResolvedValue(
-      buildCatalogResponse([
-        {
-          metric_key: "task_delivery_bullet_rows.mean_time_to_resolution",
-          higher_is_better: false,
-          schema_status: "ok",
-        },
-      ]),
-    );
-    // Alice's MTTR (30) would be bottom-quartile, but her department's
-    // cohort holds only 3 people (< MIN_DEPT_COHORT_N) ⇒ neutral, not counted.
-    const bulletsByPerson = new Map<string, BulletMetric[]>([
-      ["alice@example.com", [makeBullet({ value: "30" })]],
+  it("renders 'No peer data' when the metric has no usable cohort stats", () => {
+    const heatmapByKey = new Map<string, NormalizedMetricResult>([
+      [
+        "tasks.closed",
+        metric({
+          key: "tasks.closed",
+          label: "Tasks closed",
+          period: [{ id: "alice@example.com", value: 8 }],
+          // Peer row present but percentiles null ⇒ suppressed ⇒ neutral.
+          peer: [peerRow("alice@example.com", { target_value: 8 })],
+        }),
+      ],
     ]);
-    const deptCohorts = deptMap([
-      ["Engineering", "mean_time_to_resolution", stats({ n: 3 })],
-    ]);
-    renderWithCatalogClient(
+    render(
       <MembersHeatmap
         members={[makeMember()]}
-        bulletsByPerson={bulletsByPerson}
-        deptCohorts={deptCohorts}
+        heatmapByKey={heatmapByKey}
+        previousHeatmapByKey={NO_PREV}
+        metricBelowByMember={NO_BELOW}
+        metricEntriesByPerson={NO_ENTRIES}
       />,
     );
-    await waitFor(() => {
-      expect(fetchCatalog).toHaveBeenCalled();
-    });
-    expect(screen.queryByText(/^\d+ issues?$/)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Alice — Tasks closed: 8 — No peer data",
+      }),
+    ).toBeInTheDocument();
   });
 
-  it("a member whose department is absent from the cohort map renders neutral", async () => {
-    fetchCatalog.mockResolvedValue(
-      buildCatalogResponse([
-        {
-          metric_key: "task_delivery_bullet_rows.mean_time_to_resolution",
-          higher_is_better: false,
-          schema_status: "ok",
-        },
-      ]),
-    );
-    const bulletsByPerson = new Map<string, BulletMetric[]>([
-      ["alice@example.com", [makeBullet({ value: "30" })]],
+  it("drives the 'N issues' chip from metricBelowByMember (all groups)", () => {
+    const heatmapByKey = new Map<string, NormalizedMetricResult>([
+      [
+        "tasks.closed",
+        metric({
+          key: "tasks.closed",
+          label: "Tasks closed",
+          period: [{ id: "alice@example.com", value: 8 }],
+        }),
+      ],
     ]);
-    // Map keyed for a different department than Alice's ⇒ no peer data.
-    const deptCohorts = deptMap([
-      ["Sales", "mean_time_to_resolution", stats()],
-    ]);
-    renderWithCatalogClient(
+    // Two below-peer standings across all groups — not from this one column.
+    const metricBelowByMember = new Map([["alice@example.com", 2]]);
+    render(
       <MembersHeatmap
-        members={[makeMember({ org_unit_id: "Engineering" })]}
-        bulletsByPerson={bulletsByPerson}
-        deptCohorts={deptCohorts}
+        members={[makeMember()]}
+        heatmapByKey={heatmapByKey}
+        previousHeatmapByKey={NO_PREV}
+        metricBelowByMember={metricBelowByMember}
+        metricEntriesByPerson={NO_ENTRIES}
       />,
     );
-    await waitFor(() => {
-      expect(fetchCatalog).toHaveBeenCalled();
-    });
-    expect(screen.queryByText(/^\d+ issues?$/)).not.toBeInTheDocument();
+    // Rendered once in the desktop grid, once in the mobile triage list.
+    expect(screen.getAllByText("2 issues").length).toBeGreaterThan(0);
   });
 
-  it("clicking a column header sorts rows by that column's value", async () => {
+  it("clicking a column header sorts rows by that column's value and direction", async () => {
     const user = userEvent.setup();
-    fetchCatalog.mockResolvedValue(buildCatalogResponse([]));
-    renderWithCatalogClient(
+    const heatmapByKey = new Map<string, NormalizedMetricResult>([
+      [
+        "tasks.resolution_time",
+        metric({
+          key: "tasks.resolution_time",
+          label: "Resolution time",
+          direction: "lower_is_better",
+          unit: "d",
+          period: [
+            { id: "alice@example.com", value: 30 },
+            { id: "bob@example.com", value: 5 },
+          ],
+        }),
+      ],
+    ]);
+    render(
       <MembersHeatmap
         members={[
-          makeMember({
-            person_id: "alice@example.com",
-            name: "Alice",
-            tasks_closed: 8,
-          }),
-          makeMember({
-            person_id: "bob@example.com",
-            name: "Bob",
-            tasks_closed: 15,
-          }),
+          makeMember({ person_id: "alice@example.com", name: "Alice" }),
+          makeMember({ person_id: "bob@example.com", name: "Bob" }),
         ]}
+        heatmapByKey={heatmapByKey}
+        previousHeatmapByKey={NO_PREV}
+        metricBelowByMember={NO_BELOW}
+        metricEntriesByPerson={NO_ENTRIES}
       />,
     );
     const memberNameOrder = () =>
@@ -330,109 +276,99 @@ describe("<MembersHeatmap>", () => {
         .map((b) => b.textContent?.trim())
         .filter((t) => t === "Alice" || t === "Bob");
 
-    // Default sort is "issues"; with none, ties break by name → Alice first.
+    // Default "issues" sort; none present ⇒ tie broken by name → Alice first.
     expect(memberNameOrder()[0]).toBe("Alice");
 
-    // tasks_closed is higher-is-better → Bob (15) sorts above Alice (8).
-    await user.click(
-      screen.getByRole("button", { name: "Tasks closed — sort by this column" }),
-    );
-    expect(memberNameOrder()[0]).toBe("Bob");
-
-    // MTTR is lower-is-better; neither member has the bullet, so order
-    // falls back to stable null handling (no crash, list intact).
+    // Resolution time is lower-is-better → Bob (5) sorts above Alice (30).
     await user.click(
       screen.getByRole("button", {
-        name: "Mean time to resolution — sort by this column",
+        name: "Resolution time — sort by this column",
       }),
     );
-    expect(memberNameOrder().length).toBeGreaterThan(0);
+    expect(memberNameOrder()[0]).toBe("Bob");
   });
 
-  it("details sheet shows the full metric set: grid columns + remaining bullets + unified entries, deduped", async () => {
+  it("sorts by name on demand", async () => {
     const user = userEvent.setup();
-    fetchCatalog.mockResolvedValue(
-      buildCatalogResponse([
-        {
-          metric_key: "task_delivery_bullet_rows.mean_time_to_resolution",
-          higher_is_better: false,
-          schema_status: "ok",
-        },
-        {
-          metric_key: "collaboration_bullet_rows.code_review_speed",
-          higher_is_better: true,
-          schema_status: "ok",
-        },
-      ]),
+    render(
+      <MembersHeatmap
+        members={[
+          makeMember({ person_id: "bob@example.com", name: "Bob" }),
+          makeMember({ person_id: "alice@example.com", name: "Alice" }),
+        ]}
+        heatmapByKey={new Map()}
+        previousHeatmapByKey={NO_PREV}
+        metricBelowByMember={NO_BELOW}
+        metricEntriesByPerson={NO_ENTRIES}
+      />,
     );
-    const bulletsByPerson = new Map<string, BulletMetric[]>([
-      [
-        "alice@example.com",
-        [
-          // Covered by the MTTR grid column → must NOT duplicate in the sheet.
-          makeBullet({ value: "30" }),
-          // Not a grid column → previously dropped by the 7-column cap.
-          makeBullet({
-            section: "collaboration",
-            metric_key: "code_review_speed",
-            label: "Code review speed",
-            value: "9",
-            unit: "",
-          }),
-        ],
-      ],
-    ]);
-    const deptCohorts = deptMap([
-      // MTTR 30 above p75 (lower is better) → bottom.
-      ["Engineering", "mean_time_to_resolution", stats({ p25: 4, p50: 5, p75: 6 })],
-      // Review speed 9 above p75 (higher is better) → top.
-      ["Engineering", "code_review_speed", stats({ p25: 4, p50: 5, p75: 6 })],
-    ]);
+    await user.click(screen.getByRole("button", { name: "Name" }));
+    const order = screen
+      .getAllByRole("button")
+      .map((b) => b.textContent?.trim())
+      .filter((t) => t === "Alice" || t === "Bob");
+    expect(order[0]).toBe("Alice");
+  });
+
+  it("renders the details sheet from the member's peer-story, bucketed", async () => {
+    const user = userEvent.setup();
+    const metricBelowByMember = new Map([["alice@example.com", 1]]);
     const metricEntriesByPerson = new Map<string, PeerStoryEntry[]>([
       [
         "alice@example.com",
         [
-          makeEntry(),
-          // Dot-suffix collides with the team_row `prs_merged` column → deduped.
-          makeEntry({ key: "git.prs_merged", label: "PRs merged", value: 99 }),
+          makeEntry({
+            key: "tasks.resolution_time",
+            label: "Resolution time",
+            value: 30,
+            unit: "d",
+            higherIsBetter: false,
+            status: "bottom" as PeerStatusWithNeutral,
+            severity: 2,
+            stats: { p25: 4, p50: 5, p75: 6, min: 2, max: 10, n: 10 },
+          }),
+          makeEntry({ key: "git.commits", label: "Commits", status: "top" }),
+          makeEntry({
+            key: "wiki.edits",
+            label: "Wiki edits",
+            status: "in_pack" as PeerStatusWithNeutral,
+          }),
         ],
       ],
     ]);
-    renderWithCatalogClient(
+    render(
       <MembersHeatmap
         members={[makeMember()]}
-        bulletsByPerson={bulletsByPerson}
-        deptCohorts={deptCohorts}
+        heatmapByKey={new Map()}
+        previousHeatmapByKey={NO_PREV}
+        metricBelowByMember={metricBelowByMember}
         metricEntriesByPerson={metricEntriesByPerson}
       />,
     );
 
+    // "worst" headline is the bottom entry with the highest severity.
+    expect(screen.getAllByText("worst: Resolution time").length).toBeGreaterThan(
+      0,
+    );
+
     await user.click(await screen.findByRole("button", { name: "Alice" }));
-    // "Open in IC view" navigates to the member's page; the sheet opens via
-    // "Expand details".
     expect(
       await screen.findByRole("link", { name: "Open in IC view" }),
     ).toHaveAttribute("href", "/ic/alice%40example.com/personal");
-    await user.click(
-      screen.getByRole("button", { name: "Expand details" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Expand details" }));
 
     const sheet = within(await screen.findByRole("dialog", { name: "Alice" }));
-    // All three status buckets: MTTR bottom, review speed + Commits top,
-    // cohort-less team_row columns neutral.
     expect(sheet.getByText("Needs attention")).toBeInTheDocument();
     expect(sheet.getByText("Strong points")).toBeInTheDocument();
-    // (bucket title and the per-row in-pack status label share this text)
+    // Bucket title and the in-pack row's status label share this text.
     expect(sheet.getAllByText("On par").length).toBeGreaterThan(0);
-    // Legacy bullet beyond the 7 columns, colored vs its dept cohort.
-    expect(sheet.getByText("Code review speed")).toBeInTheDocument();
-    // Unified-path entry with its own formatting and cohort median.
+    expect(sheet.getByText("Resolution time")).toBeInTheDocument();
     expect(sheet.getByText("Commits")).toBeInTheDocument();
-    expect(sheet.getByText("median 8")).toBeInTheDocument();
-    // Column-covered sources are deduped: one MTTR row (from the grid cell,
-    // not the bullet), one PRs-merged row (not the `git.prs_merged` twin).
-    expect(sheet.getAllByText("Mean time to resolution")).toHaveLength(1);
-    expect(sheet.getAllByText("PRs merged")).toHaveLength(1);
-    expect(sheet.queryByText("99")).not.toBeInTheDocument();
+    // Unified entry carries its own cohort median, server-formatted.
+    expect(sheet.getAllByText("median 8").length).toBeGreaterThan(0);
+
+    await waitFor(() => {
+      expect(sheet.getByText("Wiki edits")).toBeInTheDocument();
+    });
   });
 });
