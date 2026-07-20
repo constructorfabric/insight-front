@@ -9,7 +9,6 @@ import { Spinner } from "@/components/ui/spinner";
 import { ComingSoon } from "@/components/widgets/coming-soon";
 import { useSettings } from "@/hooks/use-settings";
 import type { MetricGroup } from "@/lib/insight/groups";
-import { peerStatusToStatus } from "@/lib/insight/v2/peer-status";
 import {
   teamMetricStandings,
   type TeamMetricStanding,
@@ -19,13 +18,52 @@ import {
   rankCounts,
   sectionStandingPhrase,
 } from "@/lib/scoring";
+import { PEER_FILL } from "@/lib/peers";
 import {
   STATUS_BG_CLASS,
   STATUS_STRIPE_LEFT,
+  STATUS_TEXT_CLASS,
   applyFocusStatus,
 } from "@/lib/status";
 import type { MetricCollectionResult } from "@/queries/metric-results";
 import { cn } from "@/lib/utils";
+
+/**
+ * How the roster splits on one metric — each segment's width is its share of
+ * the roster. `unmeasured` (roster minus those with a standing) rides the
+ * track, so a mostly-unmeasured metric reads as a mostly-empty bar rather
+ * than a confident verdict.
+ */
+function CompositionBar({
+  top,
+  inPack,
+  bottom,
+  unmeasured,
+}: {
+  top: number;
+  inPack: number;
+  bottom: number;
+  unmeasured: number;
+}) {
+  const total = top + inPack + bottom + unmeasured;
+  if (total === 0) return null;
+  const seg = (n: number, className: string) =>
+    n > 0 ? (
+      <span className={className} style={{ width: `${(n / total) * 100}%` }} />
+    ) : null;
+  return (
+    <div
+      className="flex h-1.5 w-full overflow-hidden rounded-full"
+      role="img"
+      aria-label={`${top} ahead, ${inPack} on par, ${bottom} trailing, ${unmeasured} unmeasured of ${total}`}
+    >
+      {seg(top, PEER_FILL.top)}
+      {seg(inPack, PEER_FILL.in_pack)}
+      {seg(bottom, PEER_FILL.bottom)}
+      {seg(unmeasured, PEER_FILL.neutral)}
+    </div>
+  );
+}
 
 export interface TeamMetricGroupCardProps {
   def: MetricGroup;
@@ -36,9 +74,10 @@ export interface TeamMetricGroupCardProps {
 }
 
 /**
- * Team card for a metrics-backed group. No team aggregates — a ratio can't
- * be summed from per-member values — so each preview row reports roster
- * standings against members' own cohorts ("3 of 8 in top").
+ * Card for a metrics-backed group over a roster of people. No pooled team
+ * value — the roster is a set of individuals, not a unit — so each preview
+ * row shows how the members split against their OWN cohorts as a composition
+ * bar plus the count trailing their peers.
  */
 export function TeamMetricGroupCard({
   def,
@@ -133,31 +172,41 @@ export function TeamMetricGroupCard({
             No metrics with peer data for this period.
           </p>
         ) : (
-          <ul className="flex flex-col gap-1.5">
+          <ul className="flex flex-col gap-2.5">
             {(preview.length > 0 ? preview : scored.slice(0, 3)).map(
               (standing) => {
-                const rowStatus = applyFocusStatus(
-                  peerStatusToStatus(standing.verdict),
-                  focusMode,
+                const unmeasured = Math.max(
+                  0,
+                  memberIds.length - standing.scored,
                 );
                 return (
                   <li
                     key={standing.metric.metric_key}
-                    className="flex items-center gap-2 text-sm"
+                    className="flex flex-col gap-1 text-sm"
                   >
-                    <span
-                      className={cn(
-                        "size-2 shrink-0 rounded-full",
-                        STATUS_BG_CLASS[rowStatus],
-                      )}
-                      aria-hidden
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate text-muted-foreground">
+                        {standing.metric.label}
+                      </span>
+                      <span
+                        className={cn(
+                          "shrink-0 text-xs tabular-nums",
+                          standing.bottom > 0
+                            ? STATUS_TEXT_CLASS.bad
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {standing.bottom > 0
+                          ? `${standing.bottom} trailing`
+                          : "on par"}
+                      </span>
+                    </div>
+                    <CompositionBar
+                      top={standing.top}
+                      inPack={standing.inPack}
+                      bottom={standing.bottom}
+                      unmeasured={unmeasured}
                     />
-                    <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                      {standing.metric.label}
-                    </span>
-                    <span className="shrink-0 font-medium tabular-nums">
-                      {standing.top} of {standing.scored} in top
-                    </span>
                   </li>
                 );
               },

@@ -121,8 +121,14 @@ describe("TeamMetricGroupCard", () => {
     );
     // Metric scores good (plurality top) → 1 ahead of peers.
     expect(screen.getByText("1 ahead of peers")).toBeInTheDocument();
-    // Preview row reports the top/scored split.
-    expect(screen.getByText("2 of 3 in top")).toBeInTheDocument();
+    // Preview row surfaces the count trailing their peers (c@x.com) and a
+    // composition bar labelled with the full split.
+    expect(screen.getByText("1 trailing")).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", {
+        name: "2 ahead, 0 on par, 1 trailing, 0 unmeasured of 3",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("shows the no-peer-data fallback when nothing is scorable", () => {
