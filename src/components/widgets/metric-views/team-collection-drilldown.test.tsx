@@ -1,6 +1,36 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+// The ranked member list renders a router `<Link>` to the IC page; these
+// tests don't exercise navigation, so stub Link to a plain anchor.
+vi.mock("@tanstack/react-router", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@tanstack/react-router")>();
+  return {
+    ...actual,
+    Link: ({
+      to,
+      params,
+      children,
+      ...rest
+    }: {
+      to?: string;
+      params?: Record<string, string>;
+      children?: React.ReactNode;
+    }) => (
+      <a
+        href={(to ?? "").replace(
+          "$person",
+          encodeURIComponent(params?.person ?? ""),
+        )}
+        {...rest}
+      >
+        {children}
+      </a>
+    ),
+  };
+});
+
 import {
   TeamCollectionDrilldown,
   type TeamMemberRef,
@@ -40,6 +70,40 @@ function metric(values: Array<{ id: string; value: number | null }>): MetricResu
       {
         view: "period",
         values: values.map((v) => ({ entity_id: v.id, value: v.value })),
+      },
+    ],
+  };
+}
+
+// A period + peer metric where each member is ranked against a cohort with a
+// disclosed distribution (n>=5), so members resolve to a real standing.
+function metricWithPeer(
+  values: Array<{ id: string; value: number }>,
+): MetricResult {
+  return {
+    metric_key: "ai.active_days",
+    label: "Active AI days",
+    unit: "days",
+    format: "integer",
+    direction: "higher_is_better",
+    computation: "sum",
+    views: [
+      {
+        view: "period",
+        values: values.map((v) => ({ entity_id: v.id, value: v.value })),
+      },
+      {
+        view: "peer",
+        values: values.map((v) => ({
+          entity_id: v.id,
+          target_value: v.value,
+          p25: 10,
+          median: 15,
+          p75: 20,
+          min: 1,
+          max: 25,
+          n: 8,
+        })),
       },
     ],
   };
@@ -104,22 +168,41 @@ describe("TeamCollectionDrilldown", () => {
     expect(screen.getByText(/No team members/i)).toBeInTheDocument();
   });
 
-  it("renders a per-member table with formatted values and em-dash for gaps", () => {
+  it("leads with the trailing members ranked against their own cohort", () => {
     render(
       <TeamCollectionDrilldown
         def={DEF}
         data={result([
-          metric([
-            { id: "a@x.com", value: 5 },
-            { id: "b@x.com", value: null },
+          metricWithPeer([
+            { id: "a@x.com", value: 3 }, // <= p25 (10) → bottom
+            { id: "b@x.com", value: 16 }, // between p25/p75 → in pack
           ]),
         ])}
         members={MEMBERS}
       />,
     );
+    // One of two members trails; the block leads with the count and names
+    // the trailing member with their gap vs their own median.
+    expect(screen.getByText("1 of 2 below peers")).toBeInTheDocument();
     expect(screen.getByText("Ann")).toBeInTheDocument();
-    expect(screen.getByText("Bo")).toBeInTheDocument();
-    expect(screen.getByText("5 days")).toBeInTheDocument();
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getByText(/vs median 15\s*days/)).toBeInTheDocument();
+    // The in-pack member is not called out as trailing.
+    expect(screen.queryByText("Bo")).not.toBeInTheDocument();
+  });
+
+  it("folds metrics where nobody trails their peers", () => {
+    render(
+      <TeamCollectionDrilldown
+        def={DEF}
+        data={result([
+          metricWithPeer([
+            { id: "a@x.com", value: 16 }, // in pack
+            { id: "b@x.com", value: 18 }, // in pack
+          ]),
+        ])}
+        members={MEMBERS}
+      />,
+    );
+    expect(screen.getByText(/on par — nobody trailing/i)).toBeInTheDocument();
   });
 });
