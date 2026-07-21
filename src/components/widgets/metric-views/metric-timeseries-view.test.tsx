@@ -102,7 +102,7 @@ describe("MetricTimeseriesView", () => {
     mocks.xlsx.mockReset().mockResolvedValue(undefined);
   });
 
-  it("switches presentations and persists independent card state", async () => {
+  it("switches presentations and persists presentation per card", async () => {
     const user = userEvent.setup();
     render(
       <MetricTimeseriesView
@@ -115,17 +115,13 @@ describe("MetricTimeseriesView", () => {
     );
     expect(screen.getByText("chart presentation")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Collapse card" })
-    ).toHaveAttribute("aria-pressed", "true");
+      screen.queryByRole("button", { name: "Collapse card" })
+    ).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Table view" }));
     expect(screen.getByText("table presentation")).toBeInTheDocument();
     expect(
       localStorage.getItem("insight.timeseries.git-output.presentation")
     ).toBe("table");
-    await user.click(screen.getByRole("button", { name: "Collapse card" }));
-    expect(localStorage.getItem("insight.timeseries.git-output.expanded")).toBe(
-      "false"
-    );
   });
 
   it("renders pending, error, and empty states", () => {

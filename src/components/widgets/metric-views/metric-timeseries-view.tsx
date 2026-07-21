@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ListFilter, Maximize2, Minimize2, X } from "lucide-react";
+import { ListFilter, X } from "lucide-react";
 
 import type { DateRange } from "@/api/period-to-date-range";
 import { Button } from "@/components/ui/button";
@@ -36,11 +36,7 @@ import {
   type MetricTimeseriesGroupLimitConfig,
 } from "@/lib/metrics/collection";
 import { cn } from "@/lib/utils";
-import {
-  parseLocalStorageBoolean,
-  serializeLocalStorageBoolean,
-  useLocalStorageState,
-} from "@/hooks/use-local-storage-state";
+import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import {
   useMetricCollection,
   useMetricCollectionSet,
@@ -235,12 +231,6 @@ export function MetricTimeseriesView({
     parse: parseTimeseriesPresentation,
     serialize: serializeTimeseriesPresentation,
   });
-  const [expanded, setExpanded] = useLocalStorageState<boolean>({
-    key: `insight.timeseries.${id}.expanded`,
-    defaultValue: true,
-    parse: parseLocalStorageBoolean,
-    serialize: serializeLocalStorageBoolean,
-  });
   const [selectedMetricKey, setSelectedMetricKey] = useState(
     metricKeys[0] ?? ""
   );
@@ -394,7 +384,6 @@ export function MetricTimeseriesView({
     <Card
       className={cn(
         "shrink-0 gap-0 overflow-hidden py-0",
-        expanded && "lg:col-span-2",
         data.isFetching && "opacity-60"
       )}
     >
@@ -450,22 +439,6 @@ export function MetricTimeseriesView({
             range={range}
             disabled={empty || data.isFetching || data.isError}
           />
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            className="hidden lg:inline-flex"
-            aria-label={expanded ? "Collapse card" : "Expand card"}
-            title={expanded ? "Collapse card" : "Expand card"}
-            aria-pressed={expanded}
-            onClick={() => setExpanded((current) => !current)}
-          >
-            {expanded ? (
-              <Minimize2 className="size-4" />
-            ) : (
-              <Maximize2 className="size-4" />
-            )}
-          </Button>
           <TimeseriesPresentationToggle
             presentation={presentation}
             onChange={setPresentation}
