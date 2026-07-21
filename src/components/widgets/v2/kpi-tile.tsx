@@ -9,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Spinner } from "@/components/ui/spinner";
 import { useSettings } from "@/hooks/use-settings";
 import type { KpiTileData } from "@/lib/insight/kpi-row";
 import type { GroupId } from "@/lib/insight/groups";
@@ -94,15 +93,6 @@ export function KpiTile({ tile, onOpenGroup }: KpiTileProps) {
           (tile.medianLabel ?? "No peer data")
         )}
       </CardFooter>
-    </Card>
-  );
-}
-
-/** Loading state: a centered spinner in the card, matching the group cards. */
-export function KpiTileLoading() {
-  return (
-    <Card className={cn(CARD_SURFACE, "min-h-32 items-center justify-center")}>
-      <Spinner className="size-5 text-muted-foreground" aria-label="Loading" />
     </Card>
   );
 }

@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   KpiTile,
-  KpiTileLoading,
   KpiTilePlaceholder,
 } from "@/components/widgets/v2/kpi-tile";
 import type { KpiTileData } from "@/lib/insight/kpi-row";
@@ -86,10 +85,3 @@ describe("KpiTilePlaceholder", () => {
   });
 });
 
-describe("KpiTileLoading", () => {
-  it("renders a spinner and not the 'Coming soon' state", () => {
-    const { container } = render(<KpiTileLoading />);
-    expect(container.querySelector("svg")).toBeInTheDocument();
-    expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
-  });
-});

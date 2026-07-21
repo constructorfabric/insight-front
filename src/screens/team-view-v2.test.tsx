@@ -123,6 +123,7 @@ vi.mock("@/queries/v2/member-grid", () => ({
 
 vi.mock("@/queries/metric-results", () => ({
   useMetricCollectionSet: () => new Map(),
+  collectionSetPending: () => false,
 }));
 
 function person(

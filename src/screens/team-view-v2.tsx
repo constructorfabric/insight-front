@@ -8,9 +8,8 @@ import { MembersOverview } from "@/components/widgets/v2/members-overview";
 import { TeamMembersAttention } from "@/components/widgets/v2/team-members-attention";
 import { TeamMetricGroupCard } from "@/components/widgets/metric-views/team-metric-group-card";
 import type { TeamMemberRef } from "@/components/widgets/metric-views/team-collection-drilldown";
-import { Spinner } from "@/components/ui/spinner";
+import { CenteredSpinner } from "@/components/widgets/centered-spinner";
 import { Switch } from "@/components/ui/switch";
-import { cn } from "@/lib/utils";
 import { usePeriod } from "@/hooks/use-period";
 import {
   flattenSubordinates,
@@ -34,7 +33,10 @@ import { hasBulletValue } from "@/lib/insight/v2/peer-status";
 import { projectViews } from "@/lib/metrics/collection";
 import { normalizePersonId } from "@/lib/metrics/entity";
 import { useIcPerson } from "@/queries/ic-dashboard";
-import { useMetricCollectionSet } from "@/queries/metric-results";
+import {
+  collectionSetPending,
+  useMetricCollectionSet,
+} from "@/queries/metric-results";
 import {
   isTeamBulletSectionId,
   useTeamBulletSections,
@@ -107,7 +109,9 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
       ),
     [fullRoster, canScopeToDirectReports, directReportsOnly],
   );
-  const teamName = pivot?.display_name ?? teamId;
+  // Never fall back to the raw id (an email) — the shell prefetches the
+  // viewer tree, so the pivot resolves synchronously in practice.
+  const teamName = pivot?.display_name ?? "";
   const teamSize = roster?.length;
 
   const membersQ = useTeamMembers(teamId, roster, period, dateRange, {
@@ -180,28 +184,25 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
   // TanStack's "pending" state — an empty section set is settled, not loading.
   const hasLegacySections = LEGACY_GROUP_IDS.length > 0;
   const sectionsPending = hasLegacySections && sectionsQ.isPending;
-  const sectionsFetching = hasLegacySections && sectionsQ.isFetching;
-  // Only a metric group's revalidation dims the page (replacing data already
-  // shown); its first load has no prior data and shows its own card spinner.
-  const isMetricsRevalidating = [...metricGroupData.values()].some(
-    (result) => result.isFetching && !result.isPending,
-  );
-  const isFetching =
-    sectionsFetching ||
-    membersQ.isFetching ||
-    heatmapQ.isFetching ||
-    isMetricsRevalidating;
+  // The one loading gate: a single page spinner while ANY of the screen's
+  // queries has no data. A period or scope change mints new query keys, so
+  // the same gate re-trips — no per-widget loaders, no partial paints. The
+  // roster query (viewer tree) comes first: every other query derives its
+  // entity ids from it.
+  // A roster-less team disables the members query, which then never leaves
+  // "pending" — only count it while it can actually run.
+  const membersPending = (roster?.length ?? 0) > 0 && membersQ.isPending;
+  const isLoading =
+    viewerQ.isPending ||
+    membersPending ||
+    heatmapQ.isPending ||
+    collectionSetPending(metricGroupData) ||
+    sectionsPending;
   const hasGroupData = Object.values(legacyRowsByGroup).some((rows) =>
     rows.some(hasBulletValue),
   );
   const hasMembers = members.length > 0;
-  const isAllEmpty =
-    !sectionsPending &&
-    !membersQ.isPending &&
-    !hasGroupData &&
-    !hasMembers;
-  const showFullSpinner =
-    sectionsPending || membersQ.isPending || (isAllEmpty && isFetching);
+  const isAllEmpty = !isLoading && !hasGroupData && !hasMembers;
 
   const memberCountLabel = `${members.length} member${members.length === 1 ? "" : "s"}`;
   const scopeLabel = directReportsOnly
@@ -211,7 +212,7 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
   return (
     <div className="flex flex-col">
       <DashboardHeader
-        title={`Team of ${teamName}`}
+        title={teamName ? `Team of ${teamName}` : ""}
         subtitle={
           canScopeToDirectReports
             ? `${scopeLabel} · ${memberCountLabel}`
@@ -235,23 +236,12 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
         }
       />
       <main className="flex flex-1 flex-col gap-8 p-4 md:p-6">
-        {showFullSpinner ? (
-          <div className="flex min-h-[70vh] items-center justify-center">
-            <Spinner className="size-12 text-muted-foreground" />
-          </div>
+        {isLoading ? (
+          <CenteredSpinner className="min-h-[70vh]" />
         ) : isAllEmpty ? (
-          <div
-            className={cn("transition-opacity", isFetching && "opacity-60")}
-          >
-            <DashboardEmptyState period={period} onSetPeriod={setPeriod} />
-          </div>
+          <DashboardEmptyState period={period} onSetPeriod={setPeriod} />
         ) : (
-          <div
-            className={cn(
-              "flex flex-col gap-8 transition-opacity",
-              isFetching && "opacity-60",
-            )}
-          >
+          <div className="flex flex-col gap-8">
             <TeamMembersAttention
               members={members}
               metricBelowByMember={metricBelowByMember}
@@ -267,10 +257,6 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
                   if (heatmapQ.isError) heatmapQ.refetch();
                 }}
               />
-            ) : heatmapQ.isPending ? (
-              <div className="flex min-h-[200px] items-center justify-center">
-                <Spinner className="size-8 text-muted-foreground" />
-              </div>
             ) : (
               <MembersOverview
                 members={members}
