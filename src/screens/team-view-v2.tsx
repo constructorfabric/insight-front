@@ -4,7 +4,7 @@ import { ComingSoon } from "@/components/widgets/coming-soon";
 import { DashboardEmptyState } from "@/components/widgets/v2/dashboard-empty-state";
 import { DashboardHeader } from "@/components/widgets/v2/dashboard-header";
 import { GroupDrilldownSheet } from "@/components/widgets/v2/group-drilldown-sheet";
-import { MembersHeatmap } from "@/components/widgets/v2/members-heatmap";
+import { MembersOverview } from "@/components/widgets/v2/members-overview";
 import { TeamMembersAttention } from "@/components/widgets/v2/team-members-attention";
 import { TeamMetricGroupCard } from "@/components/widgets/metric-views/team-metric-group-card";
 import type { TeamMemberRef } from "@/components/widgets/metric-views/team-collection-drilldown";
@@ -20,6 +20,7 @@ import {
 } from "@/lib/insight/identity-tree";
 import {
   GROUPS,
+  HEATMAP_COLLECTION,
   legacyGroups,
   metricGroups,
   type GroupId,
@@ -40,7 +41,7 @@ import {
   useTeamMembers,
   type TeamBulletSectionId,
 } from "@/queries/team-view";
-import { useTeamHeatmap } from "@/queries/v2/team-heatmap";
+import { useMemberGridData } from "@/queries/v2/member-grid";
 import type { BulletMetric } from "@/types/insight";
 
 // The map/filter callbacks are inert while no group is `kind: "legacy"`
@@ -119,7 +120,8 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
     entityId: normalizePersonId(m.person_id),
     displayName: m.name,
   }));
-  const heatmapQ = useTeamHeatmap(
+  const heatmapQ = useMemberGridData(
+    HEATMAP_COLLECTION,
     { type: "person", ids: memberEntityIds },
     dateRange,
     period,
@@ -270,7 +272,7 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
                 <Spinner className="size-8 text-muted-foreground" />
               </div>
             ) : (
-              <MembersHeatmap
+              <MembersOverview
                 members={members}
                 heatmapByKey={heatmapQ.byKey}
                 previousHeatmapByKey={heatmapQ.previousByKey}
@@ -318,6 +320,7 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
               : undefined
           }
           range={dateRange}
+          period={period}
           cohortLabel="department"
         />
       ))}

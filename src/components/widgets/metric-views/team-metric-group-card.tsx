@@ -18,52 +18,14 @@ import {
   rankCounts,
   sectionStandingPhrase,
 } from "@/lib/scoring";
-import { PEER_FILL } from "@/lib/peers";
+import { applyFocus, PEER_TEXT } from "@/lib/peers";
 import {
   STATUS_BG_CLASS,
   STATUS_STRIPE_LEFT,
-  STATUS_TEXT_CLASS,
   applyFocusStatus,
 } from "@/lib/status";
 import type { MetricCollectionResult } from "@/queries/metric-results";
 import { cn } from "@/lib/utils";
-
-/**
- * How the roster splits on one metric — each segment's width is its share of
- * the roster. `unmeasured` (roster minus those with a standing) rides the
- * track, so a mostly-unmeasured metric reads as a mostly-empty bar rather
- * than a confident verdict.
- */
-function CompositionBar({
-  top,
-  inPack,
-  bottom,
-  unmeasured,
-}: {
-  top: number;
-  inPack: number;
-  bottom: number;
-  unmeasured: number;
-}) {
-  const total = top + inPack + bottom + unmeasured;
-  if (total === 0) return null;
-  const seg = (n: number, className: string) =>
-    n > 0 ? (
-      <span className={className} style={{ width: `${(n / total) * 100}%` }} />
-    ) : null;
-  return (
-    <div
-      className="flex h-1.5 w-full overflow-hidden rounded-full"
-      role="img"
-      aria-label={`${top} ahead, ${inPack} on par, ${bottom} trailing, ${unmeasured} unmeasured of ${total}`}
-    >
-      {seg(top, PEER_FILL.top)}
-      {seg(inPack, PEER_FILL.in_pack)}
-      {seg(bottom, PEER_FILL.bottom)}
-      {seg(unmeasured, PEER_FILL.neutral)}
-    </div>
-  );
-}
 
 export interface TeamMetricGroupCardProps {
   def: MetricGroup;
@@ -76,8 +38,8 @@ export interface TeamMetricGroupCardProps {
 /**
  * Card for a metrics-backed group over a roster of people. No pooled team
  * value — the roster is a set of individuals, not a unit — so each preview
- * row shows how the members split against their OWN cohorts as a composition
- * bar plus the count trailing their peers.
+ * row states how the members stand against their OWN cohorts in the shared
+ * behind/ahead/on-par vocabulary; the drilldown names who.
  */
 export function TeamMetricGroupCard({
   def,
@@ -129,8 +91,10 @@ export function TeamMetricGroupCard({
   const status = applyFocusStatus(gradeSectionStanding(counts), focusMode);
   const badgeText = sectionStandingPhrase(counts);
 
+  // Preview rows keep their slot even with nobody scorable — a silently
+  // shrinking card reads as broken; the row states "no peer data" instead.
   const preview: TeamMetricStanding[] = def.card.preview
-    .map((key) => scored.find((s) => s.metric.metric_key === key))
+    .map((key) => standings.find((s) => s.metric.metric_key === key))
     .filter((s): s is TeamMetricStanding => s != null);
   const stripeClass = STATUS_STRIPE_LEFT[status];
 
@@ -172,48 +136,70 @@ export function TeamMetricGroupCard({
             No metrics with peer data for this period.
           </p>
         ) : (
-          <ul className="flex flex-col gap-2.5">
+          <ul className="flex flex-col gap-2 text-sm">
             {(preview.length > 0 ? preview : scored.slice(0, 3)).map(
-              (standing) => {
-                const unmeasured = Math.max(
-                  0,
-                  memberIds.length - standing.scored,
-                );
-                return (
-                  <li
-                    key={standing.metric.metric_key}
-                    className="flex flex-col gap-1 text-sm"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="min-w-0 truncate text-muted-foreground">
-                        {standing.metric.label}
-                      </span>
-                      <span
-                        className={cn(
-                          "shrink-0 text-xs tabular-nums",
-                          standing.bottom > 0
-                            ? STATUS_TEXT_CLASS.bad
-                            : "text-muted-foreground",
-                        )}
-                      >
-                        {standing.bottom > 0
-                          ? `${standing.bottom} trailing`
-                          : "on par"}
-                      </span>
-                    </div>
-                    <CompositionBar
-                      top={standing.top}
-                      inPack={standing.inPack}
-                      bottom={standing.bottom}
-                      unmeasured={unmeasured}
-                    />
-                  </li>
-                );
-              },
+              (standing) => (
+                <li
+                  key={standing.metric.metric_key}
+                  className="flex items-baseline justify-between gap-2"
+                >
+                  <span className="min-w-0 truncate text-muted-foreground">
+                    {standing.metric.label}
+                  </span>
+                  <RowStanding standing={standing} focusMode={focusMode} />
+                </li>
+              ),
             )}
           </ul>
         )}
       </CardContent>
     </Card>
   );
+}
+
+/**
+ * The row's verdict in the shared chip vocabulary — behind wins over ahead,
+ * on par only when nothing sticks out, "no peer data" when nobody on the
+ * roster is rankable. Counts only; the drilldown names who.
+ */
+function RowStanding({
+  standing,
+  focusMode,
+}: {
+  standing: TeamMetricStanding;
+  focusMode: ReturnType<typeof useSettings>["focusMode"];
+}) {
+  const { top, bottom, scored } = standing;
+  if (scored === 0) {
+    return (
+      <span className="shrink-0 text-xs text-muted-foreground">
+        no peer data
+      </span>
+    );
+  }
+  if (bottom > 0) {
+    return (
+      <span
+        className={cn(
+          "shrink-0 text-xs tabular-nums",
+          PEER_TEXT[applyFocus("bottom", focusMode)],
+        )}
+      >
+        {bottom} behind
+      </span>
+    );
+  }
+  if (top > 0) {
+    return (
+      <span
+        className={cn(
+          "shrink-0 text-xs tabular-nums",
+          PEER_TEXT[applyFocus("top", focusMode)],
+        )}
+      >
+        {top} ahead
+      </span>
+    );
+  }
+  return <span className="shrink-0 text-xs text-muted-foreground">on par</span>;
 }

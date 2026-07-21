@@ -47,13 +47,6 @@ export interface MetricGroup {
   collection: MetricCollectionConfig;
   card: { preview: string[] };
   drilldown: DrilldownBlock[];
-  /**
-   * Metrics the team drilldown renders, one member-columns timeseries card
-   * per key. Activity sums by design — a weekly per-member count reads
-   * naturally, while weekly rates and durations are mostly small-n noise.
-   * Independent of `drilldown` (each card fetches its own views).
-   */
-  teamDrilldown: string[];
 }
 
 /** A group still rendered by the legacy data path; dies with it. */
@@ -317,7 +310,6 @@ export const GROUPS: readonly GroupDef[] = [
     card: {
       preview: ["tasks.closed", "tasks.resolution_time", "tasks.pickup_time"],
     },
-    teamDrilldown: ["tasks.closed", "tasks.bugs_fixed"],
     drilldown: [
       {
         id: "task-throughput",
@@ -345,13 +337,6 @@ export const GROUPS: readonly GroupDef[] = [
     card: {
       preview: ["git.commits", "git.prs_merged", "git.code_lines"],
     },
-    teamDrilldown: [
-      "git.commits",
-      "git.prs_created",
-      "git.prs_merged",
-      "git.lines_added",
-      "git.lines_removed",
-    ],
     drilldown: [
       {
         id: "output-by-repository",
@@ -395,12 +380,6 @@ export const GROUPS: readonly GroupDef[] = [
         "collab.focus_time_pct",
       ],
     },
-    teamDrilldown: [
-      "collab.messages_sent",
-      "collab.meeting_hours",
-      "collab.emails_sent",
-      "collab.files_shared",
-    ],
     drilldown: [
       // Modality headline cards (period total + dimension breakdown) instead
       // of trend charts — one card per modality. Everything else takes its
@@ -426,7 +405,6 @@ export const GROUPS: readonly GroupDef[] = [
     card: {
       preview: ["ai.active_days", "ai.accepted_lines", "ai.cost"],
     },
-    teamDrilldown: ["ai.accepted_lines", "ai.active_days", "ai.cost"],
     drilldown: [
       {
         id: "accepted-lines-by-tool",
@@ -444,7 +422,6 @@ export const GROUPS: readonly GroupDef[] = [
     card: {
       preview: ["wiki.pages_created", "wiki.edits", "wiki.comments"],
     },
-    teamDrilldown: ["wiki.pages_created", "wiki.edits", "wiki.comments"],
     drilldown: [
       {
         id: "wiki-activity",

@@ -51,6 +51,8 @@ export interface MetricCollectionEntity {
 export type NormalizedMetricResult = {
   metric_key: string;
   label: string;
+  /** Compact label for dense surfaces (member grids); falls back to `label`. */
+  short_label?: string;
   description?: string;
   explanation?: string;
   unit: string | null;
@@ -127,6 +129,7 @@ export function normalizeMetricResult(
   const normalized: NormalizedMetricResult = {
     metric_key: metric.metric_key,
     label: metric.label,
+    short_label: metric.short_label,
     description: metric.description,
     explanation: metric.explanation,
     unit: metric.unit,

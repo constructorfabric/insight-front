@@ -21,7 +21,6 @@ const DEF: MetricGroup = {
     ],
   },
   card: { preview: ["ai.active_days"] },
-  teamDrilldown: [],
   drilldown: [],
 };
 
@@ -122,14 +121,28 @@ describe("TeamMetricGroupCard", () => {
     );
     // Metric scores good (plurality top) → 1 ahead of peers.
     expect(screen.getByText("1 ahead of peers")).toBeInTheDocument();
-    // Preview row surfaces the count trailing their peers (c@x.com) and a
-    // composition bar labelled with the full split.
-    expect(screen.getByText("1 trailing")).toBeInTheDocument();
-    expect(
-      screen.getByRole("img", {
-        name: "2 ahead, 0 on par, 1 trailing, 0 unmeasured of 3",
-      }),
-    ).toBeInTheDocument();
+    // Preview row: behind wins over ahead on a mixed profile.
+    const row = screen.getByText("Active AI days").closest("li")!;
+    expect(row).toHaveTextContent("1 behind");
+  });
+
+  it("shows the ahead count when nobody trails", () => {
+    render(
+      <TeamMetricGroupCard
+        def={DEF}
+        data={result([
+          metric([
+            { id: "a@x.com", value: 20 }, // top
+            { id: "b@x.com", value: 8 }, // in pack
+            { id: "c@x.com", value: 12 }, // in pack
+          ]),
+        ])}
+        memberIds={MEMBERS}
+        onOpen={vi.fn()}
+      />,
+    );
+    const row = screen.getByText("Active AI days").closest("li")!;
+    expect(row).toHaveTextContent("1 ahead");
   });
 
   it("shows the no-peer-data fallback when nothing is scorable", () => {

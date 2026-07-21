@@ -146,11 +146,13 @@ function DrilldownPanel({
               range={range}
               cohortLabel={cohortLabel}
             />
-          ) : metricTarget?.kind === "team" && range ? (
+          ) : metricTarget?.kind === "team" && range && period ? (
             <TeamCollectionDrilldown
               def={def}
               members={metricTarget.members}
               range={range}
+              period={period}
+              cohortLabel={cohortLabel}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center p-10">

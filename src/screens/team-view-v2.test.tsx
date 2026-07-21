@@ -52,8 +52,8 @@ vi.mock("@/components/widgets/period-selector-bar", () => ({
 vi.mock("@/components/widgets/v2/team-members-attention", () => ({
   TeamMembersAttention: () => null,
 }));
-vi.mock("@/components/widgets/v2/members-heatmap", () => ({
-  MembersHeatmap: ({ members }: { members: TeamMember[] }) => (
+vi.mock("@/components/widgets/v2/members-overview", () => ({
+  MembersOverview: ({ members }: { members: TeamMember[] }) => (
     <div data-testid="heatmap">{members.map((m) => m.name).join(",")}</div>
   ),
 }));
@@ -110,8 +110,8 @@ vi.mock("@/queries/team-view", () => ({
   }),
 }));
 
-vi.mock("@/queries/v2/team-heatmap", () => ({
-  useTeamHeatmap: () => ({
+vi.mock("@/queries/v2/member-grid", () => ({
+  useMemberGridData: () => ({
     byKey: new Map(),
     previousByKey: new Map(),
     isPending: false,

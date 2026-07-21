@@ -29,7 +29,6 @@ const METRIC_DEF: GroupDef = {
   title: "AI adoption",
   collection: { metrics: [] },
   card: { preview: [] },
-  teamDrilldown: [],
   drilldown: [],
 };
 const LEGACY_DEF: GroupDef = {
@@ -59,6 +58,7 @@ function renderSheet(
       rows={[]}
       metricTarget={metricTarget}
       range={{ from: "2026-07-01", to: "2026-07-07" }}
+      period="week"
     />,
   );
 }

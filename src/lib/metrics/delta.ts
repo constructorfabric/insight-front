@@ -3,7 +3,7 @@ import type {
   MetricDirection,
   MetricFormat,
 } from "@/api/metric-results-client";
-import { formatPp } from "@/lib/format";
+import { MULTIPLE_THRESHOLD, formatMultiple, formatPp } from "@/lib/format";
 import type { Status } from "@/lib/status";
 
 export type MetricDelta =
@@ -56,7 +56,13 @@ export function deltaStatus(
   return favorable ? "good" : "bad";
 }
 
-/** Display-rounded delta; null when it rounds to zero (no "+0%" badges). */
+/**
+ * Display-rounded delta; null when it rounds to zero (no "+0%" badges).
+ * A runaway relative change (a small previous period exploding) reads as a
+ * multiple past the shared threshold — "+5460%" becomes "56×" — mirroring
+ * the vs-median gap. The downside is bounded at −100% and stays a percent;
+ * pp changes are already bounded and never switch.
+ */
 export function formatTileDelta(delta: MetricDelta): string | null {
   if (delta.kind === "pp_change") {
     return Math.round(Math.abs(delta.value)) === 0
@@ -65,5 +71,7 @@ export function formatTileDelta(delta: MetricDelta): string | null {
   }
   const rounded = Math.round(delta.value);
   if (rounded === 0) return null;
+  const ratio = 1 + delta.value / 100;
+  if (ratio >= MULTIPLE_THRESHOLD) return formatMultiple(ratio);
   return `${rounded > 0 ? "+" : ""}${rounded}%`;
 }
