@@ -25,6 +25,27 @@ vi.mock(
 
 const mockedDownloadBlob = vi.mocked(downloadBlob);
 
+function modelWithOther() {
+  const model = groupedTimeseriesModel();
+  return {
+    ...model,
+    columns: [
+      ...model.columns,
+      {
+        key: "__remainder__",
+        colorSeed: "timeseries:remainder",
+        label: "Other",
+        remainder: true,
+        points: new Map([["git.commits", new Map([["2026-04-20", 1]])]]),
+        totals: new Map([
+          ["git.commits", 1],
+          ["git.lines_added", null],
+        ]),
+      },
+    ],
+  };
+}
+
 describe("timeseries exports", () => {
   beforeEach(() => {
     mockedDownloadBlob.mockReset();
@@ -40,7 +61,7 @@ describe("timeseries exports", () => {
   });
 
   it("exports grouped CSV data with totals", async () => {
-    downloadMetricTimeseriesCsv("output", groupedTimeseriesModel(), RANGE);
+    downloadMetricTimeseriesCsv("output", modelWithOther(), RANGE);
     expect(mockedDownloadBlob).toHaveBeenCalledOnce();
     const [blob, filename] = mockedDownloadBlob.mock.calls[0] ?? [];
     expect(filename).toBe("output_2026-04-20_2026-05-04.csv");
@@ -50,14 +71,11 @@ describe("timeseries exports", () => {
     expect(await blob?.text()).toContain(
       "Grand total,Commits: 6 · Lines added: 120"
     );
+    expect(await blob?.text()).toContain("Other — Commits,Other — Lines added");
   });
 
   it("exports a formatted workbook with merged grouped headers", async () => {
-    await downloadMetricTimeseriesXlsx(
-      "output",
-      groupedTimeseriesModel(),
-      RANGE
-    );
+    await downloadMetricTimeseriesXlsx("output", modelWithOther(), RANGE);
     expect(mockedDownloadBlob).toHaveBeenCalledOnce();
     const [blob, filename] = mockedDownloadBlob.mock.calls[0] ?? [];
     expect(filename).toBe("output_2026-04-20_2026-05-04.xlsx");
@@ -67,6 +85,7 @@ describe("timeseries exports", () => {
     expect(sheet?.getCell("A1").value).toBe("Week");
     expect(sheet?.getCell("B1").value).toBe("org/repo-a");
     expect(sheet?.getCell("B2").value).toBe("Commits");
+    expect(sheet?.getCell("F1").value).toBe("Other");
     expect(sheet?.getCell("A6").value).toBe("Total");
     expect(sheet?.getCell("A7").value).toBe("Grand total");
     expect(sheet?.views[0]).toMatchObject({ xSplit: 1, ySplit: 2 });

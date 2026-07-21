@@ -36,6 +36,12 @@ export interface MetricDimensionFilter {
   values: string[];
 }
 
+export interface MetricGroupLimit {
+  count: number;
+  rank_by_metric?: string;
+  include_remainder: boolean;
+}
+
 export type MetricViewRequest =
   | { view: "period" }
   | { view: "peer"; cohort_key?: string }
@@ -43,6 +49,7 @@ export type MetricViewRequest =
       view: "timeseries";
       bucket?: MetricBucket;
       dimensions?: string[];
+      group_limit?: MetricGroupLimit;
     }
   | {
       view: "breakdown";
@@ -110,6 +117,10 @@ export interface TimeseriesView {
   series: Array<{
     entity_id: string;
     dimensions: MetricDimension[];
+    total?: number | null;
+    rank?: number;
+    remainder?: boolean;
+    label?: string;
     points: Array<{ bucket_start: string; value: number | null }>;
   }>;
 }

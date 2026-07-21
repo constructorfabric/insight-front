@@ -26,6 +26,8 @@ export interface MetricTimeseriesColumn {
   key: string;
   colorSeed: string;
   label: string;
+  rank?: number;
+  remainder: boolean;
   points: Map<string, Map<string, number | null>>;
   totals: Map<string, number | null>;
 }
@@ -73,15 +75,27 @@ export function bucketStarts(
 
 function columnFor(
   columns: Map<string, MetricTimeseriesColumn>,
-  dimensions: MetricDimension[]
+  dimensions: MetricDimension[],
+  rank?: number,
+  remainder = false,
+  label?: string
 ): MetricTimeseriesColumn {
-  const key = dimensionSeriesKey(dimensions);
+  const key = remainder ? "__remainder__" : dimensionSeriesKey(dimensions);
   const existing = columns.get(key);
-  if (existing) return existing;
+  if (existing) {
+    if (rank != null && (existing.rank == null || rank < existing.rank)) {
+      existing.rank = rank;
+    }
+    return existing;
+  }
   const column = {
     key,
-    colorSeed: dimensionColorSeed(dimensions),
-    label: dimensionLabel(dimensions),
+    colorSeed: remainder
+      ? "timeseries:remainder"
+      : dimensionColorSeed(dimensions),
+    label: label ?? dimensionLabel(dimensions),
+    rank,
+    remainder,
     points: new Map(),
     totals: new Map(),
   };
@@ -97,23 +111,33 @@ function buildColumns(
   for (const metric of metrics) {
     const entity = forEntity(metric, entityId);
     for (const series of entity.series) {
-      const column = columnFor(columns, series.dimensions);
+      const column = columnFor(
+        columns,
+        series.dimensions,
+        series.rank,
+        series.remainder,
+        series.label
+      );
       const points = column.points.get(metric.metric_key) ?? new Map();
       for (const point of series.points) {
         points.set(point.bucket_start, point.value);
       }
       column.points.set(metric.metric_key, points);
-    }
-    for (const row of entity.breakdown) {
-      columnFor(columns, row.dimensions).totals.set(
-        metric.metric_key,
-        row.value
-      );
+      if (series.total !== undefined) {
+        column.totals.set(metric.metric_key, series.total);
+      }
     }
   }
 
   const primaryMetric = metrics[0]?.metric_key;
   return [...columns.values()].sort((left, right) => {
+    if (left.remainder !== right.remainder) return left.remainder ? 1 : -1;
+    if (left.rank != null || right.rank != null) {
+      const rankOrder =
+        (left.rank ?? Number.POSITIVE_INFINITY) -
+        (right.rank ?? Number.POSITIVE_INFINITY);
+      if (rankOrder !== 0) return rankOrder;
+    }
     const leftTotal = primaryMetric ? left.totals.get(primaryMetric) : null;
     const rightTotal = primaryMetric ? right.totals.get(primaryMetric) : null;
     return (

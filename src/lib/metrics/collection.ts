@@ -8,6 +8,7 @@ import type {
   MetricDimensionFilter,
   MetricEntityType,
   MetricFormat,
+  MetricGroupLimit,
   MetricResult,
   MetricResultViewKind,
   MetricResultsRequest,
@@ -19,6 +20,12 @@ import type {
 
 export type MetricCollectionBucket = MetricBucket | "auto";
 
+export interface MetricTimeseriesGroupLimitConfig {
+  count: number;
+  rankBy?: string;
+  includeRemainder: boolean;
+}
+
 export type MetricCollectionViewConfig =
   | { view: "period" }
   | { view: "peer" }
@@ -26,6 +33,7 @@ export type MetricCollectionViewConfig =
       view: "timeseries";
       bucket: MetricCollectionBucket;
       dimensions?: string[];
+      groupLimit?: MetricGroupLimit;
     }
   | {
       view: "breakdown";
@@ -323,6 +331,7 @@ function toRequestView(
         view: "timeseries",
         bucket: resolveBucket(view.bucket, period),
         dimensions: view.dimensions,
+        group_limit: view.groupLimit,
       };
     case "breakdown":
       return { view: "breakdown", dimensions: view.dimensions };

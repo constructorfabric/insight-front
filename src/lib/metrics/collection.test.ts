@@ -26,7 +26,16 @@ const COLLECTION: MetricCollectionConfig = {
       views: [
         { view: "period" },
         { view: "peer" },
-        { view: "timeseries", bucket: "auto", dimensions: ["tool"] },
+        {
+          view: "timeseries",
+          bucket: "auto",
+          dimensions: ["tool"],
+          groupLimit: {
+            count: 10,
+            rank_by_metric: "ai.accepted_lines",
+            include_remainder: true,
+          },
+        },
         { view: "breakdown", dimensions: ["tool"] },
       ],
     },
@@ -44,7 +53,7 @@ describe("buildMetricCollectionRequest", () => {
     const request = buildMetricCollectionRequest(
       COLLECTION,
       { type: "person", ids: ["alice@example.com"] },
-      RANGE,
+      RANGE
     );
     expect(request.entity).toEqual({
       type: "person",
@@ -54,7 +63,16 @@ describe("buildMetricCollectionRequest", () => {
     expect(request.metrics[0]?.views).toEqual([
       { view: "period" },
       { view: "peer" },
-      { view: "timeseries", bucket: "day", dimensions: ["tool"] },
+      {
+        view: "timeseries",
+        bucket: "day",
+        dimensions: ["tool"],
+        group_limit: {
+          count: 10,
+          rank_by_metric: "ai.accepted_lines",
+          include_remainder: true,
+        },
+      },
       { view: "breakdown", dimensions: ["tool"] },
     ]);
   });
@@ -65,8 +83,8 @@ describe("projectViews", () => {
     const projected = projectViews(COLLECTION, ["period", "peer"]);
     expect(
       projected.metrics.every((m) =>
-        m.views.every((v) => v.view === "period" || v.view === "peer"),
-      ),
+        m.views.every((v) => v.view === "period" || v.view === "peer")
+      )
     ).toBe(true);
     expect(COLLECTION.metrics[0]?.views).toHaveLength(4);
   });
@@ -104,7 +122,7 @@ describe("normalizeMetricResult forward-compat", () => {
 describe("entityObserved", () => {
   it("distinguishes observed from zero-filled entities", () => {
     const metric = normalizeMetricResults([SUM_METRIC_FIXTURE]).get(
-      "ai.accepted_lines",
+      "ai.accepted_lines"
     )!;
     // alice: peer row with a target_value → observed.
     expect(entityObserved(metric, "alice@example.com")).toBe(true);
@@ -149,7 +167,10 @@ describe("row-limit chunking", () => {
     if (periodView?.view === "period") {
       periodView.values = [{ entity_id: "carol@example.com", value: 7 }];
     }
-    const merged = mergeNormalizedResults([a, normalizeMetricResults([bFixture])]);
+    const merged = mergeNormalizedResults([
+      a,
+      normalizeMetricResults([bFixture]),
+    ]);
     const metric = merged.get("ai.accepted_lines")!;
     expect(metric.period?.values.map((v) => v.entity_id)).toEqual([
       "alice@example.com",
@@ -189,7 +210,7 @@ describe("row-limit chunking", () => {
     const metric = merged.get("ai.accepted_lines")!;
     // period survives (second chunk had none); peer values append.
     expect(metric.period?.values.length).toBeGreaterThan(0);
-    expect((metric.peer?.values.length ?? 0)).toBeGreaterThan(1);
+    expect(metric.peer?.values.length ?? 0).toBeGreaterThan(1);
   });
 });
 
@@ -207,7 +228,7 @@ describe("histogram view", () => {
     const request = buildMetricCollectionRequest(
       HISTOGRAM_COLLECTION,
       { type: "person", ids: ["alice@example.com"] },
-      RANGE,
+      RANGE
     );
     expect(request.metrics[0]?.views).toEqual([
       { view: "period" },
@@ -224,11 +245,11 @@ describe("histogram view", () => {
 
   it("slices bins for the entity and returns none for others", () => {
     const metric = normalizeMetricResults([MEDIAN_METRIC_FIXTURE]).get(
-      "git.pr_cycle_time_h",
+      "git.pr_cycle_time_h"
     )!;
     expect(forEntity(metric, "alice@example.com").histogram).toHaveLength(1);
     expect(
-      forEntity(metric, "alice@example.com").histogram[0]?.bins.length,
+      forEntity(metric, "alice@example.com").histogram[0]?.bins.length
     ).toBeGreaterThan(0);
     expect(forEntity(metric, "bob@example.com").histogram).toHaveLength(0);
   });
@@ -244,18 +265,18 @@ describe("resolveBucket", () => {
   });
 
   it("tiers auto: day ≤ 62d, week ≤ 182d, month beyond", () => {
-    expect(resolveBucket("auto", { from: "2026-06-01", to: "2026-06-30" })).toBe(
-      "day",
-    );
-    expect(resolveBucket("auto", { from: "2026-01-01", to: "2026-03-03" })).toBe(
-      "day",
-    );
-    expect(resolveBucket("auto", { from: "2026-01-01", to: "2026-05-01" })).toBe(
-      "week",
-    );
-    expect(resolveBucket("auto", { from: "2025-07-01", to: "2026-06-30" })).toBe(
-      "month",
-    );
+    expect(
+      resolveBucket("auto", { from: "2026-06-01", to: "2026-06-30" })
+    ).toBe("day");
+    expect(
+      resolveBucket("auto", { from: "2026-01-01", to: "2026-03-03" })
+    ).toBe("day");
+    expect(
+      resolveBucket("auto", { from: "2026-01-01", to: "2026-05-01" })
+    ).toBe("week");
+    expect(
+      resolveBucket("auto", { from: "2025-07-01", to: "2026-06-30" })
+    ).toBe("month");
   });
 });
 
@@ -305,7 +326,7 @@ describe("forEntity", () => {
 
   it("keeps a null period value distinct from a missing entity", () => {
     const ratio = normalizeMetricResults([RATIO_METRIC_FIXTURE]).get(
-      "ai.tool_acceptance_rate",
+      "ai.tool_acceptance_rate"
     )!;
     expect(forEntity(ratio, "bob@example.com").value).toBeNull();
     expect(forEntity(ratio, "nobody@example.com").value).toBeNull();

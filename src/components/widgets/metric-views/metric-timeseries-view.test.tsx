@@ -161,14 +161,24 @@ describe("MetricTimeseriesView", () => {
     expect(screen.getByText("No data in this period")).toBeInTheDocument();
   });
 
-  it("builds grouped requests with automatic daily bucketing", () => {
+  it("builds bounded grouped requests without a totals breakdown", () => {
     render(
       <MetricTimeseriesView
         id="request"
         entityId={ENTITY_ID}
         range={{ from: "2026-04-20", to: "2026-04-20" }}
         metricKeys={["git.commits"]}
-        groupBy={{ default: "repository", options: ["source"] }}
+        groupBy={{
+          default: "repository",
+          options: ["source"],
+          limits: {
+            repository: {
+              count: 10,
+              rankBy: "git.commits",
+              includeRemainder: true,
+            },
+          },
+        }}
       />
     );
     expect(mocks.collection.mock.calls.at(-1)?.[0]).toMatchObject({
@@ -180,14 +190,68 @@ describe("MetricTimeseriesView", () => {
               view: "timeseries",
               bucket: "day",
               dimensions: ["repository"],
+              groupLimit: {
+                count: 10,
+                rank_by_metric: "git.commits",
+                include_remainder: true,
+              },
             },
-            { view: "breakdown", dimensions: ["repository"] },
             { view: "period" },
           ],
         },
       ],
     });
-    expect(mocks.collectionSet).toHaveBeenCalled();
+    expect(mocks.collectionSet.mock.calls.at(-1)?.[0]).toMatchObject([
+      {
+        key: "source",
+        collection: {
+          metrics: [
+            {
+              key: "git.commits",
+              views: [{ view: "breakdown", dimensions: ["source"] }],
+            },
+          ],
+        },
+      },
+    ]);
+  });
+
+  it("does not cap an uncapped active dimension", () => {
+    render(
+      <MetricTimeseriesView
+        id="uncapped"
+        entityId={ENTITY_ID}
+        range={RANGE}
+        metricKeys={["git.lines_added"]}
+        groupBy={{
+          default: "category",
+          options: ["repository"],
+          limits: {
+            repository: {
+              count: 10,
+              rankBy: "git.lines_added",
+              includeRemainder: true,
+            },
+          },
+        }}
+      />
+    );
+    expect(mocks.collection.mock.calls.at(-1)?.[0]).toMatchObject({
+      metrics: [
+        {
+          views: [
+            {
+              view: "timeseries",
+              dimensions: ["category"],
+            },
+            { view: "period" },
+          ],
+        },
+      ],
+    });
+    expect(
+      mocks.collection.mock.calls.at(-1)?.[0].metrics[0].views[0]
+    ).not.toHaveProperty("groupLimit");
   });
 
   it("exports Excel and CSV through the export menu", async () => {

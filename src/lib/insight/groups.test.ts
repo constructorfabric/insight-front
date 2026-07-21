@@ -37,4 +37,23 @@ describe("groups registry", () => {
       expect(git.drilldown.some((b) => b.view === "histogram")).toBe(true);
     }
   });
+
+  it("caps repository timeseries with a shared ranking metric", () => {
+    const git = groupById("git_output");
+    if (git.kind !== "metrics") throw new Error("git_output must be metrics");
+    const timeseries = git.drilldown.filter(
+      (block) => block.view === "timeseries"
+    );
+    expect(timeseries[0]?.groupBy?.limits?.repository).toEqual({
+      count: 10,
+      rankBy: "git.commits",
+      includeRemainder: true,
+    });
+    expect(timeseries[1]?.groupBy?.limits?.repository).toEqual({
+      count: 10,
+      rankBy: "git.lines_added",
+      includeRemainder: true,
+    });
+    expect(timeseries[1]?.groupBy?.limits?.category).toBeUndefined();
+  });
 });

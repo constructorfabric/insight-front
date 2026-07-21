@@ -33,6 +33,7 @@ import {
   forEntity,
   resolveTimeseriesBucket,
   type MetricCollectionConfig,
+  type MetricTimeseriesGroupLimitConfig,
 } from "@/lib/metrics/collection";
 import { cn } from "@/lib/utils";
 import {
@@ -48,6 +49,7 @@ import {
 export interface MetricTimeseriesGroupBy {
   default: string;
   options?: string[];
+  limits?: Record<string, MetricTimeseriesGroupLimitConfig>;
 }
 
 interface DimensionFilterControl {
@@ -262,6 +264,9 @@ export function MetricTimeseriesView({
         .map(([dimension, value]) => ({ dimension, values: [value] })),
     [dimensionFilters]
   );
+  const groupLimit = selectedGroupBy
+    ? groupBy?.limits?.[selectedGroupBy]
+    : undefined;
   const collection = useMemo<MetricCollectionConfig>(
     () => ({
       metrics: metricKeys.map((key) => ({
@@ -272,20 +277,21 @@ export function MetricTimeseriesView({
             view: "timeseries",
             bucket: resolveTimeseriesBucket(range),
             dimensions: selectedGroupBy ? [selectedGroupBy] : [],
+            ...(groupLimit
+              ? {
+                  groupLimit: {
+                    count: groupLimit.count,
+                    rank_by_metric: groupLimit.rankBy,
+                    include_remainder: groupLimit.includeRemainder,
+                  },
+                }
+              : {}),
           },
-          ...(selectedGroupBy
-            ? [
-                {
-                  view: "breakdown" as const,
-                  dimensions: [selectedGroupBy],
-                },
-              ]
-            : []),
           { view: "period" },
         ],
       })),
     }),
-    [filters, metricKeys, range, selectedGroupBy]
+    [filters, groupLimit, metricKeys, range, selectedGroupBy]
   );
   const entity = useMemo(
     () => ({ type: "person" as const, ids: [entityId] }),
@@ -297,21 +303,23 @@ export function MetricTimeseriesView({
   const optionCollections = useMemo(
     () =>
       selectedMetricKey && dimensionOptions.length > 1
-        ? dimensionOptions.map((dimension) => ({
-            key: dimension,
-            collection: {
-              metrics: [
-                {
-                  key: selectedMetricKey,
-                  views: [
-                    { view: "breakdown" as const, dimensions: [dimension] },
-                  ],
-                },
-              ],
-            },
-          }))
+        ? dimensionOptions
+            .filter((dimension) => dimension !== selectedGroupBy)
+            .map((dimension) => ({
+              key: dimension,
+              collection: {
+                metrics: [
+                  {
+                    key: selectedMetricKey,
+                    views: [
+                      { view: "breakdown" as const, dimensions: [dimension] },
+                    ],
+                  },
+                ],
+              },
+            }))
         : [],
-    [dimensionOptions, selectedMetricKey]
+    [dimensionOptions, selectedGroupBy, selectedMetricKey]
   );
   const optionData = useMetricCollectionSet(optionCollections, entity, range);
 

@@ -1,4 +1,7 @@
-import type { MetricCollectionConfig } from "@/lib/metrics/collection";
+import type {
+  MetricCollectionConfig,
+  MetricTimeseriesGroupLimitConfig,
+} from "@/lib/metrics/collection";
 
 /**
  * Dashboard composition registry: named groups of metrics and the KPI row.
@@ -35,6 +38,7 @@ export type DrilldownBlock =
       groupBy?: {
         default: string;
         options?: string[];
+        limits?: Record<string, MetricTimeseriesGroupLimitConfig>;
       };
     }
   | { view: "breakdown"; chart: BreakdownChartKind; metrics: string[] }
@@ -348,7 +352,16 @@ export const GROUPS: readonly GroupDef[] = [
           "git.lines_removed",
         ],
         defaultPresentation: "table",
-        groupBy: { default: "repository" },
+        groupBy: {
+          default: "repository",
+          limits: {
+            repository: {
+              count: 10,
+              rankBy: "git.commits",
+              includeRemainder: true,
+            },
+          },
+        },
       },
       {
         id: "lines-added-by-category",
@@ -357,6 +370,13 @@ export const GROUPS: readonly GroupDef[] = [
         groupBy: {
           default: "category",
           options: ["category", "repository"],
+          limits: {
+            repository: {
+              count: 10,
+              rankBy: "git.lines_added",
+              includeRemainder: true,
+            },
+          },
         },
       },
       {
