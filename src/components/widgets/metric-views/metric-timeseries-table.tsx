@@ -190,7 +190,8 @@ export function MetricTimeseriesTable({ model }: MetricTimeseriesTableProps) {
             })
           )}
         </TableRow>
-        {model.dimensions.length > 0 ? (
+        {model.dimensions.length > 0 &&
+        model.grandTotals.some((value) => value != null) ? (
           <TableRow>
             <TableCell className="sticky left-0 z-10 w-28 max-w-28 min-w-28 bg-muted px-2 pt-1 pb-5 font-semibold after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-border">
               Grand total

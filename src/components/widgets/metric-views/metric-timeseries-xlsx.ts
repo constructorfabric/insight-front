@@ -194,7 +194,10 @@ function addTimeseriesSheet(
   ]);
   styleDataRow(totalRow, model, true);
 
-  if (model.dimensions.length > 0) {
+  if (
+    model.dimensions.length > 0 &&
+    model.grandTotals.some((value) => value != null)
+  ) {
     const columnCount = 1 + model.columns.length * model.metrics.length;
     const grandTotalText = model.metrics
       .map((metric, index) => {

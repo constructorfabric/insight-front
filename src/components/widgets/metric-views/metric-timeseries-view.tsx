@@ -1,25 +1,9 @@
 import { useMemo, useState } from "react";
-import {
-  ChartColumn,
-  Download,
-  FileSpreadsheet,
-  FileText,
-  ListFilter,
-  Maximize2,
-  Minimize2,
-  Table2,
-  X,
-} from "lucide-react";
+import { ListFilter, Maximize2, Minimize2, X } from "lucide-react";
 
 import type { DateRange } from "@/api/period-to-date-range";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Popover,
   PopoverContent,
@@ -34,15 +18,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Spinner } from "@/components/ui/spinner";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { ComingSoon } from "@/components/widgets/coming-soon";
-import { ChartEmpty } from "@/components/widgets/metric-views/chart-empty";
-import { MetricTimeseriesChart } from "@/components/widgets/metric-views/metric-timeseries-chart";
-import { downloadMetricTimeseriesCsv } from "@/components/widgets/metric-views/metric-timeseries-csv";
+import {
+  TimeseriesBody,
+  TimeseriesExportMenu,
+  TimeseriesPresentationToggle,
+} from "@/components/widgets/metric-views/metric-timeseries-chrome";
+import {
+  parseTimeseriesPresentation,
+  serializeTimeseriesPresentation,
+  type TimeseriesPresentation,
+} from "@/components/widgets/metric-views/metric-timeseries-presentation";
 import { buildMetricTimeseriesModel } from "@/components/widgets/metric-views/metric-timeseries-model";
-import { MetricTimeseriesTable } from "@/components/widgets/metric-views/metric-timeseries-table";
-import { downloadMetricTimeseriesXlsx } from "@/components/widgets/metric-views/metric-timeseries-xlsx";
 import {
   forEntity,
   resolveTimeseriesBucket,
@@ -91,15 +77,7 @@ export interface MetricTimeseriesViewProps {
   groupBy?: MetricTimeseriesGroupBy;
 }
 
-type Presentation = "table" | "chart";
-
-function parsePresentation(value: string): Presentation | undefined {
-  return value === "table" || value === "chart" ? value : undefined;
-}
-
-function serializePresentation(value: Presentation): string {
-  return value;
-}
+type Presentation = TimeseriesPresentation;
 
 function dimensionName(dimension: string): string {
   const label = dimension.replaceAll("_", " ");
@@ -252,8 +230,8 @@ export function MetricTimeseriesView({
   const [presentation, setPresentation] = useLocalStorageState<Presentation>({
     key: `insight.timeseries.${id}.presentation`,
     defaultValue: defaultPresentation,
-    parse: parsePresentation,
-    serialize: serializePresentation,
+    parse: parseTimeseriesPresentation,
+    serialize: serializeTimeseriesPresentation,
   });
   const [expanded, setExpanded] = useLocalStorageState<boolean>({
     key: `insight.timeseries.${id}.expanded`,
@@ -264,7 +242,6 @@ export function MetricTimeseriesView({
   const [selectedMetricKey, setSelectedMetricKey] = useState(
     metricKeys[0] ?? ""
   );
-  const [isExporting, setIsExporting] = useState(false);
   const dimensionOptions = useMemo(
     () =>
       groupBy
@@ -386,15 +363,6 @@ export function MetricTimeseriesView({
         ? "Weekly"
         : "Monthly";
 
-  async function exportXlsx(): Promise<void> {
-    setIsExporting(true);
-    try {
-      await downloadMetricTimeseriesXlsx(id, model, range);
-    } finally {
-      setIsExporting(false);
-    }
-  }
-
   function changeDimension(dimension: string): void {
     if (!dimension) return;
     setSelectedGroupBy(dimension);
@@ -468,38 +436,12 @@ export function MetricTimeseriesView({
           ) : null}
         </div>
         <div className="flex shrink-0 items-center justify-end gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              disabled={empty || data.isFetching || data.isError || isExporting}
-              render={
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  aria-label="Export"
-                  title="Export"
-                >
-                  {isExporting ? (
-                    <Spinner className="size-4" />
-                  ) : (
-                    <Download className="size-4" />
-                  )}
-                </Button>
-              }
-            />
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => void exportXlsx()}>
-                <FileSpreadsheet className="size-4" />
-                Excel (.xlsx)
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => downloadMetricTimeseriesCsv(id, model, range)}
-              >
-                <FileText className="size-4" />
-                CSV (.csv)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <TimeseriesExportMenu
+            id={id}
+            model={model}
+            range={range}
+            disabled={empty || data.isFetching || data.isError}
+          />
           <Button
             type="button"
             variant="outline"
@@ -516,32 +458,10 @@ export function MetricTimeseriesView({
               <Maximize2 className="size-4" />
             )}
           </Button>
-          <ToggleGroup
-            value={[presentation]}
-            onValueChange={(values) => {
-              const next = Array.isArray(values) ? values[0] : values;
-              if (next === "table" || next === "chart") setPresentation(next);
-            }}
-            variant="outline"
-            size="sm"
-          >
-            <ToggleGroupItem
-              value="chart"
-              aria-label="Chart view"
-              title="Chart view"
-            >
-              <ChartColumn className="size-4" />
-              Chart
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="table"
-              aria-label="Table view"
-              title="Table view"
-            >
-              <Table2 className="size-4" />
-              Table
-            </ToggleGroupItem>
-          </ToggleGroup>
+          <TimeseriesPresentationToggle
+            presentation={presentation}
+            onChange={setPresentation}
+          />
         </div>
       </div>
       <CardContent
@@ -559,35 +479,16 @@ export function MetricTimeseriesView({
             className="min-h-10 shrink-0 px-4 py-2 sm:px-6"
           />
         ) : null}
-        <div className="relative min-h-0 flex-1">
-          {data.isFetching && !data.isPending ? (
-            <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center">
-              <Spinner className="size-8 text-muted-foreground" />
-            </div>
-          ) : null}
-          {data.isPending ? (
-            <div className="flex h-full items-center justify-center">
-              <Spinner className="size-10 text-muted-foreground" />
-            </div>
-          ) : data.isError ? (
-            <div className="flex h-full items-center justify-center">
-              <ComingSoon
-                state="error"
-                label="Unable to load timeseries"
-                onRetry={data.refetch}
-              />
-            </div>
-          ) : empty ? (
-            <ChartEmpty message="No data in this period" className="h-full" />
-          ) : presentation === "table" ? (
-            <MetricTimeseriesTable model={model} />
-          ) : (
-            <MetricTimeseriesChart
-              model={model}
-              selectedMetricKey={selectedMetric?.metric_key ?? ""}
-            />
-          )}
-        </div>
+        <TimeseriesBody
+          isPending={data.isPending}
+          isFetching={data.isFetching}
+          isError={data.isError}
+          onRetry={data.refetch}
+          empty={empty}
+          presentation={presentation}
+          model={model}
+          selectedMetricKey={selectedMetric?.metric_key ?? ""}
+        />
       </CardContent>
     </Card>
   );

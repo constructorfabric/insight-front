@@ -44,6 +44,7 @@ const AI_DEF: MetricGroup = {
     ],
   },
   card: { preview: [] },
+  teamDrilldown: [],
   drilldown: [],
 };
 

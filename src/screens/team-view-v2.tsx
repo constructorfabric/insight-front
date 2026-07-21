@@ -314,22 +314,10 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
           rows={legacyRowsByGroup[def.id] ?? []}
           metricTarget={
             def.kind === "metrics"
-              ? {
-                  kind: "team",
-                  members: memberRefs,
-                  data:
-                    metricGroupData.get(def.id) ??
-                    ({
-                      byKey: new Map(),
-                      previousByKey: null,
-                      isPending: true,
-                      isFetching: false,
-                      isError: false,
-                      refetch: () => {},
-                    } as const)
-                }
+              ? { kind: "team", members: memberRefs }
               : undefined
           }
+          range={dateRange}
           cohortLabel="department"
         />
       ))}

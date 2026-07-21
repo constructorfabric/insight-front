@@ -37,6 +37,7 @@ const DEF: MetricGroup = {
     ],
   },
   card: { preview: ["ai.accepted_lines"] },
+  teamDrilldown: [],
   drilldown: [
     { chart: "bars", view: "breakdown", metrics: ["ai.accepted_lines"] },
     {
@@ -98,6 +99,7 @@ describe("CollectionDrilldown", () => {
         ],
       },
       card: { preview: ["git.pr_cycle_time_h"] },
+      teamDrilldown: [],
       drilldown: [
         {
           chart: "histogram",
@@ -139,6 +141,7 @@ describe("CollectionDrilldown", () => {
         ],
       },
       card: { preview: ["ai.accepted_lines"] },
+      teamDrilldown: [],
       drilldown: [
         {
           chart: "summary-card",

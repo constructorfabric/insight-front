@@ -67,6 +67,7 @@ function defWith(metric: NormalizedMetricResult): MetricGroup {
       metrics: [{ key: metric.metric_key, views: [{ view: "period" }, { view: "peer" }] }],
     },
     card: { preview: [metric.metric_key] },
+    teamDrilldown: [],
     drilldown: [],
   };
 }

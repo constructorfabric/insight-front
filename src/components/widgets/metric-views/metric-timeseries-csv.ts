@@ -76,7 +76,10 @@ function csvContent(model: MetricTimeseriesModel): string {
     header,
     ...rows,
     total,
-    ...(model.dimensions.length > 0 ? [grandTotal] : []),
+    ...(model.dimensions.length > 0 &&
+    model.grandTotals.some((value) => value != null)
+      ? [grandTotal]
+      : []),
   ]
     .map((row) => row.map(csvCell).join(","))
     .join("\r\n");

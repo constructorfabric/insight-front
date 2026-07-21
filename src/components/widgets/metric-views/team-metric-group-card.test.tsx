@@ -21,6 +21,7 @@ const DEF: MetricGroup = {
     ],
   },
   card: { preview: ["ai.active_days"] },
+  teamDrilldown: [],
   drilldown: [],
 };
 

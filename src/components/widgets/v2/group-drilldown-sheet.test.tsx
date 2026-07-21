@@ -29,6 +29,7 @@ const METRIC_DEF: GroupDef = {
   title: "AI adoption",
   collection: { metrics: [] },
   card: { preview: [] },
+  teamDrilldown: [],
   drilldown: [],
 };
 const LEGACY_DEF: GroupDef = {
@@ -57,6 +58,7 @@ function renderSheet(
       def={def}
       rows={[]}
       metricTarget={metricTarget}
+      range={{ from: "2026-07-01", to: "2026-07-07" }}
     />,
   );
 }
@@ -76,7 +78,6 @@ describe("GroupDrilldownSheet", () => {
     renderSheet(METRIC_DEF, {
       kind: "team",
       members: [],
-      data: EMPTY_RESULT,
     });
     expect(screen.getByText("team-drilldown")).toBeInTheDocument();
   });
