@@ -65,7 +65,7 @@ describe("buildMetricCollectionRequest", () => {
       { view: "peer" },
       {
         view: "timeseries",
-        bucket: "day",
+        bucket: "week",
         dimensions: ["tool"],
         group_limit: {
           count: 10,
@@ -264,18 +264,18 @@ describe("resolveBucket", () => {
     expect(resolveBucket("month", RANGE)).toBe("month");
   });
 
-  it("tiers auto: day ≤ 62d, week ≤ 182d, month beyond", () => {
+  it("tiers auto: day through 7d, week below 1y, month from 1y", () => {
     expect(
-      resolveBucket("auto", { from: "2026-06-01", to: "2026-06-30" })
+      resolveBucket("auto", { from: "2026-06-01", to: "2026-06-07" })
     ).toBe("day");
     expect(
-      resolveBucket("auto", { from: "2026-01-01", to: "2026-03-03" })
-    ).toBe("day");
-    expect(
-      resolveBucket("auto", { from: "2026-01-01", to: "2026-05-01" })
+      resolveBucket("auto", { from: "2026-06-01", to: "2026-06-08" })
     ).toBe("week");
     expect(
-      resolveBucket("auto", { from: "2025-07-01", to: "2026-06-30" })
+      resolveBucket("auto", { from: "2025-07-22", to: "2026-07-20" })
+    ).toBe("week");
+    expect(
+      resolveBucket("auto", { from: "2025-07-21", to: "2026-07-20" })
     ).toBe("month");
   });
 });

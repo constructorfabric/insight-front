@@ -342,8 +342,8 @@ function toRequestView(
   }
 }
 
-const MAX_DAY_BUCKET_DAYS = 62;
-const MAX_WEEK_BUCKET_DAYS = 182;
+const MAX_DAY_BUCKET_DAYS = 7;
+const MIN_MONTH_BUCKET_DAYS = 365;
 
 export function resolveBucket(
   bucket: MetricCollectionBucket,
@@ -352,12 +352,12 @@ export function resolveBucket(
   if (bucket !== "auto") return bucket;
   const days = daysInRange(period);
   if (days <= MAX_DAY_BUCKET_DAYS) return "day";
-  if (days <= MAX_WEEK_BUCKET_DAYS) return "week";
-  return "month";
+  if (days >= MIN_MONTH_BUCKET_DAYS) return "month";
+  return "week";
 }
 
 export function resolveTimeseriesBucket(period: DateRange): MetricBucket {
-  return daysInRange(period) <= 7 ? "day" : "week";
+  return resolveBucket("auto", period);
 }
 
 function daysInRange(period: DateRange): number {
