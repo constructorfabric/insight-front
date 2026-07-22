@@ -23,12 +23,14 @@ export async function loadSession(): Promise<AuthStatus> {
       email?: string;
       tenant_id?: string;
       roles?: string[];
+      csrf_token?: string;
     };
     authStore.setAuthenticated({
       personId: body.user ?? "",
       email: body.email ?? "",
       tenantId: body.tenant_id ?? "",
       roles: body.roles ?? [],
+      csrfToken: body.csrf_token ?? "",
     });
     return "authenticated";
   } catch {

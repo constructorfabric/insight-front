@@ -20,6 +20,12 @@ export type Session = {
   tenantId: string;
   /** Access-control roles. */
   roles: string[];
+  /**
+   * CSRF token bound to the session (issued at login, echoed by `/auth/me`).
+   * Sent as `X-CSRF-Token` on state-changing `/auth/*` requests — the
+   * authenticator fails closed without it (NGINX_BFF step 10.5).
+   */
+  csrfToken: string;
 };
 
 export type AuthSnapshot = {
