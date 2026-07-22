@@ -203,7 +203,12 @@ describe("useIcDrilldownBatch", () => {
           status: "error",
           id: "histograms",
           metric_id: METRIC_REGISTRY.V2_IC_HISTOGRAM,
-          error: { type: "about:blank", title: "boom", status: 500 },
+          error: {
+            type: "about:blank",
+            title: "boom",
+            status: 500,
+            detail: "boom",
+          },
         },
       ],
     });

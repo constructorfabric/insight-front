@@ -747,7 +747,7 @@ describe("transformTeamMembers rounding", () => {
       display_name: "A",
       seniority: "mid",
       supervisor_email: "b@x.com",
-      org_unit_id: undefined,
+      org_unit_id: null,
       tasks_closed: 7.4,
       bugs_fixed: 1.6,
       dev_time_h: 12.5,
