@@ -12,12 +12,13 @@ export interface MetricDefinitionGroup {
 }
 
 export function groupByKeyPrefix(
-  metrics: MetricDefinition[],
+  metrics: MetricDefinition[]
 ): MetricDefinitionGroup[] {
   const groups = new Map<string, MetricDefinition[]>();
   for (const metric of metrics) {
     const dot = metric.metric_key.indexOf(".");
-    const prefix = dot > 0 ? metric.metric_key.slice(0, dot) : metric.metric_key;
+    const prefix =
+      dot > 0 ? metric.metric_key.slice(0, dot) : metric.metric_key;
     const bucket = groups.get(prefix);
     if (bucket) {
       bucket.push(metric);
@@ -31,7 +32,9 @@ export function groupByKeyPrefix(
   }));
 }
 
-export function useMetricDefinitions(): UseQueryResult<MetricDefinitionGroup[]> {
+export function useMetricDefinitions(): UseQueryResult<
+  MetricDefinitionGroup[]
+> {
   return useQuery({
     queryKey: ["metric-definitions"],
     queryFn: listMetricDefinitions,

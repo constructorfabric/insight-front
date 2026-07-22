@@ -43,7 +43,7 @@ export function MetricDefinitionsScreen() {
 
   const filtered = useMemo(
     () => filterGroups(groups ?? [], query),
-    [groups, query],
+    [groups, query]
   );
   const hasResults = filtered.some((group) => group.metrics.length > 0);
 
@@ -87,7 +87,9 @@ export function MetricDefinitionsScreen() {
                 <EmptyMedia variant="icon">
                   <Search />
                 </EmptyMedia>
-                <EmptyTitle>{t("metric_definitions.no_results_title")}</EmptyTitle>
+                <EmptyTitle>
+                  {t("metric_definitions.no_results_title")}
+                </EmptyTitle>
                 <EmptyDescription>
                   {t("metric_definitions.no_results_description", { query })}
                 </EmptyDescription>
@@ -98,7 +100,7 @@ export function MetricDefinitionsScreen() {
           {filtered.map((group) =>
             group.metrics.length > 0 ? (
               <MetricGroupCard key={group.prefix} group={group} />
-            ) : null,
+            ) : null
           )}
         </div>
       </main>
@@ -282,7 +284,7 @@ function formatLastObserved(date: string | null): string {
 
 function filterGroups(
   groups: MetricDefinitionGroup[],
-  query: string,
+  query: string
 ): MetricDefinitionGroup[] {
   const needle = query.trim().toLowerCase();
   if (!needle) return groups;

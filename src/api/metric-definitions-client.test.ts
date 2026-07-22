@@ -43,7 +43,7 @@ describe("listMetricDefinitions", () => {
 
   it("issues GET against /metric-definitions and returns the body", async () => {
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-      jsonResponse({ metrics: [METRIC] }),
+      jsonResponse({ metrics: [METRIC] })
     );
     const result = await listMetricDefinitions();
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
@@ -56,10 +56,10 @@ describe("listMetricDefinitions", () => {
 
   it("throws AnalyticsApiError with the error body on non-2xx", async () => {
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-      jsonResponse({ error: "internal" }, { status: 500 }),
+      jsonResponse({ error: "internal" }, { status: 500 })
     );
     await expect(listMetricDefinitions()).rejects.toThrowError(
-      AnalyticsApiError,
+      AnalyticsApiError
     );
   });
 
@@ -68,10 +68,10 @@ describe("listMetricDefinitions", () => {
       new Response("not json", {
         status: 200,
         headers: { "Content-Type": "application/json" },
-      }),
+      })
     );
     await expect(listMetricDefinitions()).rejects.toThrowError(
-      AnalyticsApiError,
+      AnalyticsApiError
     );
   });
 });

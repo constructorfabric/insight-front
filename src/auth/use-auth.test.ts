@@ -30,7 +30,7 @@ describe("signIn", () => {
     const signIn = await freshSignIn();
     signIn("/ic/bob?period=month");
     expect(assign).toHaveBeenCalledWith(
-      `/auth/login?return_to=${encodeURIComponent("/ic/bob?period=month")}`,
+      `/auth/login?return_to=${encodeURIComponent("/ic/bob?period=month")}`
     );
   });
 
