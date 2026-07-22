@@ -432,6 +432,36 @@ export const GROUPS: readonly GroupDef[] = [
   },
 ];
 
+/**
+ * The members heatmap's fixed cross-family column set: one metric key per
+ * column, in display order. Every key exists in a group collection above.
+ * The FE owns only the key list and order — each column's label, unit,
+ * format, and direction ride the `/v1/metric-results` response.
+ */
+export const HEATMAP_METRIC_KEYS: readonly string[] = [
+  "tasks.closed",
+  "tasks.resolution_time",
+  "tasks.bugs_fixed",
+  "git.prs_merged",
+  "git.pr_cycle_time_h",
+  "collab.focus_time_pct",
+  "collab.meeting_hours",
+  "ai.active_days",
+  "wiki.edits",
+];
+
+/**
+ * Heatmap fetch collection: `period` (the cell value) + `peer` (each person's
+ * standing vs their OWN department cohort). No timeseries/breakdown/histogram,
+ * so a large roster chunks under the backend's projected-row limit.
+ */
+export const HEATMAP_COLLECTION: MetricCollectionConfig = {
+  metrics: HEATMAP_METRIC_KEYS.map((key) => ({
+    key,
+    views: [{ view: "period" }, { view: "peer" }],
+  })),
+};
+
 export function groupById(id: GroupId): GroupDef {
   const def = GROUPS.find((g) => g.id === id);
   if (!def) throw new Error(`Unknown group: ${id}`);

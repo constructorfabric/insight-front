@@ -9,7 +9,6 @@ import { Spinner } from "@/components/ui/spinner";
 import { ComingSoon } from "@/components/widgets/coming-soon";
 import { useSettings } from "@/hooks/use-settings";
 import type { MetricGroup } from "@/lib/insight/groups";
-import { peerStatusToStatus } from "@/lib/insight/v2/peer-status";
 import {
   teamMetricStandings,
   type TeamMetricStanding,
@@ -19,6 +18,7 @@ import {
   rankCounts,
   sectionStandingPhrase,
 } from "@/lib/scoring";
+import { applyFocus, PEER_TEXT } from "@/lib/peers";
 import {
   STATUS_BG_CLASS,
   STATUS_STRIPE_LEFT,
@@ -36,9 +36,10 @@ export interface TeamMetricGroupCardProps {
 }
 
 /**
- * Team card for a metrics-backed group. No team aggregates — a ratio can't
- * be summed from per-member values — so each preview row reports roster
- * standings against members' own cohorts ("3 of 8 in top").
+ * Card for a metrics-backed group over a roster of people. No pooled team
+ * value — the roster is a set of individuals, not a unit — so each preview
+ * row states how the members stand against their OWN cohorts in the shared
+ * behind/ahead/on-par vocabulary; the drilldown names who.
  */
 export function TeamMetricGroupCard({
   def,
@@ -90,8 +91,10 @@ export function TeamMetricGroupCard({
   const status = applyFocusStatus(gradeSectionStanding(counts), focusMode);
   const badgeText = sectionStandingPhrase(counts);
 
+  // Preview rows keep their slot even with nobody scorable — a silently
+  // shrinking card reads as broken; the row states "no peer data" instead.
   const preview: TeamMetricStanding[] = def.card.preview
-    .map((key) => scored.find((s) => s.metric.metric_key === key))
+    .map((key) => standings.find((s) => s.metric.metric_key === key))
     .filter((s): s is TeamMetricStanding => s != null);
   const stripeClass = STATUS_STRIPE_LEFT[status];
 
@@ -133,38 +136,70 @@ export function TeamMetricGroupCard({
             No metrics with peer data for this period.
           </p>
         ) : (
-          <ul className="flex flex-col gap-1.5">
+          <ul className="flex flex-col gap-2 text-sm">
             {(preview.length > 0 ? preview : scored.slice(0, 3)).map(
-              (standing) => {
-                const rowStatus = applyFocusStatus(
-                  peerStatusToStatus(standing.verdict),
-                  focusMode,
-                );
-                return (
-                  <li
-                    key={standing.metric.metric_key}
-                    className="flex items-center gap-2 text-sm"
-                  >
-                    <span
-                      className={cn(
-                        "size-2 shrink-0 rounded-full",
-                        STATUS_BG_CLASS[rowStatus],
-                      )}
-                      aria-hidden
-                    />
-                    <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                      {standing.metric.label}
-                    </span>
-                    <span className="shrink-0 font-medium tabular-nums">
-                      {standing.top} of {standing.scored} in top
-                    </span>
-                  </li>
-                );
-              },
+              (standing) => (
+                <li
+                  key={standing.metric.metric_key}
+                  className="flex items-baseline justify-between gap-2"
+                >
+                  <span className="min-w-0 truncate text-muted-foreground">
+                    {standing.metric.label}
+                  </span>
+                  <RowStanding standing={standing} focusMode={focusMode} />
+                </li>
+              ),
             )}
           </ul>
         )}
       </CardContent>
     </Card>
   );
+}
+
+/**
+ * The row's verdict in the shared chip vocabulary — behind wins over ahead,
+ * on par only when nothing sticks out, "no peer data" when nobody on the
+ * roster is rankable. Counts only; the drilldown names who.
+ */
+function RowStanding({
+  standing,
+  focusMode,
+}: {
+  standing: TeamMetricStanding;
+  focusMode: ReturnType<typeof useSettings>["focusMode"];
+}) {
+  const { top, bottom, scored } = standing;
+  if (scored === 0) {
+    return (
+      <span className="shrink-0 text-xs text-muted-foreground">
+        no peer data
+      </span>
+    );
+  }
+  if (bottom > 0) {
+    return (
+      <span
+        className={cn(
+          "shrink-0 text-xs tabular-nums",
+          PEER_TEXT[applyFocus("bottom", focusMode)],
+        )}
+      >
+        {bottom} behind
+      </span>
+    );
+  }
+  if (top > 0) {
+    return (
+      <span
+        className={cn(
+          "shrink-0 text-xs tabular-nums",
+          PEER_TEXT[applyFocus("top", focusMode)],
+        )}
+      >
+        {top} ahead
+      </span>
+    );
+  }
+  return <span className="shrink-0 text-xs text-muted-foreground">on par</span>;
 }

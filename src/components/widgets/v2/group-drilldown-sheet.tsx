@@ -38,7 +38,7 @@ export type MetricDrilldownTarget =
       entityId: string;
       data: MetricCollectionResult;
     }
-  | { kind: "team"; members: TeamMemberRef[]; data: MetricCollectionResult };
+  | { kind: "team"; members: TeamMemberRef[] };
 
 export interface GroupDrilldownSheetProps {
   open: boolean;
@@ -146,11 +146,13 @@ function DrilldownPanel({
               range={range}
               cohortLabel={cohortLabel}
             />
-          ) : metricTarget?.kind === "team" ? (
+          ) : metricTarget?.kind === "team" && range && period ? (
             <TeamCollectionDrilldown
               def={def}
-              data={metricTarget.data}
               members={metricTarget.members}
+              range={range}
+              period={period}
+              cohortLabel={cohortLabel}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center p-10">

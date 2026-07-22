@@ -60,6 +60,8 @@ vi.mock("@/queries/metric-results", () => ({
     }
     return map;
   },
+  collectionSetPending: (set: Map<string, { isPending: boolean }>) =>
+    [...set.values()].some((result) => result.isPending),
 }));
 
 vi.mock("@/components/widgets/v2/dashboard-header", () => ({
@@ -78,7 +80,6 @@ vi.mock("@/components/widgets/v2/kpi-tile", () => ({
   KpiTile: ({ tile }: { tile: { key: string } }) => (
     <div data-testid="kpi-tile">{tile.key}</div>
   ),
-  KpiTileLoading: () => <div data-testid="kpi-loading" />,
   KpiTilePlaceholder: () => <div data-testid="kpi-placeholder" />,
 }));
 
@@ -137,9 +138,16 @@ describe("EngineeringDashboardV2", () => {
     tilesReturn = METRIC_KEYS.map((key) => ({ key }));
     attentionPerGroup = [{ key: "k" }];
 
-    render(<EngineeringDashboardV2 personId="me@x.io" />);
+    render(
+      <EngineeringDashboardV2
+        personId="me@x.io"
+        person={{ display_name: "Me Person" } as never}
+      />,
+    );
 
-    expect(screen.getByTestId("header")).toHaveTextContent("me@x.io");
+    // The header shows the resolved name, never the raw id/email.
+    expect(screen.getByTestId("header")).toHaveTextContent("Me Person");
+    expect(screen.getByTestId("header")).not.toHaveTextContent("me@x.io");
     expect(screen.getAllByTestId("kpi-tile")).toHaveLength(METRIC_KEYS.length);
     expect(screen.getAllByTestId("metric-card")).toHaveLength(GROUP_IDS.length);
     expect(screen.getAllByTestId("drilldown")).toHaveLength(GROUP_IDS.length);
@@ -162,14 +170,16 @@ describe("EngineeringDashboardV2", () => {
     expect(kpiState.refetch).toHaveBeenCalled();
   });
 
-  it("shows a loading tile per KPI while the collection is pending", () => {
+  it("shows the single page spinner while the collection is pending", () => {
     kpiState.isPending = true;
 
     render(<EngineeringDashboardV2 personId="me@x.io" />);
 
-    expect(screen.getAllByTestId("kpi-loading")).toHaveLength(
-      METRIC_KEYS.length
-    );
+    // One loading state for the whole dashboard — no per-widget loaders and
+    // no partially painted content.
+    expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
+    expect(screen.queryByTestId("kpi-tile")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("attention")).not.toBeInTheDocument();
   });
 
   it("shows a placeholder per KPI when settled with no data", () => {

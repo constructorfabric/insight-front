@@ -6,9 +6,31 @@ import {
   type TeamMemberRef,
 } from "@/components/widgets/metric-views/team-collection-drilldown";
 import type { MetricGroup } from "@/lib/insight/groups";
-import { normalizeMetricResults } from "@/lib/metrics/collection";
-import type { MetricCollectionResult } from "@/queries/metric-results";
-import type { MetricResult } from "@/api/metric-results-client";
+import type { MemberGridData } from "@/queries/v2/member-grid";
+
+const mocks = vi.hoisted(() => ({
+  gridData: vi.fn(),
+}));
+
+vi.mock("@/queries/v2/member-grid", () => ({
+  useMemberGridData: mocks.gridData,
+}));
+
+vi.mock("@/components/widgets/v2/members-grid", () => ({
+  MembersGrid: ({
+    metricKeys,
+    members,
+  }: {
+    metricKeys: string[];
+    members: { entityId: string }[];
+  }) => (
+    <div>
+      grid:{metricKeys.join(",")}:{members.length}
+    </div>
+  ),
+}));
+
+const RANGE = { from: "2026-04-20", to: "2026-05-04" };
 
 const DEF: MetricGroup = {
   kind: "metrics",
@@ -16,7 +38,11 @@ const DEF: MetricGroup = {
   title: "AI adoption",
   collection: {
     metrics: [
-      { key: "ai.active_days", views: [{ view: "period" }] },
+      { key: "ai.active_days", views: [{ view: "period" }, { view: "peer" }] },
+      {
+        key: "ai.accepted_lines",
+        views: [{ view: "period" }, { view: "peer" }],
+      },
     ],
   },
   card: { preview: [] },
@@ -28,30 +54,10 @@ const MEMBERS: TeamMemberRef[] = [
   { entityId: "b@x.com", displayName: "Bo" },
 ];
 
-function metric(values: Array<{ id: string; value: number | null }>): MetricResult {
+function gridData(overrides: Partial<MemberGridData> = {}): MemberGridData {
   return {
-    metric_key: "ai.active_days",
-    label: "Active AI days",
-    unit: "days",
-    format: "integer",
-    direction: "higher_is_better",
-    computation: "sum",
-    views: [
-      {
-        view: "period",
-        values: values.map((v) => ({ entity_id: v.id, value: v.value })),
-      },
-    ],
-  };
-}
-
-function result(
-  metrics: MetricResult[],
-  overrides: Partial<MetricCollectionResult> = {},
-): MetricCollectionResult {
-  return {
-    byKey: normalizeMetricResults(metrics),
-    previousByKey: null,
+    byKey: new Map(),
+    previousByKey: new Map(),
     isPending: false,
     isFetching: false,
     isError: false,
@@ -60,66 +66,41 @@ function result(
   };
 }
 
+function renderDrilldown(
+  data: MemberGridData,
+  members: TeamMemberRef[] = MEMBERS
+) {
+  mocks.gridData.mockReturnValue(data);
+  return render(
+    <TeamCollectionDrilldown
+      def={DEF}
+      members={members}
+      range={RANGE}
+      period="week"
+    />
+  );
+}
+
 describe("TeamCollectionDrilldown", () => {
-  it("shows a spinner while pending", () => {
-    const { container } = render(
-      <TeamCollectionDrilldown
-        def={DEF}
-        data={result([], { isPending: true })}
-        members={MEMBERS}
-      />,
-    );
-    expect(container.querySelector("svg")).toBeInTheDocument();
-  });
-
-  it("shows an error with retry", () => {
-    const refetch = vi.fn();
-    render(
-      <TeamCollectionDrilldown
-        def={DEF}
-        data={result([], { isError: true, refetch })}
-        members={MEMBERS}
-      />,
-    );
-    expect(screen.getByText("Unable to load metrics")).toBeInTheDocument();
-  });
-
-  it("shows the no-metrics message when the collection is empty", () => {
-    render(
-      <TeamCollectionDrilldown def={DEF} data={result([])} members={MEMBERS} />,
-    );
+  it("renders the members grid over the group's full collection", () => {
+    renderDrilldown(gridData());
     expect(
-      screen.getByText(/No data for this group/i),
+      screen.getByText("grid:ai.active_days,ai.accepted_lines:2")
     ).toBeInTheDocument();
   });
 
-  it("shows the no-members message when the roster is empty", () => {
-    render(
-      <TeamCollectionDrilldown
-        def={DEF}
-        data={result([metric([{ id: "a@x.com", value: 5 }])])}
-        members={[]}
-      />,
-    );
-    expect(screen.getByText(/No team members/i)).toBeInTheDocument();
+  it("shows a spinner while the grid data loads", () => {
+    const { container } = renderDrilldown(gridData({ isPending: true }));
+    expect(container.querySelector("svg")).toBeInTheDocument();
   });
 
-  it("renders a per-member table with formatted values and em-dash for gaps", () => {
-    render(
-      <TeamCollectionDrilldown
-        def={DEF}
-        data={result([
-          metric([
-            { id: "a@x.com", value: 5 },
-            { id: "b@x.com", value: null },
-          ]),
-        ])}
-        members={MEMBERS}
-      />,
-    );
-    expect(screen.getByText("Ann")).toBeInTheDocument();
-    expect(screen.getByText("Bo")).toBeInTheDocument();
-    expect(screen.getByText("5 days")).toBeInTheDocument();
-    expect(screen.getByText("—")).toBeInTheDocument();
+  it("shows an error with retry when the fetch fails", () => {
+    renderDrilldown(gridData({ isError: true }));
+    expect(screen.getByText("Unable to load metrics")).toBeInTheDocument();
+  });
+
+  it("shows the no-members message when the roster is empty", () => {
+    renderDrilldown(gridData(), []);
+    expect(screen.getByText(/No team members/i)).toBeInTheDocument();
   });
 });

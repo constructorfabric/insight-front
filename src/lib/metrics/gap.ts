@@ -1,5 +1,10 @@
 import type { MetricFormat } from "@/api/metric-results-client";
-import { formatMetricValue, formatPp } from "@/lib/format";
+import {
+  MULTIPLE_THRESHOLD,
+  formatMetricValue,
+  formatMultiple,
+  formatPp,
+} from "@/lib/format";
 
 /**
  * The single "scale of divergence" formatter shared by every surface that
@@ -8,19 +13,12 @@ import { formatMetricValue, formatPp } from "@/lib/format";
  * differs per surface (verbose in the drilldown, compact on the dashboard);
  * the magnitude itself is computed once, here.
  *
- * At/above `GAP_MULTIPLE_THRESHOLD`× the median a signed percent runs away
+ * At/above `MULTIPLE_THRESHOLD`× the median a signed percent runs away
  * (300%, 500%…), so the far-above side reads as a multiple ("5.6×"); nearer
  * gaps and the whole below-median side (bounded to −100%) stay a signed
  * percent; a sub-unit gap with no usable median falls back to a signed
  * absolute delta.
  */
-const GAP_MULTIPLE_THRESHOLD = 2;
-
-function formatMultiple(ratio: number): string {
-  const rounded = ratio >= 10 ? Math.round(ratio) : Math.round(ratio * 10) / 10;
-  return `${rounded}×`;
-}
-
 function formatGapPct(gap: number): string | null {
   const pct = Math.round(Math.abs(gap) * 100);
   if (pct === 0) return null;
@@ -68,7 +66,7 @@ export function formatGapMagnitude({
   if (
     median != null &&
     Math.abs(median) > 1e-9 &&
-    value / median >= GAP_MULTIPLE_THRESHOLD
+    value / median >= MULTIPLE_THRESHOLD
   ) {
     return formatMultiple(value / median);
   }

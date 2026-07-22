@@ -1,63 +1,33 @@
 /**
  * Component-render coverage for `<TeamMembersAttention>`.
  *
- * Catalog-driven; each member is counted "below" against THAT member's own
- * department distribution (`deptCohorts` keyed by `org_unit_id → metric_key
- * → PeerStats`). Covers the wave-1 DESIGN §3.3 rendering rules:
- *   - bullet that lands in the bottom quartile of the member's dept counts
- *     toward the attention count (subtitle + per-row "trailing").
- *   - `schema_status='error'` bullets are filtered out of the count.
- *   - Missing-id bullets (no catalog row) are filtered out.
- *   - A degenerate department cohort (`n < MIN_DEPT_COHORT_N`) is not counted.
+ * Counts come from `metricBelowByMember` (per member's below-peer standings
+ * across all groups, each vs their own department cohort); the "worst" headline
+ * comes from the member's peer-story entries. Covers:
+ *   - a member with a positive count is surfaced with its count + "worst".
+ *   - members with a zero count are omitted; an all-zero roster hides the block.
+ *   - the list is sorted by count desc and capped at six.
  */
 
-import { screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { describe, expect, it, vi } from "vitest";
 
-import { authStore } from "@/auth/auth-store";
-
-vi.mock("@/api/catalog-client", async () => {
-  const actual = await vi.importActual<typeof import("@/api/catalog-client")>(
-    "@/api/catalog-client",
-  );
-  return { ...actual, fetchCatalog: vi.fn() };
-});
-
-// `<TeamMembersAttention>` renders each member as a router `<Link>`; these
-// render-rule tests don't exercise navigation, so stub Link to a plain anchor
-// rather than standing up a full router context.
 vi.mock("@tanstack/react-router", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@tanstack/react-router")>();
   return {
     ...actual,
-    Link: ({
-      to,
-      children,
-    }: {
-      to?: string;
-      params?: unknown;
-      children?: ReactNode;
-    }) => <a href={to}>{children}</a>,
+    Link: ({ to, children }: { to?: string; params?: unknown; children?: ReactNode }) => (
+      <a href={to}>{children}</a>
+    ),
   };
 });
 
-import * as catalogClient from "@/api/catalog-client";
-import {
-  buildCatalogResponse,
-  renderWithCatalogClient,
-} from "@/test/catalog-test-utils";
-import type { DeptCohorts, PeerStats } from "@/lib/peers";
+import type { PeerStoryEntry } from "@/lib/metrics/peer-story";
+import type { PeerStatusWithNeutral } from "@/lib/peers";
 import { TeamMembersAttention } from "./team-members-attention";
-import type {
-  BulletMetric,
-  PeriodValue,
-  TeamMember,
-} from "@/types/insight";
-
-const fetchCatalog = catalogClient.fetchCatalog as ReturnType<typeof vi.fn>;
+import type { PeriodValue, TeamMember } from "@/types/insight";
 
 function makeMember(overrides: Partial<TeamMember> = {}): TeamMember {
   return {
@@ -79,229 +49,83 @@ function makeMember(overrides: Partial<TeamMember> = {}): TeamMember {
   };
 }
 
-function makeBullet(overrides: Partial<BulletMetric> = {}): BulletMetric {
+function bottomEntry(label: string, severity: number): PeerStoryEntry {
   return {
-    period: "month" as PeriodValue,
-    section: "task_delivery",
-    metric_key: "tasks_completed",
-    label: "Tasks Closed",
-    value: "1",
-    unit: "tasks",
-    range_min: "0",
-    range_max: "20",
-    median: "5",
-    median_label: "",
-    bar_left_pct: 0,
-    bar_width_pct: 5,
-    median_left_pct: 25,
-    status: "bad",
-    drill_id: "",
-    ...overrides,
+    key: label,
+    label,
+    value: 1,
+    unit: null,
+    format: "integer",
+    higherIsBetter: true,
+    neutral: false,
+    observed: true,
+    stats: { p25: 8, p50: 10, p75: 12, min: 4, max: 20, n: 10 },
+    status: "bottom" as PeerStatusWithNeutral,
+    gapPct: -0.9,
+    gapDelta: -9,
+    severity,
   };
 }
 
-function stats(overrides: Partial<PeerStats> = {}): PeerStats {
-  return { p25: 8, p50: 10, p75: 12, min: 4, max: 20, n: 10, ...overrides };
-}
-
-// Attention compares member bullets, which live in the `bullet` family of
-// the split DeptCohorts (the `kpi` family backs the heatmap's team_row
-// columns and is irrelevant here).
-function deptMap(
-  rows: Array<[orgUnit: string, metricKey: string, s: PeerStats]>,
-): DeptCohorts {
-  const bullet = new Map<string, Map<string, PeerStats>>();
-  for (const [orgUnit, metricKey, s] of rows) {
-    let byMetric = bullet.get(orgUnit);
-    if (!byMetric) {
-      byMetric = new Map();
-      bullet.set(orgUnit, byMetric);
-    }
-    byMetric.set(metricKey, s);
-  }
-  return { kpi: new Map(), bullet };
-}
+const NO_ENTRIES = new Map<string, PeerStoryEntry[]>();
 
 describe("<TeamMembersAttention>", () => {
-  beforeEach(() => {
-    authStore.reset();
-    authStore.setAuthenticated({
-      personId: "p-1",
-      email: "bob.park@example.com",
-      tenantId: "t-1",
-      roles: ["user"],
-    });
-    fetchCatalog.mockReset();
-  });
-  afterEach(() => {
-    authStore.reset();
-  });
-
-  it("surfaces a member whose bullet scores 'bottom' vs their department", async () => {
-    fetchCatalog.mockResolvedValue(
-      buildCatalogResponse([
-        {
-          metric_key: "task_delivery_bullet_rows.tasks_completed",
-          higher_is_better: true,
-          schema_status: "ok",
-        },
-      ]),
-    );
-    // Alice's value (1, higher = better) sits below her department's p25 (8)
-    // ⇒ bottom quartile ⇒ counted. Per-department, not vs the displayed roster.
-    const bulletsByPerson = new Map<string, BulletMetric[]>([
-      ["alice@example.com", [makeBullet({ value: "1" })]],
-    ]);
-    const deptCohorts = deptMap([
-      ["Engineering", "tasks_completed", stats()],
-    ]);
-    renderWithCatalogClient(
+  it("surfaces a member with a positive count and its worst metric", () => {
+    render(
       <TeamMembersAttention
         members={[makeMember({ person_id: "alice@example.com", name: "Alice" })]}
-        bulletsByPerson={bulletsByPerson}
-        deptCohorts={deptCohorts}
+        metricBelowByMember={new Map([["alice@example.com", 2]])}
+        metricEntriesByPerson={
+          new Map([
+            [
+              "alice@example.com",
+              [bottomEntry("Tasks closed", 1), bottomEntry("Focus time", 3)],
+            ],
+          ])
+        }
       />,
     );
-    await waitFor(() => {
-      expect(
-        screen.getByText("1 members · vs department peers"),
-      ).toBeInTheDocument();
-    });
-    expect(screen.getByText("Alice")).toBeInTheDocument();
     expect(
       screen.getByText("1 members · vs department peers"),
     ).toBeInTheDocument();
-  });
-
-  it("compares an hours bullet directly against hours dept stats (no rescaling, #1475)", async () => {
-    fetchCatalog.mockResolvedValue(
-      buildCatalogResponse([
-        {
-          metric_key: "collab_bullet_rows.meeting_hours",
-          higher_is_better: false,
-          unit: "h",
-          schema_status: "ok",
-        },
-      ]),
-    );
-    // meeting_hours is an hours metric — the FE never rescales it to days, so
-    // the bullet stays in hours (192 h) and the department distribution is in
-    // the same unit (p75 = 150 h). Alice sits above p75 (lower = better ⇒
-    // bottom ⇒ counted). Display unit always matches the catalog unit.
-    const bulletsByPerson = new Map<string, BulletMetric[]>([
-      [
-        "alice@example.com",
-        [
-          makeBullet({
-            section: "collaboration",
-            metric_key: "meeting_hours",
-            value: "192",
-            unit: "h",
-          }),
-        ],
-      ],
-    ]);
-    const deptCohorts = deptMap([
-      [
-        "Engineering",
-        "meeting_hours",
-        stats({ p25: 50, p50: 100, p75: 150, min: 10, max: 200 }),
-      ],
-    ]);
-    renderWithCatalogClient(
-      <TeamMembersAttention
-        members={[makeMember({ person_id: "alice@example.com", name: "Alice" })]}
-        bulletsByPerson={bulletsByPerson}
-        deptCohorts={deptCohorts}
-      />,
-    );
-    await waitFor(() => {
-      expect(screen.getByText("1 members · vs department peers")).toBeInTheDocument();
-    });
     expect(screen.getByText("Alice")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
+    // Worst = the highest-severity bottom entry.
+    expect(screen.getByText("worst: Focus time")).toBeInTheDocument();
   });
 
-  it("schema_error bullets do NOT trigger the attention surface", async () => {
-    fetchCatalog.mockResolvedValue(
-      buildCatalogResponse([
-        {
-          metric_key: "task_delivery_bullet_rows.tasks_completed",
-          higher_is_better: true,
-          schema_status: "error",
-        },
-      ]),
-    );
-    const bulletsByPerson = new Map<string, BulletMetric[]>([
-      ["alice@example.com", [makeBullet({ value: "1", schema_error: true })]],
-    ]);
-    const deptCohorts = deptMap([
-      ["Engineering", "tasks_completed", stats()],
-    ]);
-    renderWithCatalogClient(
+  it("omits members with a zero count and hides the block when none trail", () => {
+    render(
       <TeamMembersAttention
         members={[makeMember()]}
-        bulletsByPerson={bulletsByPerson}
-        deptCohorts={deptCohorts}
+        metricBelowByMember={new Map()}
+        metricEntriesByPerson={NO_ENTRIES}
       />,
     );
-    await waitFor(() => {
-      expect(
-        screen.queryByText("Members needing attention"),
-      ).not.toBeInTheDocument();
-    });
+    expect(
+      screen.queryByText("Members needing attention"),
+    ).not.toBeInTheDocument();
   });
 
-  it("missing-id bullets (no catalog row) do NOT trigger the attention surface", async () => {
-    fetchCatalog.mockResolvedValue(buildCatalogResponse([]));
-    const bulletsByPerson = new Map<string, BulletMetric[]>([
-      ["alice@example.com", [makeBullet({ value: "1" })]],
-    ]);
-    const deptCohorts = deptMap([
-      ["Engineering", "tasks_completed", stats()],
-    ]);
-    renderWithCatalogClient(
+  it("sorts by count desc and caps at six", () => {
+    const members = Array.from({ length: 8 }, (_, i) =>
+      makeMember({ person_id: `p${i}@example.com`, name: `P${i}` }),
+    );
+    // Descending counts p0..p7 = 8..1; only the top six survive the cap.
+    const metricBelowByMember = new Map(
+      members.map((m, i) => [m.person_id, 8 - i]),
+    );
+    render(
       <TeamMembersAttention
-        members={[makeMember()]}
-        bulletsByPerson={bulletsByPerson}
-        deptCohorts={deptCohorts}
+        members={members}
+        metricBelowByMember={metricBelowByMember}
+        metricEntriesByPerson={NO_ENTRIES}
       />,
     );
-    await waitFor(() => {
-      expect(
-        screen.queryByText("Members needing attention"),
-      ).not.toBeInTheDocument();
-    });
-  });
-
-  it("a degenerate department cohort (n < 5) is NOT counted", async () => {
-    fetchCatalog.mockResolvedValue(
-      buildCatalogResponse([
-        {
-          metric_key: "task_delivery_bullet_rows.tasks_completed",
-          higher_is_better: true,
-          schema_status: "ok",
-        },
-      ]),
-    );
-    // Alice's value (1) would be bottom-quartile, but her dept cohort holds
-    // only 3 people (< MIN_DEPT_COHORT_N) ⇒ not counted, surface stays hidden.
-    const bulletsByPerson = new Map<string, BulletMetric[]>([
-      ["alice@example.com", [makeBullet({ value: "1" })]],
-    ]);
-    const deptCohorts = deptMap([
-      ["Engineering", "tasks_completed", stats({ n: 3 })],
-    ]);
-    renderWithCatalogClient(
-      <TeamMembersAttention
-        members={[makeMember()]}
-        bulletsByPerson={bulletsByPerson}
-        deptCohorts={deptCohorts}
-      />,
-    );
-    await waitFor(() => {
-      expect(
-        screen.queryByText("Members needing attention"),
-      ).not.toBeInTheDocument();
-    });
+    const names = screen
+      .getAllByRole("link")
+      .map((a) => a.textContent ?? "")
+      .map((t) => (/P\d/.exec(t) ?? [""])[0]);
+    expect(names).toEqual(["P0", "P1", "P2", "P3", "P4", "P5"]);
   });
 });
