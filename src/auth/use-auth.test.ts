@@ -5,6 +5,55 @@ import { signOut } from "./use-auth";
 
 const fetchMock = () => globalThis.fetch as ReturnType<typeof vi.fn>;
 
+describe("signIn", () => {
+  let assign: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.resetModules();
+    assign = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, assign },
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  async function freshSignIn() {
+    const mod = await import("./use-auth");
+    return mod.signIn;
+  }
+
+  it("encodes the current path into return_to", async () => {
+    const signIn = await freshSignIn();
+    signIn("/ic/bob?period=month");
+    expect(assign).toHaveBeenCalledWith(
+      `/auth/login?return_to=${encodeURIComponent("/ic/bob?period=month")}`,
+    );
+  });
+
+  it("collapses /auth paths to / so the login redirect cannot nest", async () => {
+    const signIn = await freshSignIn();
+    signIn("/auth/login?return_to=%2Fauth%2Flogin");
+    expect(assign).toHaveBeenCalledWith("/auth/login?return_to=%2F");
+  });
+
+  it("rejects non-relative and protocol-relative destinations", async () => {
+    const signIn = await freshSignIn();
+    signIn("//evil.example/phish");
+    expect(assign).toHaveBeenCalledWith("/auth/login?return_to=%2F");
+  });
+
+  it("does not stack redirects while one is in flight", async () => {
+    const signIn = await freshSignIn();
+    signIn("/a");
+    signIn("/b");
+    expect(assign).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("signOut", () => {
   let assign: ReturnType<typeof vi.fn>;
 

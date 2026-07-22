@@ -5,9 +5,14 @@ import type { AuthSnapshot } from "./types";
 
 let redirecting = false;
 
-/** Sanitize a return-to into a site-relative path (mirrors the backend guard). */
+/**
+ * Sanitize a return-to into a site-relative path (mirrors the backend guard).
+ * `/auth/*` paths collapse to `/` — a return-to pointing back into the login
+ * flow would nest on every bounce and grow the URL without bound.
+ */
 function safeReturnTo(path: string): string {
-  return path.startsWith("/") && !path.startsWith("//") ? path : "/";
+  if (!path.startsWith("/") || path.startsWith("//")) return "/";
+  return path.startsWith("/auth/") || path === "/auth" ? "/" : path;
 }
 
 /**
