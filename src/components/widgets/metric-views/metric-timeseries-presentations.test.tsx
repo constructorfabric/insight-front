@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { MetricTimeseriesChart } from "@/components/widgets/metric-views/metric-timeseries-chart";
@@ -14,6 +14,35 @@ describe("metric timeseries presentations", () => {
     expect(screen.getByText("Grand total")).toBeInTheDocument();
     expect(screen.getByText(/Commits: 6/)).toBeInTheDocument();
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+  });
+
+  it("renders a grouped single-metric table with a single header row", () => {
+    const grouped = groupedTimeseriesModel();
+    const model = {
+      ...grouped,
+      metrics: [grouped.metrics[0]!],
+      grandTotals: [grouped.grandTotals[0]],
+    };
+    render(<MetricTimeseriesTable model={model} />);
+    // One header cell per dimension column, no per-metric subheader row.
+    expect(screen.getByText("org/repo-a")).toBeInTheDocument();
+    expect(screen.getByText("org/repo-b")).toBeInTheDocument();
+    expect(screen.queryByText("Commits")).not.toBeInTheDocument();
+    expect(screen.getByText("Grand total")).toBeInTheDocument();
+  });
+
+  it("renders em dashes when grand totals are missing", () => {
+    const grouped = groupedTimeseriesModel();
+    const model = {
+      ...grouped,
+      grandTotals: grouped.grandTotals.map(() => null),
+    };
+    render(<MetricTimeseriesTable model={model} />);
+    const grandTotalRow = screen
+      .getByText("Grand total")
+      .closest("tr") as HTMLElement;
+    expect(within(grandTotalRow).getByText("—")).toBeInTheDocument();
+    expect(within(grandTotalRow).queryByText(/Commits:/)).not.toBeInTheDocument();
   });
 
   it("renders an ungrouped single-metric table", () => {

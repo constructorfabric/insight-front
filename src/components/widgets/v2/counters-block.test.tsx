@@ -11,7 +11,9 @@
  *     collapse to neutral.
  */
 
-import { screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, waitFor } from "@testing-library/react";
+import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { authStore } from "@/auth/auth-store";
@@ -127,4 +129,96 @@ describe("<CountersBlock>", () => {
       expect(screen.queryByText("Top issue")).not.toBeInTheDocument();
     });
   });
+
+  describe("list layout", () => {
+    it("renders a flat value-vs-cohort row per metric", async () => {
+      fetchCatalog.mockResolvedValue(
+        buildCatalogResponse([
+          {
+            metric_key: "task_delivery_bullet_rows.tasks_completed",
+            higher_is_better: true,
+            schema_status: "ok",
+          },
+        ]),
+      );
+      renderWithCatalogClient(
+        <CountersBlock
+          rows={[makeBullet({ value: "12", peer: STATS })]}
+          layout="list"
+        />,
+      );
+      await waitFor(() => {
+        // value 12 > p75 (10) → top quartile.
+        expect(screen.getAllByText("top 25%").length).toBeGreaterThan(0);
+      });
+      // Mobile + desktop layouts both render the row.
+      expect(screen.getAllByText("Tasks Closed").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("12").length).toBeGreaterThan(0);
+      expect(
+        screen.getAllByText(/department median: 5 tasks/).length,
+      ).toBeGreaterThan(0);
+    });
+
+    it("labels an in-pack value 'on par' with the cohort median", async () => {
+      fetchCatalog.mockResolvedValue(
+        buildCatalogResponse([
+          {
+            metric_key: "task_delivery_bullet_rows.tasks_completed",
+            higher_is_better: true,
+            schema_status: "ok",
+          },
+        ]),
+      );
+      renderWithCatalogClient(
+        <CountersBlock
+          rows={[makeBullet({ value: "5", peer: STATS })]}
+          layout="list"
+          cohortLabel="team"
+        />,
+      );
+      await waitFor(() => {
+        expect(screen.getAllByText("on par").length).toBeGreaterThan(0);
+      });
+      expect(
+        screen.getAllByText(/team median: 5 tasks/).length,
+      ).toBeGreaterThan(0);
+    });
+
+    it("shows an em-dash position and 'no peer data' without stats", async () => {
+      fetchCatalog.mockResolvedValue(buildCatalogResponse([]));
+      renderWithCatalogClient(
+        <CountersBlock rows={[makeBullet({ value: "12" })]} layout="list" />,
+      );
+      await waitFor(() => {
+        expect(screen.getAllByText("no peer data").length).toBeGreaterThan(0);
+      });
+      expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+    });
+
+    it("renders nothing when every row is valueless", async () => {
+      fetchCatalog.mockResolvedValue(buildCatalogResponse([]));
+      const { container } = renderList(
+        <CountersBlock
+          rows={[
+            makeBullet({ metric_key: "a", value: "—" }),
+            makeBullet({ metric_key: "b", value: "" }),
+          ]}
+          layout="list"
+        />,
+      );
+      await waitFor(() => {
+        expect(fetchCatalog).toHaveBeenCalled();
+      });
+      expect(container.textContent).toBe("");
+    });
+  });
 });
+
+// Local render helper that also exposes the container for empty-render
+// assertions (renderWithCatalogClient only returns the query client).
+function renderList(ui: React.ReactElement) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  });
+  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}

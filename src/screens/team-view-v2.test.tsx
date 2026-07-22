@@ -21,6 +21,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { metricGroups } from "@/lib/insight/groups";
 import type { RosterEntry } from "@/lib/insight/identity-tree";
 import type {
   IdentityPerson,
@@ -61,10 +62,62 @@ vi.mock("@/components/widgets/v2/section-card", () => ({
   SectionCard: () => null,
 }));
 vi.mock("@/components/widgets/metric-views/team-metric-group-card", () => ({
-  TeamMetricGroupCard: () => null,
+  TeamMetricGroupCard: ({
+    def,
+    onOpen,
+  }: {
+    def: { id: string };
+    onOpen: () => void;
+  }) => (
+    <button data-testid="team-metric-card" onClick={onOpen}>
+      {def.id}
+    </button>
+  ),
 }));
 vi.mock("@/components/widgets/v2/group-drilldown-sheet", () => ({
-  GroupDrilldownSheet: () => null,
+  GroupDrilldownSheet: ({
+    def,
+    open,
+    onOpenChange,
+    metricTarget,
+  }: {
+    def: { id: string };
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    metricTarget?: { kind: string; data: { isPending: boolean } };
+  }) => (
+    <div
+      data-testid="drilldown"
+      data-group={def.id}
+      data-open={String(open)}
+      data-target={
+        metricTarget
+          ? `${metricTarget.kind}:${String(metricTarget.data.isPending)}`
+          : "none"
+      }
+    >
+      <button
+        data-testid={`drilldown-toggle-${def.id}`}
+        onClick={() => onOpenChange(!open)}
+      />
+    </div>
+  ),
+}));
+vi.mock("@/components/widgets/v2/dashboard-empty-state", () => ({
+  DashboardEmptyState: () => <div data-testid="empty-state" />,
+}));
+vi.mock("@/components/widgets/coming-soon", () => ({
+  ComingSoon: ({
+    label,
+    onRetry,
+  }: {
+    label?: string;
+    onRetry?: () => void;
+  }) => (
+    <button data-testid="members-error" onClick={onRetry}>
+      {label}
+    </button>
+  ),
 }));
 
 const queryState = {
@@ -93,9 +146,17 @@ function makeMember(entry: RosterEntry): TeamMember {
   };
 }
 
+let membersOverrides: Partial<{
+  isPending: boolean;
+  isFetching: boolean;
+  isError: boolean;
+  refetch: () => void;
+}> = {};
+
 const useTeamMembers = vi.fn(
   (_teamId: string, roster: RosterEntry[] | null) => ({
     ...queryState,
+    ...membersOverrides,
     data: (roster ?? []).map(makeMember),
   }),
 );
@@ -116,8 +177,33 @@ vi.mock("@/queries/v2/team-extras", () => ({
   useDeptDistributions: () => ({ ...queryState, data: undefined }),
 }));
 
+interface MetricSetResult {
+  byKey: Map<string, never>;
+  previousByKey: null;
+  isPending: boolean;
+  isFetching: boolean;
+  isError: boolean;
+  refetch: () => void;
+}
+
+function metricSetResult(
+  over: Partial<MetricSetResult> = {},
+): MetricSetResult {
+  return {
+    byKey: new Map(),
+    previousByKey: null,
+    isPending: false,
+    isFetching: false,
+    isError: false,
+    refetch: () => {},
+    ...over,
+  };
+}
+
+let metricSetReturn = new Map<string, MetricSetResult>();
+
 vi.mock("@/queries/metric-results", () => ({
-  useMetricCollectionSet: () => new Map(),
+  useMetricCollectionSet: () => metricSetReturn,
 }));
 
 function person(
@@ -155,6 +241,8 @@ import { TeamViewV2Screen } from "./team-view-v2";
 
 beforeEach(() => {
   currentTree = viewerTree;
+  membersOverrides = {};
+  metricSetReturn = new Map();
 });
 
 function renderScreen(teamId = "alice@x.io") {
@@ -218,5 +306,129 @@ describe("TeamViewV2Screen direct-reports scoping", () => {
       "fay@x.io",
       "gil@x.io",
     ]);
+  });
+});
+
+describe("TeamViewV2Screen metric groups, drilldowns, and load states", () => {
+  const GROUP_IDS = metricGroups().map((def) => def.id);
+
+  function fullMetricSet(): Map<string, MetricSetResult> {
+    return new Map(GROUP_IDS.map((id) => [id, metricSetResult()]));
+  }
+
+  it("renders a metric card per fetched group and opens its drilldown", async () => {
+    metricSetReturn = fullMetricSet();
+    const user = userEvent.setup();
+    renderScreen();
+
+    const cards = screen.getAllByTestId("team-metric-card");
+    expect(cards).toHaveLength(GROUP_IDS.length);
+    expect(
+      screen
+        .getAllByTestId("drilldown")
+        .every((el) => el.dataset.open === "false"),
+    ).toBe(true);
+
+    await user.click(cards[0]!);
+
+    const sheet = screen
+      .getAllByTestId("drilldown")
+      .find((el) => el.dataset.group === GROUP_IDS[0]);
+    expect(sheet?.dataset.open).toBe("true");
+    // Fetched data flows into the sheet as a settled team target.
+    expect(sheet?.dataset.target).toBe("team:false");
+  });
+
+  it("renders no card and a pending drilldown target for unfetched groups", () => {
+    renderScreen();
+
+    expect(screen.queryAllByTestId("team-metric-card")).toHaveLength(0);
+    expect(
+      screen
+        .getAllByTestId("drilldown")
+        .every((el) => el.dataset.target === "team:true"),
+    ).toBe(true);
+  });
+
+  it("closes the open drilldown when the viewed team changes", async () => {
+    metricSetReturn = fullMetricSet();
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <TeamViewV2Screen teamId="alice@x.io" viewerEmail="alice@x.io" />,
+    );
+
+    await user.click(screen.getAllByTestId("team-metric-card")[0]!);
+    expect(
+      screen
+        .getAllByTestId("drilldown")
+        .some((el) => el.dataset.open === "true"),
+    ).toBe(true);
+
+    rerender(<TeamViewV2Screen teamId="bob@x.io" viewerEmail="alice@x.io" />);
+
+    expect(
+      screen
+        .getAllByTestId("drilldown")
+        .every((el) => el.dataset.open === "false"),
+    ).toBe(true);
+  });
+
+  it("lets the sheet open and close itself through onOpenChange", async () => {
+    metricSetReturn = fullMetricSet();
+    const user = userEvent.setup();
+    renderScreen();
+
+    const firstId = GROUP_IDS[0]!;
+    const sheetFor = () =>
+      screen
+        .getAllByTestId("drilldown")
+        .find((el) => el.dataset.group === firstId);
+
+    await user.click(screen.getByTestId(`drilldown-toggle-${firstId}`));
+    expect(sheetFor()?.dataset.open).toBe("true");
+
+    await user.click(screen.getByTestId(`drilldown-toggle-${firstId}`));
+    expect(sheetFor()?.dataset.open).toBe("false");
+  });
+
+  it("dims the page while a metric group revalidates", () => {
+    const set = fullMetricSet();
+    set.set(GROUP_IDS[0]!, metricSetResult({ isFetching: true }));
+    metricSetReturn = set;
+    renderScreen();
+
+    expect(screen.getByTestId("heatmap").closest(".opacity-60")).not.toBeNull();
+  });
+
+  it("shows a retryable heatmap error when the members query fails", async () => {
+    const refetch = vi.fn();
+    membersOverrides = { isError: true, refetch };
+    const user = userEvent.setup();
+    renderScreen();
+
+    expect(screen.queryByTestId("heatmap")).not.toBeInTheDocument();
+    const error = screen.getByTestId("members-error");
+    expect(error).toHaveTextContent("Heatmap — unable to load");
+
+    await user.click(error);
+    expect(refetch).toHaveBeenCalled();
+  });
+
+  it("shows a full-page spinner while the members query is pending", () => {
+    membersOverrides = { isPending: true, isFetching: true };
+    renderScreen();
+
+    expect(screen.queryByTestId("heatmap")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("empty-state")).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId("team-metric-card")).toHaveLength(0);
+  });
+
+  it("shows the empty state for a team id that resolves to no roster", () => {
+    renderScreen("team-42");
+
+    expect(screen.getByTestId("empty-state")).toBeInTheDocument();
+    // No "@" in the id -> no identity pivot -> bare member count subtitle.
+    expect(screen.getByText("0 members")).toBeInTheDocument();
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
   });
 });
