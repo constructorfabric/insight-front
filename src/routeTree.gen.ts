@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WhatsNewRouteImport } from './routes/whats-new'
+import { Route as MetricsRouteImport } from './routes/metrics'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as IcPersonRouteImport } from './routes/ic.$person'
 import { Route as IcPersonIndexRouteImport } from './routes/ic.$person.index'
@@ -19,6 +20,11 @@ import { Route as IcPersonPersonalRouteImport } from './routes/ic.$person.person
 const WhatsNewRoute = WhatsNewRouteImport.update({
   id: '/whats-new',
   path: '/whats-new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MetricsRoute = MetricsRouteImport.update({
+  id: '/metrics',
+  path: '/metrics',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -49,6 +55,7 @@ const IcPersonPersonalRoute = IcPersonPersonalRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/metrics': typeof MetricsRoute
   '/whats-new': typeof WhatsNewRoute
   '/ic/$person': typeof IcPersonRouteWithChildren
   '/ic/$person/personal': typeof IcPersonPersonalRoute
@@ -57,6 +64,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/metrics': typeof MetricsRoute
   '/whats-new': typeof WhatsNewRoute
   '/ic/$person/personal': typeof IcPersonPersonalRoute
   '/ic/$person/team': typeof IcPersonTeamRoute
@@ -65,6 +73,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/metrics': typeof MetricsRoute
   '/whats-new': typeof WhatsNewRoute
   '/ic/$person': typeof IcPersonRouteWithChildren
   '/ic/$person/personal': typeof IcPersonPersonalRoute
@@ -75,6 +84,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/metrics'
     | '/whats-new'
     | '/ic/$person'
     | '/ic/$person/personal'
@@ -83,6 +93,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/metrics'
     | '/whats-new'
     | '/ic/$person/personal'
     | '/ic/$person/team'
@@ -90,6 +101,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/metrics'
     | '/whats-new'
     | '/ic/$person'
     | '/ic/$person/personal'
@@ -99,6 +111,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  MetricsRoute: typeof MetricsRoute
   WhatsNewRoute: typeof WhatsNewRoute
   IcPersonRoute: typeof IcPersonRouteWithChildren
 }
@@ -110,6 +123,13 @@ declare module '@tanstack/react-router' {
       path: '/whats-new'
       fullPath: '/whats-new'
       preLoaderRoute: typeof WhatsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/metrics': {
+      id: '/metrics'
+      path: '/metrics'
+      fullPath: '/metrics'
+      preLoaderRoute: typeof MetricsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -168,6 +188,7 @@ const IcPersonRouteWithChildren = IcPersonRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  MetricsRoute: MetricsRoute,
   WhatsNewRoute: WhatsNewRoute,
   IcPersonRoute: IcPersonRouteWithChildren,
 }

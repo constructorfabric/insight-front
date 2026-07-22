@@ -256,5 +256,37 @@
   "ic_route": {
     "personal_view_label": "Personal",
     "team_view_label": "Team"
+  },
+  "metric_definitions": {
+    "nav_label": "Metric catalog",
+    "title": "Metric catalog",
+    "lead": "All metrics available in this workspace, grouped by source domain. Labels and descriptions come from the metric definitions themselves.",
+    "error_title": "Failed to load the metric catalog",
+    "error_description": "Try reloading the page. If the problem persists, contact your administrator.",
+    "columns": {
+      "metric": "Metric",
+      "description": "Description",
+      "format": "Format",
+      "direction": "Direction",
+      "dimensions": "Dimensions",
+      "status": "Status"
+    },
+    "format": {
+      "integer": "Integer",
+      "decimal": "Decimal",
+      "currency": "Currency",
+      "percent": "Percent"
+    },
+    "direction": {
+      "higher_is_better": "Higher is better",
+      "lower_is_better": "Lower is better",
+      "neutral": "Neutral"
+    },
+    "status": {
+      "active": "Active",
+      "disabled": "Disabled",
+      "schema_error": "Schema error",
+      "unchecked": "Unchecked"
+    }
   }
 }
