@@ -293,66 +293,64 @@ describe("MetricTimeseriesView", () => {
     expect(screen.getByLabelText("Metric")).toHaveTextContent("Lines added");
   });
 
-  it("applies a dimension filter from the popover and clears it via the chip", async () => {
-    mocks.collectionSet.mockReturnValue(sourceOptionSet());
+  it("uses visible group controls and supports selecting multiple filters", async () => {
     const user = userEvent.setup();
+    const options = timeseriesByKey();
+    const metric = options.get("git.commits");
+    if (!metric) throw new Error("missing fixture metric");
+    metric.breakdown = {
+      view: "breakdown",
+      dimensions: ["source"],
+      values: [
+        {
+          entity_id: ENTITY_ID,
+          dimensions: [{ key: "source", value: "github", label: "GitHub" }],
+          value: 4,
+        },
+        {
+          entity_id: ENTITY_ID,
+          dimensions: [{ key: "source", value: "gitlab", label: "GitLab" }],
+          value: 2,
+        },
+      ],
+    };
+    mocks.collectionSet.mockReturnValue(
+      new Map([
+        [
+          "source",
+          {
+            byKey: options,
+            isPending: false,
+            isFetching: false,
+            isError: false,
+          },
+        ],
+      ])
+    );
     render(
       <MetricTimeseriesView
-        id="flt"
+        id="controls"
         entityId={ENTITY_ID}
         range={RANGE}
         metricKeys={["git.commits"]}
         groupBy={{ default: "repository", options: ["source"] }}
       />
-    );
-
-    expect(screen.getByLabelText("Group by")).toHaveTextContent(
-      "Weekly by repository"
     );
 
     await user.click(screen.getByRole("button", { name: "Filters" }));
-    await user.click(await screen.findByLabelText("Filter by source"));
-    await user.click(await screen.findByRole("option", { name: "GitHub" }));
+    await user.click(screen.getByRole("checkbox", { name: "GitHub" }));
+    await user.click(screen.getByRole("checkbox", { name: "GitLab" }));
+    expect(mocks.collection.mock.calls.at(-1)?.[0].metrics[0].filters).toEqual([
+      { dimension: "source", values: ["github", "gitlab"] },
+    ]);
 
-    const chip = await screen.findByRole("button", {
-      name: "Clear Source filter",
-    });
-    expect(chip).toHaveTextContent("Source: GitHub");
-    expect(mocks.collection.mock.calls.at(-1)?.[0].metrics[0]).toMatchObject({
-      filters: [{ dimension: "source", values: ["github"] }],
-    });
-
-    await user.click(chip);
-    expect(
-      screen.queryByRole("button", { name: "Clear Source filter" })
-    ).not.toBeInTheDocument();
-    expect(mocks.collection.mock.calls.at(-1)?.[0].metrics[0]).toMatchObject({
-      filters: [],
-    });
-  });
-
-  it("switches the group-by dimension", async () => {
-    mocks.collectionSet.mockReturnValue(sourceOptionSet());
-    const user = userEvent.setup();
-    render(
-      <MetricTimeseriesView
-        id="dim"
-        entityId={ENTITY_ID}
-        range={RANGE}
-        metricKeys={["git.commits"]}
-        groupBy={{ default: "repository", options: ["source"] }}
-      />
-    );
-
-    await user.click(screen.getByLabelText("Group by"));
-    await user.click(await screen.findByRole("option", { name: "Source" }));
-
-    expect(screen.getByLabelText("Group by")).toHaveTextContent(
-      "Weekly by source"
-    );
+    await user.click(screen.getByRole("button", { name: "Source" }));
     expect(
       mocks.collection.mock.calls.at(-1)?.[0].metrics[0].views[0]
-    ).toMatchObject({ view: "timeseries", dimensions: ["source"] });
+    ).toMatchObject({
+      view: "timeseries",
+      dimensions: ["source"],
+    });
   });
 
   it("overlays a spinner while revalidating already-shown data", () => {

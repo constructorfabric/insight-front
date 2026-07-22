@@ -4,6 +4,7 @@ import { ListFilter, X } from "lucide-react";
 import type { DateRange } from "@/api/period-to-date-range";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Popover,
   PopoverContent,
@@ -18,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   TimeseriesBody,
   TimeseriesExportMenu,
@@ -51,8 +53,8 @@ export interface MetricTimeseriesGroupBy {
 interface DimensionFilterControl {
   dimension: string;
   options: Array<{ value: string; label: string }>;
-  selectedValue?: string;
-  selectedLabel?: string;
+  selectedValues: string[];
+  selectedLabels: string[];
   disabled: boolean;
 }
 
@@ -62,7 +64,7 @@ interface DimensionControlsProps {
   selectedDimension: string;
   filters: DimensionFilterControl[];
   onDimensionChange: (dimension: string) => void;
-  onFilterChange: (dimension: string, value?: string) => void;
+  onFilterChange: (dimension: string, values: string[]) => void;
   className?: string;
 }
 
@@ -86,10 +88,6 @@ function dimensionDescription(dimension: string): string {
   return dimension.replaceAll("_", " ");
 }
 
-function encodedFilterValue(value: string): string {
-  return `value:${value}`;
-}
-
 function DimensionControls({
   bucketLabel,
   dimensions,
@@ -102,31 +100,29 @@ function DimensionControls({
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
       {dimensions.length > 1 ? (
-        <Select
-          value={selectedDimension}
-          onValueChange={(value) => {
-            if (value) onDimensionChange(value);
-          }}
-        >
-          <SelectTrigger
+        <div className="flex flex-wrap items-center gap-1">
+          {bucketLabel ? (
+            <span className="text-xs text-muted-foreground">
+              {bucketLabel} by
+            </span>
+          ) : null}
+          <ToggleGroup
+            value={[selectedDimension]}
+            onValueChange={(value) => {
+              const next = Array.isArray(value) ? value[0] : value;
+              if (next) onDimensionChange(next);
+            }}
+            variant="outline"
             size="sm"
             aria-label="Group by"
-            className="h-7 border-transparent bg-transparent px-0 text-xs text-muted-foreground shadow-none hover:text-foreground focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent"
           >
-            <SelectValue>
-              {bucketLabel
-                ? `${bucketLabel} by ${dimensionDescription(selectedDimension)}`
-                : `Group by: ${dimensionName(selectedDimension)}`}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent align="start">
             {dimensions.map((dimension) => (
-              <SelectItem key={dimension} value={dimension}>
+              <ToggleGroupItem key={dimension} value={dimension}>
                 {dimensionName(dimension)}
-              </SelectItem>
+              </ToggleGroupItem>
             ))}
-          </SelectContent>
-        </Select>
+          </ToggleGroup>
+        </div>
       ) : bucketLabel ? (
         <span className="text-xs text-muted-foreground">
           {selectedDimension
@@ -155,50 +151,59 @@ function DimensionControls({
             </PopoverHeader>
             {filters.map((filter) => (
               <div key={filter.dimension} className="flex flex-col gap-2">
-                <span className="text-xs font-medium">
-                  {dimensionName(filter.dimension)}
-                </span>
-                <Select
-                  value={
-                    filter.selectedValue
-                      ? encodedFilterValue(filter.selectedValue)
-                      : "all"
-                  }
-                  onValueChange={(value) => {
-                    onFilterChange(
-                      filter.dimension,
-                      !value || value === "all"
-                        ? undefined
-                        : value.slice("value:".length)
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium">
+                    {dimensionName(filter.dimension)}
+                  </span>
+                  {filter.selectedValues.length > 0 ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => onFilterChange(filter.dimension, [])}
+                    >
+                      Clear
+                    </Button>
+                  ) : null}
+                </div>
+                <div className="max-h-56 space-y-1 overflow-y-auto">
+                  {filter.options.map((option) => {
+                    const checked = filter.selectedValues.includes(
+                      option.value
                     );
-                  }}
-                  disabled={filter.disabled}
-                >
-                  <SelectTrigger
-                    className="w-full"
-                    aria-label={`Filter by ${filter.dimension}`}
-                  >
-                    <SelectValue>{filter.selectedLabel ?? "All"}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent align="start">
-                    <SelectItem value="all">All</SelectItem>
-                    {filter.options.map((option) => (
-                      <SelectItem
+                    return (
+                      <label
                         key={option.value}
-                        value={encodedFilterValue(option.value)}
+                        htmlFor={`filter-${filter.dimension}-${option.value}`}
+                        className="flex cursor-pointer items-center gap-2 rounded-sm px-1 py-1 text-sm hover:bg-muted"
                       >
+                        <Checkbox
+                          id={`filter-${filter.dimension}-${option.value}`}
+                          checked={checked}
+                          disabled={filter.disabled}
+                          onCheckedChange={() => {
+                            onFilterChange(
+                              filter.dimension,
+                              checked
+                                ? filter.selectedValues.filter(
+                                    (value) => value !== option.value
+                                  )
+                                : [...filter.selectedValues, option.value]
+                            );
+                          }}
+                        />
                         {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
             ))}
           </PopoverContent>
         </Popover>
       ) : null}
       {filters
-        .filter((filter) => filter.selectedValue)
+        .filter((filter) => filter.selectedValues.length > 0)
         .map((filter) => (
           <Button
             key={filter.dimension}
@@ -207,9 +212,12 @@ function DimensionControls({
             size="xs"
             className="rounded-full"
             aria-label={`Clear ${dimensionName(filter.dimension)} filter`}
-            onClick={() => onFilterChange(filter.dimension)}
+            onClick={() => onFilterChange(filter.dimension, [])}
           >
-            {dimensionName(filter.dimension)}: {filter.selectedLabel}
+            {dimensionName(filter.dimension)}:{" "}
+            {filter.selectedLabels.length === 1
+              ? filter.selectedLabels[0]
+              : `${filter.selectedLabels.length} selected`}
             <X className="size-3" />
           </Button>
         ))}
@@ -245,13 +253,15 @@ export function MetricTimeseriesView({
     groupBy?.default ?? ""
   );
   const [dimensionFilters, setDimensionFilters] = useState<
-    Record<string, string>
+    Record<string, string[]>
   >({});
   const filters = useMemo(
     () =>
       Object.entries(dimensionFilters)
         .sort(([left], [right]) => left.localeCompare(right))
-        .map(([dimension, value]) => ({ dimension, values: [value] })),
+        .flatMap(([dimension, values]) =>
+          values.length > 0 ? [{ dimension, values }] : []
+        ),
     [dimensionFilters]
   );
   const groupLimit = selectedGroupBy
@@ -341,14 +351,14 @@ export function MetricTimeseriesView({
       const options = [...values]
         .map(([value, label]) => ({ value, label }))
         .sort((left, right) => left.label.localeCompare(right.label));
-      const selectedValue = dimensionFilters[dimension];
+      const selectedValues = dimensionFilters[dimension] ?? [];
       return {
         dimension,
         options,
-        selectedValue,
-        selectedLabel: selectedValue
-          ? (values.get(selectedValue) ?? selectedValue)
-          : undefined,
+        selectedValues,
+        selectedLabels: selectedValues.map(
+          (value) => values.get(value) ?? value
+        ),
         disabled: Boolean(result?.isPending || result?.isError),
       };
     });
@@ -371,10 +381,11 @@ export function MetricTimeseriesView({
     });
   }
 
-  function changeFilter(dimension: string, value?: string): void {
+  function changeFilter(dimension: string, values: string[]): void {
     setDimensionFilters((current) => {
       const next = { ...current };
-      if (value) next[dimension] = value;
+      const normalized = [...new Set(values)].sort();
+      if (normalized.length > 0) next[dimension] = normalized;
       else delete next[dimension];
       return next;
     });
