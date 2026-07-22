@@ -162,7 +162,8 @@ describe("useTeamMembers", () => {
     const [alice, bob] = result.current.data!;
     expect(alice).toMatchObject({
       person_id: "alice@x.com",
-      name: "Alice A.",
+      // Identity (roster) name wins over the analytics row's display_name (#1837).
+      name: "Alice",
       tasks_closed: 7,
       prs_merged: 7, // merged from the V2_MEMBER_PRS row
     });

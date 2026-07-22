@@ -65,6 +65,8 @@ export type MetricResult =
 interface MetricResultBase {
   metric_key: string;
   label: string;
+  /** Compact label for dense surfaces (member grids); falls back to `label`. */
+  short_label?: string;
   description?: string;
   explanation?: string;
   unit: string | null;

@@ -149,6 +149,14 @@ export interface KeyedCollection {
   collection: MetricCollectionConfig;
 }
 
+/** True while any collection in the set still has no data — the screen-level
+ *  loading gate (a period change mints new query keys, so it re-trips). */
+export function collectionSetPending(
+  set: Map<string, MetricCollectionResult>
+): boolean {
+  return [...set.values()].some((result) => result.isPending);
+}
+
 /**
  * One query per collection for a dynamic list (e.g. every metrics-backed
  * group in the registry) — `useQueries`, so the list length can change

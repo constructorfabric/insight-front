@@ -1,11 +1,11 @@
 import { useState } from "react";
 
+import { CenteredSpinner } from "@/components/widgets/centered-spinner";
 import { ComingSoon } from "@/components/widgets/coming-soon";
 import { DashboardHeader } from "@/components/widgets/v2/dashboard-header";
 import { IcNeedsAttention } from "@/components/widgets/v2/ic-needs-attention";
 import {
   KpiTile,
-  KpiTileLoading,
   KpiTilePlaceholder,
 } from "@/components/widgets/v2/kpi-tile";
 import { MetricGroupCard } from "@/components/widgets/metric-views/metric-group-card";
@@ -26,6 +26,7 @@ import {
 } from "@/lib/metrics/collection";
 import { normalizePersonId } from "@/lib/metrics/entity";
 import {
+  collectionSetPending,
   useMetricCollection,
   useMetricCollectionSet,
 } from "@/queries/metric-results";
@@ -90,8 +91,15 @@ export function EngineeringDashboardV2({
     dateRange
   );
 
-  const displayName = person?.display_name ?? personId;
+  // Never fall back to the raw id (an email) — a person outside the viewer's
+  // cached tree resolves in a beat; the title stays blank until then.
+  const displayName = person?.display_name ?? "";
   const role = person?.job_title;
+
+  // The one loading gate: a single page spinner while any of the screen's
+  // queries has no data. A period change mints new query keys, so the same
+  // gate re-trips — no per-widget loaders, no partial paints.
+  const isLoading = kpiData.isPending || collectionSetPending(groupData);
 
   const tiles = metricKpiTiles(
     kpiData.byKey,
@@ -128,62 +136,70 @@ export function EngineeringDashboardV2({
         hasReports={(person?.subordinates?.length ?? 0) > 0}
       />
       <main className="flex flex-1 flex-col gap-8 p-4 md:p-6">
-        <section className="flex flex-col gap-3">
-          <p className="flex items-center gap-1.5 text-xs font-medium tracking-wider text-muted-foreground uppercase">
-            At a glance
-          </p>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-3">
-            {KPI_ROW.map((source) => {
-              const key =
-                source.kind === "metric" ? source.metricKey : source.key;
-              const tile = tilesByKey.get(key);
-              if (tile) {
-                return (
-                  <KpiTile key={key} tile={tile} onOpenGroup={setOpenGroup} />
-                );
-              }
-              if (source.kind === "metric" && kpiData.isError) {
-                return (
-                  <ComingSoon
-                    key={key}
-                    variant="card"
-                    state="error"
-                    onRetry={kpiData.refetch}
-                  />
-                );
-              }
-              // Metric tiles reset to pending on a period change (no
-              // placeholder retention); show a spinner, not "Coming soon".
-              if (source.kind === "metric" && kpiData.isPending) {
-                return <KpiTileLoading key={key} />;
-              }
-              return <KpiTilePlaceholder key={key} />;
-            })}
-          </div>
-        </section>
+        {isLoading ? (
+          <CenteredSpinner className="min-h-[70vh]" />
+        ) : (
+          <>
+            <section className="flex flex-col gap-3">
+              <p className="flex items-center gap-1.5 text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                At a glance
+              </p>
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-3">
+                {KPI_ROW.map((source) => {
+                  const key =
+                    source.kind === "metric" ? source.metricKey : source.key;
+                  const tile = tilesByKey.get(key);
+                  if (tile) {
+                    return (
+                      <KpiTile
+                        key={key}
+                        tile={tile}
+                        onOpenGroup={setOpenGroup}
+                      />
+                    );
+                  }
+                  if (source.kind === "metric" && kpiData.isError) {
+                    return (
+                      <ComingSoon
+                        key={key}
+                        variant="card"
+                        state="error"
+                        onRetry={kpiData.refetch}
+                      />
+                    );
+                  }
+                  return <KpiTilePlaceholder key={key} />;
+                })}
+              </div>
+            </section>
 
-        <IcNeedsAttention items={attentionItems} onOpenGroup={setOpenGroup} />
+            <IcNeedsAttention
+              items={attentionItems}
+              onOpenGroup={setOpenGroup}
+            />
 
-        <section className="flex flex-col gap-3">
-          <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
-            Sections
-          </p>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(18rem,1fr))] gap-3">
-            {metricGroups().map((def) => {
-              const result = groupData.get(def.id);
-              if (!result) return null;
-              return (
-                <MetricGroupCard
-                  key={def.id}
-                  def={def}
-                  data={result}
-                  entityId={entityId}
-                  onOpen={() => setOpenGroup(def.id)}
-                />
-              );
-            })}
-          </div>
-        </section>
+            <section className="flex flex-col gap-3">
+              <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                Sections
+              </p>
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(18rem,1fr))] gap-3">
+                {metricGroups().map((def) => {
+                  const result = groupData.get(def.id);
+                  if (!result) return null;
+                  return (
+                    <MetricGroupCard
+                      key={def.id}
+                      def={def}
+                      data={result}
+                      entityId={entityId}
+                      onOpen={() => setOpenGroup(def.id)}
+                    />
+                  );
+                })}
+              </div>
+            </section>
+          </>
+        )}
       </main>
 
       {metricGroups().map((def) => (

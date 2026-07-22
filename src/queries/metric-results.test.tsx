@@ -10,8 +10,10 @@ import type {
 import { queryMetricResults } from "@/api/metric-results-client";
 import type { MetricCollectionConfig } from "@/lib/metrics/collection";
 import {
+  collectionSetPending,
   useMetricCollection,
   useMetricCollectionSet,
+  type MetricCollectionResult,
 } from "@/queries/metric-results";
 
 vi.mock("@/api/metric-results-client", async (orig) => ({
@@ -161,5 +163,23 @@ describe("useMetricCollectionSet", () => {
     mock.mockClear();
     result.current.get("g")?.refetch();
     await waitFor(() => expect(mock).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe("collectionSetPending", () => {
+  const r = (isPending: boolean): MetricCollectionResult => ({
+    byKey: new Map(),
+    previousByKey: null,
+    isPending,
+    isFetching: false,
+    isError: false,
+    refetch: vi.fn(),
+  });
+  it("is true when any collection in the set still has no data", () => {
+    expect(collectionSetPending(new Map([["a", r(false)], ["b", r(true)]]))).toBe(true);
+  });
+  it("is false when every collection has settled", () => {
+    expect(collectionSetPending(new Map([["a", r(false)], ["b", r(false)]]))).toBe(false);
+    expect(collectionSetPending(new Map())).toBe(false);
   });
 });

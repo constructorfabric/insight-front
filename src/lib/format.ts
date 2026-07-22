@@ -118,6 +118,19 @@ export function formatHours(v: number, decimals = 0): string {
   return `${v.toFixed(decimals)}h`;
 }
 
+/**
+ * Ratio at/above which a runaway signed percent ("+300%", "+5460%") renders
+ * as a multiple instead — shared by the vs-median gap and the
+ * period-over-period delta so both surfaces switch at the same point.
+ */
+export const MULTIPLE_THRESHOLD = 2;
+
+/** "5.6×" under 10, "56×" above — a multiple needs no decimal at that size. */
+export function formatMultiple(ratio: number): string {
+  const rounded = ratio >= 10 ? Math.round(ratio) : Math.round(ratio * 10) / 10;
+  return `${rounded}×`;
+}
+
 export function formatPp(diff: number, decimals = 1): string {
   const sign = diff > 0 ? "+" : diff < 0 ? "-" : "";
   return `${sign}${Math.abs(diff).toFixed(decimals)} pp`;

@@ -3,16 +3,13 @@ import { useMemo, useState } from "react";
 import { ComingSoon } from "@/components/widgets/coming-soon";
 import { DashboardEmptyState } from "@/components/widgets/v2/dashboard-empty-state";
 import { DashboardHeader } from "@/components/widgets/v2/dashboard-header";
-import { SectionCard } from "@/components/widgets/v2/section-card";
 import { GroupDrilldownSheet } from "@/components/widgets/v2/group-drilldown-sheet";
-import { MembersHeatmap } from "@/components/widgets/v2/members-heatmap";
+import { MembersOverview } from "@/components/widgets/v2/members-overview";
 import { TeamMembersAttention } from "@/components/widgets/v2/team-members-attention";
 import { TeamMetricGroupCard } from "@/components/widgets/metric-views/team-metric-group-card";
 import type { TeamMemberRef } from "@/components/widgets/metric-views/team-collection-drilldown";
-import { Spinner } from "@/components/ui/spinner";
+import { CenteredSpinner } from "@/components/widgets/centered-spinner";
 import { Switch } from "@/components/ui/switch";
-import { cn } from "@/lib/utils";
-import { useCatalog } from "@/api/use-catalog";
 import { usePeriod } from "@/hooks/use-period";
 import {
   flattenSubordinates,
@@ -22,6 +19,7 @@ import {
 } from "@/lib/insight/identity-tree";
 import {
   GROUPS,
+  HEATMAP_COLLECTION,
   legacyGroups,
   metricGroups,
   type GroupId,
@@ -32,22 +30,20 @@ import {
 } from "@/lib/insight/team-metrics";
 import { orderRowsForSection } from "@/lib/insight/v2/metric-order";
 import { hasBulletValue } from "@/lib/insight/v2/peer-status";
-import { teamSectionRankByMetric } from "@/lib/insight/v2/team-member-status";
 import { projectViews } from "@/lib/metrics/collection";
 import { normalizePersonId } from "@/lib/metrics/entity";
 import { useIcPerson } from "@/queries/ic-dashboard";
-import { useMetricCollectionSet } from "@/queries/metric-results";
+import {
+  collectionSetPending,
+  useMetricCollectionSet,
+} from "@/queries/metric-results";
 import {
   isTeamBulletSectionId,
   useTeamBulletSections,
   useTeamMembers,
   type TeamBulletSectionId,
 } from "@/queries/team-view";
-import {
-  useDeptDistributions,
-  useTeamMemberBullets,
-  useTeamMemberBulletsPrevious,
-} from "@/queries/v2/team-extras";
+import { useMemberGridData } from "@/queries/v2/member-grid";
 import type { BulletMetric } from "@/types/insight";
 
 // The map/filter callbacks are inert while no group is `kind: "legacy"`
@@ -76,7 +72,6 @@ export interface TeamViewV2ScreenProps {
 
 export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps) {
   const { period, dateRange, setPeriod } = usePeriod();
-  const { byMetricKey } = useCatalog();
   const [openGroup, setOpenGroup] = useState<GroupId | null>(null);
   const [directReportsOnly, setDirectReportsOnly] = useState(true);
 
@@ -114,7 +109,9 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
       ),
     [fullRoster, canScopeToDirectReports, directReportsOnly],
   );
-  const teamName = pivot?.display_name ?? teamId;
+  // Never fall back to the raw id (an email) — the shell prefetches the
+  // viewer tree, so the pivot resolves synchronously in practice.
+  const teamName = pivot?.display_name ?? "";
   const teamSize = roster?.length;
 
   const membersQ = useTeamMembers(teamId, roster, period, dateRange, {
@@ -127,21 +124,12 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
     entityId: normalizePersonId(m.person_id),
     displayName: m.name,
   }));
-  const bulletsQ = useTeamMemberBullets(memberIds, period, dateRange);
-  const prevBulletsQ = useTeamMemberBulletsPrevious(
-    memberIds,
-    period,
+  const heatmapQ = useMemberGridData(
+    HEATMAP_COLLECTION,
+    { type: "person", ids: memberEntityIds },
     dateRange,
+    period,
   );
-
-  const orgUnitIds = [
-    ...new Set(
-      members
-        .map((m) => m.org_unit_id)
-        .filter((id): id is string => Boolean(id)),
-    ),
-  ];
-  const deptDistQ = useDeptDistributions(orgUnitIds, period, dateRange);
 
   const sectionsQ = useTeamBulletSections(
     LEGACY_GROUP_IDS,
@@ -196,28 +184,25 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
   // TanStack's "pending" state — an empty section set is settled, not loading.
   const hasLegacySections = LEGACY_GROUP_IDS.length > 0;
   const sectionsPending = hasLegacySections && sectionsQ.isPending;
-  const sectionsFetching = hasLegacySections && sectionsQ.isFetching;
-  // Only a metric group's revalidation dims the page (replacing data already
-  // shown); its first load has no prior data and shows its own card spinner.
-  const isMetricsRevalidating = [...metricGroupData.values()].some(
-    (result) => result.isFetching && !result.isPending,
-  );
-  const isFetching =
-    sectionsFetching ||
-    membersQ.isFetching ||
-    bulletsQ.isFetching ||
-    isMetricsRevalidating;
+  // The one loading gate: a single page spinner while ANY of the screen's
+  // queries has no data. A period or scope change mints new query keys, so
+  // the same gate re-trips — no per-widget loaders, no partial paints. The
+  // roster query (viewer tree) comes first: every other query derives its
+  // entity ids from it.
+  // A roster-less team disables the members query, which then never leaves
+  // "pending" — only count it while it can actually run.
+  const membersPending = (roster?.length ?? 0) > 0 && membersQ.isPending;
+  const isLoading =
+    viewerQ.isPending ||
+    membersPending ||
+    heatmapQ.isPending ||
+    collectionSetPending(metricGroupData) ||
+    sectionsPending;
   const hasGroupData = Object.values(legacyRowsByGroup).some((rows) =>
     rows.some(hasBulletValue),
   );
   const hasMembers = members.length > 0;
-  const isAllEmpty =
-    !sectionsPending &&
-    !membersQ.isPending &&
-    !hasGroupData &&
-    !hasMembers;
-  const showFullSpinner =
-    sectionsPending || membersQ.isPending || (isAllEmpty && isFetching);
+  const isAllEmpty = !isLoading && !hasGroupData && !hasMembers;
 
   const memberCountLabel = `${members.length} member${members.length === 1 ? "" : "s"}`;
   const scopeLabel = directReportsOnly
@@ -227,7 +212,7 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
   return (
     <div className="flex flex-col">
       <DashboardHeader
-        title={`Team of ${teamName}`}
+        title={teamName ? `Team of ${teamName}` : ""}
         subtitle={
           canScopeToDirectReports
             ? `${scopeLabel} · ${memberCountLabel}`
@@ -251,42 +236,33 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
         }
       />
       <main className="flex flex-1 flex-col gap-8 p-4 md:p-6">
-        {showFullSpinner ? (
-          <div className="flex min-h-[70vh] items-center justify-center">
-            <Spinner className="size-12 text-muted-foreground" />
-          </div>
+        {isLoading ? (
+          <CenteredSpinner className="min-h-[70vh]" />
         ) : isAllEmpty ? (
-          <div
-            className={cn("transition-opacity", isFetching && "opacity-60")}
-          >
-            <DashboardEmptyState period={period} onSetPeriod={setPeriod} />
-          </div>
+          <DashboardEmptyState period={period} onSetPeriod={setPeriod} />
         ) : (
-          <div
-            className={cn(
-              "flex flex-col gap-8 transition-opacity",
-              isFetching && "opacity-60",
-            )}
-          >
+          <div className="flex flex-col gap-8">
             <TeamMembersAttention
               members={members}
-              bulletsByPerson={bulletsQ.data}
-              deptCohorts={deptDistQ.data}
               metricBelowByMember={metricBelowByMember}
+              metricEntriesByPerson={metricEntriesByPerson}
             />
 
-            {membersQ.isError ? (
+            {membersQ.isError || heatmapQ.isError ? (
               <ComingSoon
                 state="error"
                 label="Heatmap — unable to load"
-                onRetry={() => membersQ.refetch()}
+                onRetry={() => {
+                  if (membersQ.isError) membersQ.refetch();
+                  if (heatmapQ.isError) heatmapQ.refetch();
+                }}
               />
             ) : (
-              <MembersHeatmap
+              <MembersOverview
                 members={members}
-                bulletsByPerson={bulletsQ.data}
-                previousBulletsByPerson={prevBulletsQ.data}
-                deptCohorts={deptDistQ.data}
+                heatmapByKey={heatmapQ.byKey}
+                previousHeatmapByKey={heatmapQ.previousByKey}
+                metricBelowByMember={metricBelowByMember}
                 metricEntriesByPerson={metricEntriesByPerson}
               />
             )}
@@ -297,45 +273,15 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
               </p>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
                 {GROUPS.map((def) => {
-                  if (def.kind === "metrics") {
-                    const result = metricGroupData.get(def.id);
-                    if (!result) return null;
-                    return (
-                      <TeamMetricGroupCard
-                        key={def.id}
-                        def={def}
-                        data={result}
-                        memberIds={memberEntityIds}
-                        onOpen={() => setOpenGroup(def.id)}
-                        subtitle="vs department peers"
-                      />
-                    );
-                  }
-                  if (sectionsQ.isError || sectionData?.errors[def.id]) {
-                    return (
-                      <SectionCard
-                        key={def.id}
-                        title={def.title}
-                        sectionId={def.id}
-                        rows={[]}
-                        onOpen={() => {}}
-                        unavailable
-                      />
-                    );
-                  }
+                  if (def.kind !== "metrics") return null;
+                  const result = metricGroupData.get(def.id);
+                  if (!result) return null;
                   return (
-                    <SectionCard
+                    <TeamMetricGroupCard
                       key={def.id}
-                      title={def.title}
-                      sectionId={def.id}
-                      rows={legacyRowsByGroup[def.id] ?? []}
-                      rankByMetricKey={teamSectionRankByMetric(
-                        legacyRowsByGroup[def.id] ?? [],
-                        members,
-                        bulletsQ.data,
-                        deptDistQ.data,
-                        byMetricKey,
-                      )}
+                      def={def}
+                      data={result}
+                      memberIds={memberEntityIds}
                       onOpen={() => setOpenGroup(def.id)}
                       subtitle="vs department peers"
                     />
@@ -356,22 +302,11 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
           rows={legacyRowsByGroup[def.id] ?? []}
           metricTarget={
             def.kind === "metrics"
-              ? {
-                  kind: "team",
-                  members: memberRefs,
-                  data:
-                    metricGroupData.get(def.id) ??
-                    ({
-                      byKey: new Map(),
-                      previousByKey: null,
-                      isPending: true,
-                      isFetching: false,
-                      isError: false,
-                      refetch: () => {},
-                    } as const)
-                }
+              ? { kind: "team", members: memberRefs }
               : undefined
           }
+          range={dateRange}
+          period={period}
           cohortLabel="department"
         />
       ))}

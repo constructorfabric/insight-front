@@ -52,7 +52,10 @@ function parseDate(value: string): Date | null {
     : null;
 }
 
-function bucketStarts(range: DateRange, bucket: MetricBucket): string[] {
+export function bucketStarts(
+  range: DateRange,
+  bucket: MetricBucket
+): string[] {
   const from = parseDate(range.from);
   const to = parseDate(range.to);
   if (!from || !to || from > to) return [];

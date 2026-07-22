@@ -26,25 +26,9 @@ export const METRIC_REGISTRY = {
   V2_IC_HISTOGRAM: "00000000-0000-0000-0001-000000000030",
   V2_IC_SECTION_TREND: "00000000-0000-0000-0001-000000000036",
 
-  // Per-person "member values" for the team heatmap + needs-attention widgets:
-  // long rows (person_id, metric_key, value) for a roster, no cohort. Task
-  // delivery and collaboration both flipped to unified IC metrics groups, but
-  // their per-member values still feed the legacy team heatmap bullet
-  // columns + needs-attention until that surface migrates to unified metrics.
-  V2_MEMBER_VALUES_DELIVERY: "00000000-0000-0000-0001-000000000040",
-  V2_MEMBER_VALUES_COLLAB: "00000000-0000-0000-0001-000000000041",
-
   // Per-person PRs merged for a roster (period-bounded, from the weekly git
-  // silver). Merged into the team_member rows for the heatmap PRs column.
+  // silver). Merged into the team_member rows for the roster's PRs column.
   V2_MEMBER_PRS: "00000000-0000-0000-0001-000000000043",
-
-  // Per-(department, metric) distribution rows (p25/median/p75/range/n),
-  // scoped by `org_unit_id in (...)`. Color each roster member's metric vs
-  // that member's OWN department distribution in the team heatmap +
-  // needs-attention surfaces. One metric per bullet family.
-  V2_DEPT_DIST_DELIVERY: "00000000-0000-0000-0001-000000000044",
-  V2_DEPT_DIST_COLLAB: "00000000-0000-0000-0001-000000000045",
-  V2_DEPT_DIST_KPIS: "00000000-0000-0000-0001-000000000047",
 } as const satisfies Record<string, string>;
 
 export type MetricRegistryKey = keyof typeof METRIC_REGISTRY;

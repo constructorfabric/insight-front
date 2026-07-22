@@ -80,6 +80,19 @@ export function buildPeerStoryEntries(
   });
 }
 
+/**
+ * The most severe bottom-quartile entry — a person's headline weak spot, or
+ * `null` when nothing ranks below the pack. Distinct from a peer-story hero,
+ * which can be a top-quartile strength; this is always a weakness.
+ */
+export function worstEntry(entries: PeerStoryEntry[]): PeerStoryEntry | null {
+  return (
+    entries
+      .filter((entry) => entry.status === "bottom")
+      .sort((a, b) => b.severity - a.severity)[0] ?? null
+  );
+}
+
 export interface PeerStoryPartition {
   /** Outliers under the active focus mode, severity-ranked. */
   focusedOutliers: PeerStoryEntry[];

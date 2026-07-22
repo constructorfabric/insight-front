@@ -57,6 +57,8 @@ function renderSheet(
       def={def}
       rows={[]}
       metricTarget={metricTarget}
+      range={{ from: "2026-07-01", to: "2026-07-07" }}
+      period="week"
     />,
   );
 }
@@ -76,7 +78,6 @@ describe("GroupDrilldownSheet", () => {
     renderSheet(METRIC_DEF, {
       kind: "team",
       members: [],
-      data: EMPTY_RESULT,
     });
     expect(screen.getByText("team-drilldown")).toBeInTheDocument();
   });

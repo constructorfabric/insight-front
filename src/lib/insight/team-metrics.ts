@@ -7,36 +7,26 @@ import {
   buildPeerStoryEntries,
   type PeerStoryEntry,
 } from "@/lib/metrics/peer-story";
-import { toPeerStats } from "@/lib/metrics/peer-standing";
-import {
-  peerStatusVsQuartiles,
-  type PeerStatusWithNeutral,
-} from "@/lib/peers";
+import { derivePeerStanding } from "@/lib/metrics/peer-standing";
+import type { PeerStatusWithNeutral } from "@/lib/peers";
 
 /**
  * One member's standing on one collection metric vs their OWN cohort (the
  * peer view resolves each entity against its own org unit). `null` when the
- * pair can't be scored: neutral direction, missing value, or a cohort below
- * the backend's disclosure floor (the server returns null percentiles for
- * thin pools, so `toPeerStats` collapses them to null).
+ * pair can't be scored — the shared standing layer's ineligible reasons:
+ * neutral direction, missing value, an unmeasured member (null peer target),
+ * a suppressed thin cohort, or a flat pool that ranks no one.
  */
 export function memberMetricStanding(
   metric: NormalizedMetricResult,
   entityId: string,
 ): PeerStatusWithNeutral | null {
-  if (metric.direction === "neutral") return null;
   const data = forEntity(metric, entityId);
-  if (data.value == null || !Number.isFinite(data.value)) return null;
-  // A null peer target_value means the member has no observations for this
-  // metric — unmeasured, not zero — so they take no standing.
-  if (data.peer?.target_value == null) return null;
-  const stats = toPeerStats(data.peer);
-  if (!stats) return null;
-  return peerStatusVsQuartiles(
-    data.value,
-    stats,
-    metric.direction !== "lower_is_better",
-  );
+  const standing = derivePeerStanding(metric.direction, {
+    value: data.value,
+    peer: data.peer,
+  });
+  return standing.eligible ? standing.rank : null;
 }
 
 export interface TeamMetricStanding {

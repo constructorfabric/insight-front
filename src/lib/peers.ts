@@ -12,21 +12,6 @@ export type PeerStatusWithNeutral = PeerStatus | "neutral"
 
 export type PeerCohortLabel = "team" | "org" | "department"
 
-/** Per-department metric distributions: `org_unit_id → metric_key → stats`. */
-export type DeptStatsMap = Map<string, Map<string, PeerStats>>
-
-/**
- * Department cohorts split by source family. `kpi` (ic_kpis-derived) backs
- * the heatmap's team_row columns; `bullet` (bullet-rows-derived) backs member
- * bullet comparisons. Kept separate because both families emit `prs_merged`
- * from different attribution sources — a flat map would compare a bullet
- * value against the other family's distribution.
- */
-export type DeptCohorts = {
-  kpi: DeptStatsMap
-  bullet: DeptStatsMap
-}
-
 export type FocusMode = "all" | "critical" | "rewards" | "neutral"
 
 export function applyFocus(

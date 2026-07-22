@@ -77,17 +77,18 @@ export function PeerComparison({
           style={{ left: `${valueLeft}%` }}
         />
       </div>
-      <div className="relative h-5">
+      {/* Min/max hug the bar (mt-1); the value arrow overlaps this row as a
+          marker rather than owning a spacer row that pushed the labels away. */}
+      <div className="relative mt-1 grid grid-cols-2 gap-3 text-[10px] tabular-nums">
         <ArrowUp
           className={cn(
-            "absolute top-1 size-4 -translate-x-1/2",
+            "absolute -top-2.5 size-3.5 -translate-x-1/2",
             PEER_TEXT[status],
           )}
           style={{ left: `${valueLeft}%` }}
           strokeWidth={3}
+          aria-hidden
         />
-      </div>
-      <div className="mt-1 grid grid-cols-2 gap-3 text-[10px] tabular-nums">
         <span className="text-left text-muted-foreground">
           {formatMetricValue(stats.min, format, unit)}
         </span>

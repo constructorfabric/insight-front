@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { MetricTimeseriesChart } from "@/components/widgets/metric-views/metric-timeseries-chart";
@@ -31,18 +31,14 @@ describe("metric timeseries presentations", () => {
     expect(screen.getByText("Grand total")).toBeInTheDocument();
   });
 
-  it("renders em dashes when grand totals are missing", () => {
+  it("hides the grand-total row when every total is missing", () => {
     const grouped = groupedTimeseriesModel();
     const model = {
       ...grouped,
       grandTotals: grouped.grandTotals.map(() => null),
     };
     render(<MetricTimeseriesTable model={model} />);
-    const grandTotalRow = screen
-      .getByText("Grand total")
-      .closest("tr") as HTMLElement;
-    expect(within(grandTotalRow).getByText("—")).toBeInTheDocument();
-    expect(within(grandTotalRow).queryByText(/Commits:/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Grand total")).not.toBeInTheDocument();
   });
 
   it("renders an ungrouped single-metric table", () => {
