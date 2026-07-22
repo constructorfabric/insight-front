@@ -49,6 +49,8 @@ export default defineConfig({
         "src/**/*.d.ts",
         "src/routeTree.gen.ts", // TanStack Router generated file
         "src/main.tsx", // entry/bootstrap
+        "src/components/ui/**", // vendored shadcn/ui primitives
+        "src/routes/**", // thin TanStack Router wrappers around screens
       ],
     },
     projects: [

@@ -2,12 +2,14 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { SumMetricResult } from "@/api/metric-results-client";
 import { MetricTimeseriesView } from "@/components/widgets/metric-views/metric-timeseries-view";
 import {
   ENTITY_ID,
   RANGE,
   timeseriesByKey,
 } from "@/components/widgets/metric-views/metric-timeseries.test-fixtures";
+import { normalizeMetricResults } from "@/lib/metrics/collection";
 
 const mocks = vi.hoisted(() => ({
   collection: vi.fn(),
@@ -45,6 +47,51 @@ const ready = {
   isError: false,
   refetch: vi.fn(),
 };
+
+// Breakdown of git.commits over the "source" dimension, powering the filter
+// options for the dimension that is NOT the current group-by.
+const sourceBreakdown: SumMetricResult = {
+  metric_key: "git.commits",
+  label: "Commits",
+  unit: "commits",
+  format: "integer",
+  direction: "higher_is_better",
+  computation: "sum",
+  views: [
+    {
+      view: "breakdown",
+      dimensions: ["source"],
+      values: [
+        {
+          entity_id: ENTITY_ID,
+          dimensions: [{ key: "source", value: "github", label: "GitHub" }],
+          value: 4,
+        },
+        {
+          entity_id: ENTITY_ID,
+          dimensions: [{ key: "source", value: "gitlab", label: "GitLab" }],
+          value: 2,
+        },
+      ],
+    },
+  ],
+};
+
+function sourceOptionSet() {
+  return new Map([
+    [
+      "source",
+      {
+        byKey: normalizeMetricResults([sourceBreakdown]),
+        previousByKey: null,
+        isPending: false,
+        isFetching: false,
+        isError: false,
+        refetch: vi.fn(),
+      },
+    ],
+  ]);
+}
 
 describe("MetricTimeseriesView", () => {
   beforeEach(() => {
@@ -141,5 +188,127 @@ describe("MetricTimeseriesView", () => {
       ],
     });
     expect(mocks.collectionSet).toHaveBeenCalled();
+  });
+
+  it("exports Excel and CSV through the export menu", async () => {
+    const user = userEvent.setup();
+    render(
+      <MetricTimeseriesView
+        id="exp"
+        entityId={ENTITY_ID}
+        range={RANGE}
+        metricKeys={["git.commits"]}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(await screen.findByText("Excel (.xlsx)"));
+    expect(mocks.xlsx).toHaveBeenCalledTimes(1);
+    expect(mocks.xlsx.mock.calls[0]?.[0]).toBe("exp");
+    expect(mocks.xlsx.mock.calls[0]?.[2]).toEqual(RANGE);
+
+    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(await screen.findByText("CSV (.csv)"));
+    expect(mocks.csv).toHaveBeenCalledTimes(1);
+    expect(mocks.csv.mock.calls[0]?.[0]).toBe("exp");
+  });
+
+  it("switches the charted metric through the metric select", async () => {
+    const user = userEvent.setup();
+    render(
+      <MetricTimeseriesView
+        id="pick"
+        entityId={ENTITY_ID}
+        range={RANGE}
+        metricKeys={["git.commits", "git.lines_added"]}
+      />
+    );
+
+    const trigger = screen.getByLabelText("Metric");
+    expect(trigger).toHaveTextContent("Commits");
+
+    await user.click(trigger);
+    await user.click(await screen.findByRole("option", { name: "Lines added" }));
+
+    expect(screen.getByLabelText("Metric")).toHaveTextContent("Lines added");
+  });
+
+  it("applies a dimension filter from the popover and clears it via the chip", async () => {
+    mocks.collectionSet.mockReturnValue(sourceOptionSet());
+    const user = userEvent.setup();
+    render(
+      <MetricTimeseriesView
+        id="flt"
+        entityId={ENTITY_ID}
+        range={RANGE}
+        metricKeys={["git.commits"]}
+        groupBy={{ default: "repository", options: ["source"] }}
+      />
+    );
+
+    expect(screen.getByLabelText("Group by")).toHaveTextContent(
+      "Weekly by repository"
+    );
+
+    await user.click(screen.getByRole("button", { name: "Filters" }));
+    await user.click(await screen.findByLabelText("Filter by source"));
+    await user.click(await screen.findByRole("option", { name: "GitHub" }));
+
+    const chip = await screen.findByRole("button", {
+      name: "Clear Source filter",
+    });
+    expect(chip).toHaveTextContent("Source: GitHub");
+    expect(mocks.collection.mock.calls.at(-1)?.[0].metrics[0]).toMatchObject({
+      filters: [{ dimension: "source", values: ["github"] }],
+    });
+
+    await user.click(chip);
+    expect(
+      screen.queryByRole("button", { name: "Clear Source filter" })
+    ).not.toBeInTheDocument();
+    expect(mocks.collection.mock.calls.at(-1)?.[0].metrics[0]).toMatchObject({
+      filters: [],
+    });
+  });
+
+  it("switches the group-by dimension", async () => {
+    mocks.collectionSet.mockReturnValue(sourceOptionSet());
+    const user = userEvent.setup();
+    render(
+      <MetricTimeseriesView
+        id="dim"
+        entityId={ENTITY_ID}
+        range={RANGE}
+        metricKeys={["git.commits"]}
+        groupBy={{ default: "repository", options: ["source"] }}
+      />
+    );
+
+    await user.click(screen.getByLabelText("Group by"));
+    await user.click(await screen.findByRole("option", { name: "Source" }));
+
+    expect(screen.getByLabelText("Group by")).toHaveTextContent(
+      "Weekly by source"
+    );
+    expect(
+      mocks.collection.mock.calls.at(-1)?.[0].metrics[0].views[0]
+    ).toMatchObject({ view: "timeseries", dimensions: ["source"] });
+  });
+
+  it("overlays a spinner while revalidating already-shown data", () => {
+    mocks.collection.mockReturnValue({ ...ready, isFetching: true });
+    const { container } = render(
+      <MetricTimeseriesView
+        id="reval"
+        entityId={ENTITY_ID}
+        range={RANGE}
+        metricKeys={["git.commits"]}
+      />
+    );
+
+    expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument();
+    expect(screen.getByText("chart presentation")).toBeInTheDocument();
+    // The export action is disabled while fetching.
+    expect(screen.getByRole("button", { name: "Export" })).toBeDisabled();
   });
 });

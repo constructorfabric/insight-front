@@ -16,6 +16,31 @@ describe("metric timeseries presentations", () => {
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
   });
 
+  it("renders a grouped single-metric table with a single header row", () => {
+    const grouped = groupedTimeseriesModel();
+    const model = {
+      ...grouped,
+      metrics: [grouped.metrics[0]!],
+      grandTotals: [grouped.grandTotals[0]],
+    };
+    render(<MetricTimeseriesTable model={model} />);
+    // One header cell per dimension column, no per-metric subheader row.
+    expect(screen.getByText("org/repo-a")).toBeInTheDocument();
+    expect(screen.getByText("org/repo-b")).toBeInTheDocument();
+    expect(screen.queryByText("Commits")).not.toBeInTheDocument();
+    expect(screen.getByText("Grand total")).toBeInTheDocument();
+  });
+
+  it("hides the grand-total row when every total is missing", () => {
+    const grouped = groupedTimeseriesModel();
+    const model = {
+      ...grouped,
+      grandTotals: grouped.grandTotals.map(() => null),
+    };
+    render(<MetricTimeseriesTable model={model} />);
+    expect(screen.queryByText("Grand total")).not.toBeInTheDocument();
+  });
+
   it("renders an ungrouped single-metric table", () => {
     const grouped = groupedTimeseriesModel();
     const model = {
