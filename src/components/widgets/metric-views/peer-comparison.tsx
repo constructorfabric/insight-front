@@ -52,7 +52,7 @@ export function PeerComparison({
       <div className="relative h-3.5 w-full select-none">
         <ArrowDown
           className={cn(
-            "absolute -top-2.5 size-3 -translate-x-1/2",
+            "absolute -top-4 size-3 -translate-x-1/2",
             PEER_TEXT[status],
           )}
           style={{ left: `${valueLeft}%` }}
