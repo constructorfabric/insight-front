@@ -1,4 +1,4 @@
-import { ArrowUp } from "lucide-react";
+import { ArrowDown } from "lucide-react";
 
 import { formatMetricValue } from "@/lib/format";
 import type { MetricFormat } from "@/api/metric-results-client";
@@ -50,6 +50,15 @@ export function PeerComparison({
   return (
     <div className="mt-4">
       <div className="relative h-3.5 w-full select-none">
+        <ArrowDown
+          className={cn(
+            "absolute -top-4 size-3 -translate-x-1/2",
+            PEER_TEXT[status],
+          )}
+          style={{ left: `${valueLeft}%` }}
+          strokeWidth={3}
+          aria-hidden
+        />
         <div className="absolute inset-x-0 top-1/2 h-2 -translate-y-1/2 overflow-hidden rounded-sm">
           <div
             className={cn("absolute inset-y-0 left-0", bottomZone)}
@@ -77,18 +86,9 @@ export function PeerComparison({
           style={{ left: `${valueLeft}%` }}
         />
       </div>
-      {/* Min/max hug the bar (mt-1); the value arrow overlaps this row as a
-          marker rather than owning a spacer row that pushed the labels away. */}
-      <div className="relative mt-1 grid grid-cols-2 gap-3 text-[10px] tabular-nums">
-        <ArrowUp
-          className={cn(
-            "absolute -top-2.5 size-3.5 -translate-x-1/2",
-            PEER_TEXT[status],
-          )}
-          style={{ left: `${valueLeft}%` }}
-          strokeWidth={3}
-          aria-hidden
-        />
+      {/* Min/max hug the bar (mt-1); the value pointer sits above the bar
+          (ArrowDown), clear of these labels. */}
+      <div className="mt-1 grid grid-cols-2 gap-3 text-[10px] tabular-nums">
         <span className="text-left text-muted-foreground">
           {formatMetricValue(stats.min, format, unit)}
         </span>
