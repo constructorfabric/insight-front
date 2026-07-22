@@ -78,11 +78,13 @@ export function PeerComparison({
         />
       </div>
       {/* Min/max hug the bar (mt-1); the value arrow overlaps this row as a
-          marker rather than owning a spacer row that pushed the labels away. */}
+          marker rather than owning a spacer row that pushed the labels away.
+          It sits just below the bar with a small gap so it reads as a
+          separate pointer, not merged into the value tick on the bar. */}
       <div className="relative mt-1 grid grid-cols-2 gap-3 text-[10px] tabular-nums">
         <ArrowUp
           className={cn(
-            "absolute -top-2.5 size-3.5 -translate-x-1/2",
+            "absolute top-0.5 size-3 -translate-x-1/2",
             PEER_TEXT[status],
           )}
           style={{ left: `${valueLeft}%` }}
