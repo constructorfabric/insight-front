@@ -32,7 +32,17 @@ export interface MetricDefinition {
   dimensions: string[];
   is_enabled: boolean;
   schema_status: MetricDefinitionSchemaStatus;
+  /** Why schema_status is "error"; null otherwise. */
+  schema_error_code: MetricSchemaErrorCode | null;
+  /** ISO date of the newest observation ever seen; null = no data yet. */
+  last_observed_date: string | null;
 }
+
+export type MetricSchemaErrorCode =
+  | "table_not_found"
+  | "column_not_found"
+  | "dimension_not_covered"
+  | "unknown";
 
 export interface MetricDefinitionListResponse {
   metrics: MetricDefinition[];

@@ -28,6 +28,8 @@ const METRIC: MetricDefinition = {
   dimensions: ["repo"],
   is_enabled: true,
   schema_status: "ok",
+  schema_error_code: null,
+  last_observed_date: "2026-07-20",
 };
 
 describe("listMetricDefinitions", () => {

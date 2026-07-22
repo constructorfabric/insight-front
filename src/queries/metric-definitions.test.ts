@@ -16,6 +16,8 @@ function metric(metric_key: string): MetricDefinition {
     dimensions: [],
     is_enabled: true,
     schema_status: "ok",
+    schema_error_code: null,
+    last_observed_date: null,
   };
 }
 
