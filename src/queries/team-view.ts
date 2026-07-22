@@ -124,7 +124,16 @@ export function useTeamMembers(
           ? transformTeamMembers([row], period)[0]!
           : buildSyntheticMember(entry, period);
         const prs = prsByEmail.get(key);
-        return prs != null ? { ...member, prs_merged: prs } : member;
+        // The analytics row's `display_name` (BambooHR) can disagree with the
+        // identity name shown in the sidebar/header (Entra) for the same
+        // person (#1837). The roster IS the identity source, so the grid
+        // renders the identity name it already holds; analytics supplies only
+        // the metric values.
+        return {
+          ...member,
+          name: entry.display_name,
+          ...(prs != null ? { prs_merged: prs } : {}),
+        };
       });
     },
   });
