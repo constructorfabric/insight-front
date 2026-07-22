@@ -24,6 +24,7 @@ describe("loadSession", () => {
         email: "bob@example.com",
         tenant_id: "t-1",
         roles: ["user"],
+        csrf_token: "csrf-1",
       }),
     });
 
@@ -37,6 +38,7 @@ describe("loadSession", () => {
       email: "bob@example.com",
       tenantId: "t-1",
       roles: ["user"],
+      csrfToken: "csrf-1",
     });
     const [url, init] = fetchMock().mock.calls[0];
     expect(url).toBe("/auth/me");
@@ -53,6 +55,7 @@ describe("loadSession", () => {
       email: "",
       tenantId: "",
       roles: [],
+      csrfToken: "",
     });
   });
 
