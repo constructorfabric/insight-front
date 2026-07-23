@@ -104,7 +104,7 @@ function DrilldownPanel({
 }) {
   const [expanded, setExpanded] = useLocalStorageState<boolean>({
     key: "insight.drilldown.expanded",
-    defaultValue: true,
+    defaultValue: false,
     parse: parseLocalStorageBoolean,
     serialize: serializeLocalStorageBoolean,
   });
