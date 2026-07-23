@@ -254,7 +254,7 @@ describe("useSalesDashboardQueries", () => {
       if (metricId === METRIC_REGISTRY.CRM_KPIS) {
         return odata(
           range.from.startsWith("2025")
-            ? [{ ...KPI_ROW, deals_opened: 1 }]
+            ? [{ ...KPI_ROW, deals_opened: "1" }]
             : [KPI_ROW],
         );
       }
