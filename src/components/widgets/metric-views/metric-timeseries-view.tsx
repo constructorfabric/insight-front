@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
-import { ListFilter, Maximize2, Minimize2, X } from "lucide-react";
+import { ListFilter, X } from "lucide-react";
 
 import type { DateRange } from "@/api/period-to-date-range";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Popover,
   PopoverContent,
@@ -18,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   TimeseriesBody,
   TimeseriesExportMenu,
@@ -33,13 +35,10 @@ import {
   forEntity,
   resolveTimeseriesBucket,
   type MetricCollectionConfig,
+  type MetricTimeseriesGroupLimitConfig,
 } from "@/lib/metrics/collection";
 import { cn } from "@/lib/utils";
-import {
-  parseLocalStorageBoolean,
-  serializeLocalStorageBoolean,
-  useLocalStorageState,
-} from "@/hooks/use-local-storage-state";
+import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import {
   useMetricCollection,
   useMetricCollectionSet,
@@ -48,23 +47,23 @@ import {
 export interface MetricTimeseriesGroupBy {
   default: string;
   options?: string[];
+  limits?: Record<string, MetricTimeseriesGroupLimitConfig>;
 }
 
 interface DimensionFilterControl {
   dimension: string;
   options: Array<{ value: string; label: string }>;
-  selectedValue?: string;
-  selectedLabel?: string;
+  selectedValues: string[];
+  selectedLabels: string[];
   disabled: boolean;
 }
 
 interface DimensionControlsProps {
-  bucketLabel?: string;
   dimensions: string[];
   selectedDimension: string;
   filters: DimensionFilterControl[];
   onDimensionChange: (dimension: string) => void;
-  onFilterChange: (dimension: string, value?: string) => void;
+  onFilterChange: (dimension: string, values: string[]) => void;
   className?: string;
 }
 
@@ -88,12 +87,7 @@ function dimensionDescription(dimension: string): string {
   return dimension.replaceAll("_", " ");
 }
 
-function encodedFilterValue(value: string): string {
-  return `value:${value}`;
-}
-
 function DimensionControls({
-  bucketLabel,
   dimensions,
   selectedDimension,
   filters,
@@ -104,37 +98,22 @@ function DimensionControls({
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
       {dimensions.length > 1 ? (
-        <Select
-          value={selectedDimension}
+        <ToggleGroup
+          value={[selectedDimension]}
           onValueChange={(value) => {
-            if (value) onDimensionChange(value);
+            const next = Array.isArray(value) ? value[0] : value;
+            if (next) onDimensionChange(next);
           }}
+          variant="outline"
+          size="sm"
+          aria-label="Group by"
         >
-          <SelectTrigger
-            size="sm"
-            aria-label="Group by"
-            className="h-7 border-transparent bg-transparent px-0 text-xs text-muted-foreground shadow-none hover:text-foreground focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent"
-          >
-            <SelectValue>
-              {bucketLabel
-                ? `${bucketLabel} by ${dimensionDescription(selectedDimension)}`
-                : `Group by: ${dimensionName(selectedDimension)}`}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent align="start">
-            {dimensions.map((dimension) => (
-              <SelectItem key={dimension} value={dimension}>
-                {dimensionName(dimension)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      ) : bucketLabel ? (
-        <span className="text-xs text-muted-foreground">
-          {selectedDimension
-            ? `${bucketLabel} by ${dimensionDescription(selectedDimension)}`
-            : bucketLabel}
-        </span>
+          {dimensions.map((dimension) => (
+            <ToggleGroupItem key={dimension} value={dimension}>
+              {dimensionName(dimension)}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
       ) : null}
       {filters.length > 0 ? (
         <Popover>
@@ -142,7 +121,7 @@ function DimensionControls({
             render={
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 size="icon-sm"
                 aria-label="Filters"
                 title="Filters"
@@ -157,50 +136,59 @@ function DimensionControls({
             </PopoverHeader>
             {filters.map((filter) => (
               <div key={filter.dimension} className="flex flex-col gap-2">
-                <span className="text-xs font-medium">
-                  {dimensionName(filter.dimension)}
-                </span>
-                <Select
-                  value={
-                    filter.selectedValue
-                      ? encodedFilterValue(filter.selectedValue)
-                      : "all"
-                  }
-                  onValueChange={(value) => {
-                    onFilterChange(
-                      filter.dimension,
-                      !value || value === "all"
-                        ? undefined
-                        : value.slice("value:".length)
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium">
+                    {dimensionName(filter.dimension)}
+                  </span>
+                  {filter.selectedValues.length > 0 ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => onFilterChange(filter.dimension, [])}
+                    >
+                      Clear
+                    </Button>
+                  ) : null}
+                </div>
+                <div className="max-h-56 space-y-1 overflow-y-auto">
+                  {filter.options.map((option) => {
+                    const checked = filter.selectedValues.includes(
+                      option.value
                     );
-                  }}
-                  disabled={filter.disabled}
-                >
-                  <SelectTrigger
-                    className="w-full"
-                    aria-label={`Filter by ${filter.dimension}`}
-                  >
-                    <SelectValue>{filter.selectedLabel ?? "All"}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent align="start">
-                    <SelectItem value="all">All</SelectItem>
-                    {filter.options.map((option) => (
-                      <SelectItem
+                    return (
+                      <label
                         key={option.value}
-                        value={encodedFilterValue(option.value)}
+                        htmlFor={`filter-${filter.dimension}-${option.value}`}
+                        className="flex cursor-pointer items-center gap-2 rounded-sm px-1 py-1 text-sm hover:bg-muted"
                       >
+                        <Checkbox
+                          id={`filter-${filter.dimension}-${option.value}`}
+                          checked={checked}
+                          disabled={filter.disabled}
+                          onCheckedChange={() => {
+                            onFilterChange(
+                              filter.dimension,
+                              checked
+                                ? filter.selectedValues.filter(
+                                    (value) => value !== option.value
+                                  )
+                                : [...filter.selectedValues, option.value]
+                            );
+                          }}
+                        />
                         {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
             ))}
           </PopoverContent>
         </Popover>
       ) : null}
       {filters
-        .filter((filter) => filter.selectedValue)
+        .filter((filter) => filter.selectedValues.length > 0)
         .map((filter) => (
           <Button
             key={filter.dimension}
@@ -209,9 +197,12 @@ function DimensionControls({
             size="xs"
             className="rounded-full"
             aria-label={`Clear ${dimensionName(filter.dimension)} filter`}
-            onClick={() => onFilterChange(filter.dimension)}
+            onClick={() => onFilterChange(filter.dimension, [])}
           >
-            {dimensionName(filter.dimension)}: {filter.selectedLabel}
+            {dimensionName(filter.dimension)}:{" "}
+            {filter.selectedLabels.length === 1
+              ? filter.selectedLabels[0]
+              : `${filter.selectedLabels.length} selected`}
             <X className="size-3" />
           </Button>
         ))}
@@ -233,12 +224,6 @@ export function MetricTimeseriesView({
     parse: parseTimeseriesPresentation,
     serialize: serializeTimeseriesPresentation,
   });
-  const [expanded, setExpanded] = useLocalStorageState<boolean>({
-    key: `insight.timeseries.${id}.expanded`,
-    defaultValue: true,
-    parse: parseLocalStorageBoolean,
-    serialize: serializeLocalStorageBoolean,
-  });
   const [selectedMetricKey, setSelectedMetricKey] = useState(
     metricKeys[0] ?? ""
   );
@@ -253,15 +238,20 @@ export function MetricTimeseriesView({
     groupBy?.default ?? ""
   );
   const [dimensionFilters, setDimensionFilters] = useState<
-    Record<string, string>
+    Record<string, string[]>
   >({});
   const filters = useMemo(
     () =>
       Object.entries(dimensionFilters)
         .sort(([left], [right]) => left.localeCompare(right))
-        .map(([dimension, value]) => ({ dimension, values: [value] })),
+        .flatMap(([dimension, values]) =>
+          values.length > 0 ? [{ dimension, values }] : []
+        ),
     [dimensionFilters]
   );
+  const groupLimit = selectedGroupBy
+    ? groupBy?.limits?.[selectedGroupBy]
+    : undefined;
   const collection = useMemo<MetricCollectionConfig>(
     () => ({
       metrics: metricKeys.map((key) => ({
@@ -272,20 +262,21 @@ export function MetricTimeseriesView({
             view: "timeseries",
             bucket: resolveTimeseriesBucket(range),
             dimensions: selectedGroupBy ? [selectedGroupBy] : [],
+            ...(groupLimit
+              ? {
+                  groupLimit: {
+                    count: groupLimit.count,
+                    rank_by_metric: groupLimit.rankBy,
+                    include_remainder: groupLimit.includeRemainder,
+                  },
+                }
+              : {}),
           },
-          ...(selectedGroupBy
-            ? [
-                {
-                  view: "breakdown" as const,
-                  dimensions: [selectedGroupBy],
-                },
-              ]
-            : []),
           { view: "period" },
         ],
       })),
     }),
-    [filters, metricKeys, range, selectedGroupBy]
+    [filters, groupLimit, metricKeys, range, selectedGroupBy]
   );
   const entity = useMemo(
     () => ({ type: "person" as const, ids: [entityId] }),
@@ -297,21 +288,23 @@ export function MetricTimeseriesView({
   const optionCollections = useMemo(
     () =>
       selectedMetricKey && dimensionOptions.length > 1
-        ? dimensionOptions.map((dimension) => ({
-            key: dimension,
-            collection: {
-              metrics: [
-                {
-                  key: selectedMetricKey,
-                  views: [
-                    { view: "breakdown" as const, dimensions: [dimension] },
-                  ],
-                },
-              ],
-            },
-          }))
+        ? dimensionOptions
+            .filter((dimension) => dimension !== selectedGroupBy)
+            .map((dimension) => ({
+              key: dimension,
+              collection: {
+                metrics: [
+                  {
+                    key: selectedMetricKey,
+                    views: [
+                      { view: "breakdown" as const, dimensions: [dimension] },
+                    ],
+                  },
+                ],
+              },
+            }))
         : [],
-    [dimensionOptions, selectedMetricKey]
+    [dimensionOptions, selectedGroupBy, selectedMetricKey]
   );
   const optionData = useMetricCollectionSet(optionCollections, entity, range);
 
@@ -343,14 +336,14 @@ export function MetricTimeseriesView({
       const options = [...values]
         .map(([value, label]) => ({ value, label }))
         .sort((left, right) => left.label.localeCompare(right.label));
-      const selectedValue = dimensionFilters[dimension];
+      const selectedValues = dimensionFilters[dimension] ?? [];
       return {
         dimension,
         options,
-        selectedValue,
-        selectedLabel: selectedValue
-          ? (values.get(selectedValue) ?? selectedValue)
-          : undefined,
+        selectedValues,
+        selectedLabels: selectedValues.map(
+          (value) => values.get(value) ?? value
+        ),
         disabled: Boolean(result?.isPending || result?.isError),
       };
     });
@@ -373,10 +366,11 @@ export function MetricTimeseriesView({
     });
   }
 
-  function changeFilter(dimension: string, value?: string): void {
+  function changeFilter(dimension: string, values: string[]): void {
     setDimensionFilters((current) => {
       const next = { ...current };
-      if (value) next[dimension] = value;
+      const normalized = [...new Set(values)].sort();
+      if (normalized.length > 0) next[dimension] = normalized;
       else delete next[dimension];
       return next;
     });
@@ -386,7 +380,6 @@ export function MetricTimeseriesView({
     <Card
       className={cn(
         "shrink-0 gap-0 overflow-hidden py-0",
-        expanded && "lg:col-span-2",
         data.isFetching && "opacity-60"
       )}
     >
@@ -424,8 +417,9 @@ export function MetricTimeseriesView({
               </h3>
             ) : null
           ) : null}
-          {presentation === "table" &&
-          (dimensionOptions.length > 1 || filterModels.length > 0) ? (
+        </div>
+        <div className="flex shrink-0 items-center justify-end gap-2">
+          {dimensionOptions.length > 1 || filterModels.length > 0 ? (
             <DimensionControls
               dimensions={dimensionOptions}
               selectedDimension={selectedGroupBy}
@@ -434,30 +428,12 @@ export function MetricTimeseriesView({
               onFilterChange={changeFilter}
             />
           ) : null}
-        </div>
-        <div className="flex shrink-0 items-center justify-end gap-2">
           <TimeseriesExportMenu
             id={id}
             model={model}
             range={range}
             disabled={empty || data.isFetching || data.isError}
           />
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            className="hidden lg:inline-flex"
-            aria-label={expanded ? "Collapse card" : "Expand card"}
-            title={expanded ? "Collapse card" : "Expand card"}
-            aria-pressed={expanded}
-            onClick={() => setExpanded((current) => !current)}
-          >
-            {expanded ? (
-              <Minimize2 className="size-4" />
-            ) : (
-              <Maximize2 className="size-4" />
-            )}
-          </Button>
           <TimeseriesPresentationToggle
             presentation={presentation}
             onChange={setPresentation}
@@ -469,15 +445,11 @@ export function MetricTimeseriesView({
         aria-busy={data.isFetching}
       >
         {presentation === "chart" ? (
-          <DimensionControls
-            bucketLabel={bucketLabel}
-            dimensions={dimensionOptions}
-            selectedDimension={selectedGroupBy}
-            filters={filterModels}
-            onDimensionChange={changeDimension}
-            onFilterChange={changeFilter}
-            className="min-h-10 shrink-0 px-4 py-2 sm:px-6"
-          />
+          <div className="min-h-10 shrink-0 px-4 py-2 text-xs text-muted-foreground sm:px-6">
+            {selectedGroupBy
+              ? `${bucketLabel} by ${dimensionDescription(selectedGroupBy)}`
+              : bucketLabel}
+          </div>
         ) : null}
         <TimeseriesBody
           isPending={data.isPending}

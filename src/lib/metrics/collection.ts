@@ -8,6 +8,7 @@ import type {
   MetricDimensionFilter,
   MetricEntityType,
   MetricFormat,
+  MetricGroupLimit,
   MetricResult,
   MetricResultViewKind,
   MetricResultsRequest,
@@ -19,6 +20,12 @@ import type {
 
 export type MetricCollectionBucket = MetricBucket | "auto";
 
+export interface MetricTimeseriesGroupLimitConfig {
+  count: number;
+  rankBy?: string;
+  includeRemainder: boolean;
+}
+
 export type MetricCollectionViewConfig =
   | { view: "period" }
   | { view: "peer" }
@@ -26,6 +33,7 @@ export type MetricCollectionViewConfig =
       view: "timeseries";
       bucket: MetricCollectionBucket;
       dimensions?: string[];
+      groupLimit?: MetricGroupLimit;
     }
   | {
       view: "breakdown";
@@ -323,6 +331,7 @@ function toRequestView(
         view: "timeseries",
         bucket: resolveBucket(view.bucket, period),
         dimensions: view.dimensions,
+        group_limit: view.groupLimit,
       };
     case "breakdown":
       return { view: "breakdown", dimensions: view.dimensions };
@@ -333,8 +342,8 @@ function toRequestView(
   }
 }
 
-const MAX_DAY_BUCKET_DAYS = 62;
-const MAX_WEEK_BUCKET_DAYS = 182;
+const MAX_DAY_BUCKET_DAYS = 7;
+const MIN_MONTH_BUCKET_DAYS = 365;
 
 export function resolveBucket(
   bucket: MetricCollectionBucket,
@@ -343,12 +352,12 @@ export function resolveBucket(
   if (bucket !== "auto") return bucket;
   const days = daysInRange(period);
   if (days <= MAX_DAY_BUCKET_DAYS) return "day";
-  if (days <= MAX_WEEK_BUCKET_DAYS) return "week";
-  return "month";
+  if (days >= MIN_MONTH_BUCKET_DAYS) return "month";
+  return "week";
 }
 
 export function resolveTimeseriesBucket(period: DateRange): MetricBucket {
-  return daysInRange(period) <= 7 ? "day" : "week";
+  return resolveBucket("auto", period);
 }
 
 function daysInRange(period: DateRange): number {

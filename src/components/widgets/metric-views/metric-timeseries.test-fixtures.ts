@@ -30,6 +30,8 @@ const commits: SumMetricResult = {
               label: "org/repo-b",
             },
           ],
+          total: 3,
+          rank: 2,
           points: [
             { bucket_start: "2026-04-20", value: 2 },
             { bucket_start: "2026-04-27", value: null },
@@ -45,6 +47,8 @@ const commits: SumMetricResult = {
               label: "org/repo-a",
             },
           ],
+          total: 3,
+          rank: 1,
           points: [
             { bucket_start: "2026-04-20", value: 3 },
             { bucket_start: "2026-04-27", value: 0 },
@@ -100,6 +104,7 @@ const lines: SumMetricResult = {
         ...view,
         series: view.series.map((series, index) => ({
           ...series,
+          total: index === 0 ? 90 : 30,
           points: series.points.map((point) => ({
             ...point,
             value: point.value == null ? null : point.value * (index + 10),

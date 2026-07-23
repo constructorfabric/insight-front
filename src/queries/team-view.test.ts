@@ -72,7 +72,7 @@ function err(id: string): BatchQueryResult<never> {
     status: "error",
     id,
     metric_id: id,
-    error: { type: "about:blank", title: "boom", status: 500 },
+    error: { type: "about:blank", title: "boom", status: 500, detail: "boom" },
   };
 }
 

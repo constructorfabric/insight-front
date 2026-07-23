@@ -11,7 +11,7 @@ import {
   type RankedMetric,
 } from "@/lib/scoring";
 
-const ranked = (rank: PeerStatusWithNeutral, id = rank): RankedMetric<string> => ({
+const ranked = (rank: PeerStatusWithNeutral, id: string = rank): RankedMetric<string> => ({
   row: id,
   rank,
 });
