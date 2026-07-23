@@ -60,7 +60,7 @@ describe("timeseries exports", () => {
     );
   });
 
-  it("exports grouped CSV data with totals", async () => {
+  it("exports grouped CSV data without footer rows", async () => {
     downloadMetricTimeseriesCsv("output", modelWithOther(), RANGE);
     expect(mockedDownloadBlob).toHaveBeenCalledOnce();
     const [blob, filename] = mockedDownloadBlob.mock.calls[0] ?? [];
@@ -68,10 +68,9 @@ describe("timeseries exports", () => {
     expect(await blob?.text()).toContain(
       "Week,org/repo-a — Commits,org/repo-a — Lines added"
     );
-    expect(await blob?.text()).toContain(
-      "Grand total,Commits: 6 · Lines added: 120"
-    );
     expect(await blob?.text()).toContain("Other — Commits,Other — Lines added");
+    expect(await blob?.text()).not.toContain("\r\nTotal,");
+    expect(await blob?.text()).not.toContain("Grand total");
   });
 
   it("exports a formatted workbook with merged grouped headers", async () => {
