@@ -59,7 +59,6 @@ interface DimensionFilterControl {
 }
 
 interface DimensionControlsProps {
-  bucketLabel?: string;
   dimensions: string[];
   selectedDimension: string;
   filters: DimensionFilterControl[];
@@ -89,7 +88,6 @@ function dimensionDescription(dimension: string): string {
 }
 
 function DimensionControls({
-  bucketLabel,
   dimensions,
   selectedDimension,
   filters,
@@ -100,35 +98,22 @@ function DimensionControls({
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
       {dimensions.length > 1 ? (
-        <div className="flex flex-wrap items-center gap-1">
-          {bucketLabel ? (
-            <span className="text-xs text-muted-foreground">
-              {bucketLabel} by
-            </span>
-          ) : null}
-          <ToggleGroup
-            value={[selectedDimension]}
-            onValueChange={(value) => {
-              const next = Array.isArray(value) ? value[0] : value;
-              if (next) onDimensionChange(next);
-            }}
-            variant="outline"
-            size="sm"
-            aria-label="Group by"
-          >
-            {dimensions.map((dimension) => (
-              <ToggleGroupItem key={dimension} value={dimension}>
-                {dimensionName(dimension)}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-        </div>
-      ) : bucketLabel ? (
-        <span className="text-xs text-muted-foreground">
-          {selectedDimension
-            ? `${bucketLabel} by ${dimensionDescription(selectedDimension)}`
-            : bucketLabel}
-        </span>
+        <ToggleGroup
+          value={[selectedDimension]}
+          onValueChange={(value) => {
+            const next = Array.isArray(value) ? value[0] : value;
+            if (next) onDimensionChange(next);
+          }}
+          variant="outline"
+          size="sm"
+          aria-label="Group by"
+        >
+          {dimensions.map((dimension) => (
+            <ToggleGroupItem key={dimension} value={dimension}>
+              {dimensionName(dimension)}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
       ) : null}
       {filters.length > 0 ? (
         <Popover>
@@ -432,8 +417,9 @@ export function MetricTimeseriesView({
               </h3>
             ) : null
           ) : null}
-          {presentation === "table" &&
-          (dimensionOptions.length > 1 || filterModels.length > 0) ? (
+        </div>
+        <div className="flex shrink-0 items-center justify-end gap-2">
+          {dimensionOptions.length > 1 || filterModels.length > 0 ? (
             <DimensionControls
               dimensions={dimensionOptions}
               selectedDimension={selectedGroupBy}
@@ -442,8 +428,6 @@ export function MetricTimeseriesView({
               onFilterChange={changeFilter}
             />
           ) : null}
-        </div>
-        <div className="flex shrink-0 items-center justify-end gap-2">
           <TimeseriesExportMenu
             id={id}
             model={model}
@@ -461,15 +445,11 @@ export function MetricTimeseriesView({
         aria-busy={data.isFetching}
       >
         {presentation === "chart" ? (
-          <DimensionControls
-            bucketLabel={bucketLabel}
-            dimensions={dimensionOptions}
-            selectedDimension={selectedGroupBy}
-            filters={filterModels}
-            onDimensionChange={changeDimension}
-            onFilterChange={changeFilter}
-            className="min-h-10 shrink-0 px-4 py-2 sm:px-6"
-          />
+          <div className="min-h-10 shrink-0 px-4 py-2 text-xs text-muted-foreground sm:px-6">
+            {selectedGroupBy
+              ? `${bucketLabel} by ${dimensionDescription(selectedGroupBy)}`
+              : bucketLabel}
+          </div>
         ) : null}
         <TimeseriesBody
           isPending={data.isPending}
