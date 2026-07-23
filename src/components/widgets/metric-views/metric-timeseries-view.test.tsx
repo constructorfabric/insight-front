@@ -2,14 +2,12 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SumMetricResult } from "@/api/metric-results-client";
 import { MetricTimeseriesView } from "@/components/widgets/metric-views/metric-timeseries-view";
 import {
   ENTITY_ID,
   RANGE,
   timeseriesByKey,
 } from "@/components/widgets/metric-views/metric-timeseries.test-fixtures";
-import { normalizeMetricResults } from "@/lib/metrics/collection";
 
 const mocks = vi.hoisted(() => ({
   collection: vi.fn(),
@@ -47,51 +45,6 @@ const ready = {
   isError: false,
   refetch: vi.fn(),
 };
-
-// Breakdown of git.commits over the "source" dimension, powering the filter
-// options for the dimension that is NOT the current group-by.
-const sourceBreakdown: SumMetricResult = {
-  metric_key: "git.commits",
-  label: "Commits",
-  unit: "commits",
-  format: "integer",
-  direction: "higher_is_better",
-  computation: "sum",
-  views: [
-    {
-      view: "breakdown",
-      dimensions: ["source"],
-      values: [
-        {
-          entity_id: ENTITY_ID,
-          dimensions: [{ key: "source", value: "github", label: "GitHub" }],
-          value: 4,
-        },
-        {
-          entity_id: ENTITY_ID,
-          dimensions: [{ key: "source", value: "gitlab", label: "GitLab" }],
-          value: 2,
-        },
-      ],
-    },
-  ],
-};
-
-function sourceOptionSet() {
-  return new Map([
-    [
-      "source",
-      {
-        byKey: normalizeMetricResults([sourceBreakdown]),
-        previousByKey: null,
-        isPending: false,
-        isFetching: false,
-        isError: false,
-        refetch: vi.fn(),
-      },
-    ],
-  ]);
-}
 
 describe("MetricTimeseriesView", () => {
   beforeEach(() => {
@@ -288,7 +241,9 @@ describe("MetricTimeseriesView", () => {
     expect(trigger).toHaveTextContent("Commits");
 
     await user.click(trigger);
-    await user.click(await screen.findByRole("option", { name: "Lines added" }));
+    await user.click(
+      await screen.findByRole("option", { name: "Lines added" })
+    );
 
     expect(screen.getByLabelText("Metric")).toHaveTextContent("Lines added");
   });
