@@ -121,7 +121,7 @@ function DimensionControls({
             render={
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 size="icon-sm"
                 aria-label="Filters"
                 title="Filters"
