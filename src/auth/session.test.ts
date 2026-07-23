@@ -24,6 +24,7 @@ describe("loadSession", () => {
         email: "bob@example.com",
         tenant_id: "t-1",
         roles: ["user"],
+        csrf_token: "csrf-1",
       }),
     });
 
@@ -37,14 +38,15 @@ describe("loadSession", () => {
       email: "bob@example.com",
       tenantId: "t-1",
       roles: ["user"],
+      csrfToken: "csrf-1",
     });
     const [url, init] = fetchMock().mock.calls[0];
     expect(url).toBe("/auth/me");
     expect(init).toMatchObject({ credentials: "include" });
   });
 
-  it("defaults missing fields to empty values", async () => {
-    fetchMock().mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+  it("defaults missing fields to empty values (csrf_token present)", async () => {
+    fetchMock().mockResolvedValueOnce({ ok: true, json: async () => ({ csrf_token: "csrf-1" }) });
 
     await loadSession();
 
@@ -53,7 +55,22 @@ describe("loadSession", () => {
       email: "",
       tenantId: "",
       roles: [],
+      csrfToken: "csrf-1",
     });
+  });
+
+  it("fails closed to unauthenticated when /auth/me omits csrf_token", async () => {
+    // A live session always carries a CSRF token; without it, state-changing
+    // /auth/* would be rejected server-side — so treat it as no session.
+    fetchMock().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ user: "p-1", email: "bob@example.com", tenant_id: "t-1", roles: ["user"] }),
+    });
+
+    const status = await loadSession();
+
+    expect(status).toBe("unauthenticated");
+    expect(authStore.getSnapshot().status).toBe("unauthenticated");
   });
 
   it("fails closed to unauthenticated on a non-ok response", async () => {

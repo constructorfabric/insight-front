@@ -15,6 +15,7 @@ describe("signOut", () => {
       email: "bob@example.com",
       tenantId: "t-1",
       roles: ["user"],
+      csrfToken: "csrf-1",
     });
     vi.stubGlobal("fetch", vi.fn());
     assign = vi.fn();
@@ -40,6 +41,7 @@ describe("signOut", () => {
     const [url, init] = fetchMock().mock.calls[0];
     expect(url).toBe("/auth/logout");
     expect(init).toMatchObject({ method: "POST", credentials: "include" });
+    expect(init.headers).toMatchObject({ "X-CSRF-Token": "csrf-1" });
     expect(authStore.getSnapshot().status).toBe("unauthenticated");
     expect(assign).toHaveBeenCalledWith("https://idp.example/logout");
   });
