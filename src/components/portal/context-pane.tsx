@@ -21,7 +21,6 @@ import {
   DIRECTIONS,
   MANAGE_ITEMS,
   PEOPLE_ITEMS,
-  ROLES,
   ZONE_SECTIONS,
   zoneById,
   type Direction,
@@ -31,12 +30,9 @@ import {
   setPortalDir,
   setPortalItem,
   setPortalLens,
-  togglePortalMore,
   usePortalDir,
   usePortalItem,
   usePortalLens,
-  usePortalMore,
-  usePortalRole,
 } from "@/lib/portal/portal-store";
 import { useActiveZone } from "@/lib/portal/use-active-zone";
 import { cn } from "@/lib/utils";
@@ -166,50 +162,20 @@ function ItemButton({ item, active }: { item: PaneItem; active: boolean }) {
 /* ── Directions zone ─────────────────────────────────────────────────── */
 
 function DirectionsNav() {
-  const role = usePortalRole();
-  const dirs = ROLES[role].dirs;
-  const focus = new Set(ROLES[role].focus);
-  const visible = DIRECTIONS.filter((d) => dirs.includes(d.id));
-  const focusDirs = visible.filter((d) => focus.has(d.id));
-  const lessDirs = visible.filter((d) => !focus.has(d.id));
-  const moreOpen = usePortalMore();
-
   return (
     <SidebarGroup>
       <SidebarGroupLabel>
         Directions
         <span className="ml-1 text-[10px] font-normal text-muted-foreground">
-          · catalog · {visible.length} of {DIRECTIONS.length}
+          · catalog · {DIRECTIONS.length}
         </span>
       </SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
-          {focusDirs.map((d) => (
+          {DIRECTIONS.map((d) => (
             <DirectionItem key={d.id} direction={d} />
           ))}
         </SidebarMenu>
-
-        {lessDirs.length ? (
-          <>
-            <button
-              type="button"
-              onClick={togglePortalMore}
-              className="mt-2 flex w-full items-center gap-1 px-2 py-1 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase hover:text-foreground"
-            >
-              <ChevronRight
-                className={cn("size-3 transition-transform", moreOpen && "rotate-90")}
-              />
-              Less relevant · {lessDirs.length}
-            </button>
-            {moreOpen ? (
-              <SidebarMenu>
-                {lessDirs.map((d) => (
-                  <DirectionItem key={d.id} direction={d} />
-                ))}
-              </SidebarMenu>
-            ) : null}
-          </>
-        ) : null}
       </SidebarGroupContent>
     </SidebarGroup>
   );

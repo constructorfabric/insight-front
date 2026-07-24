@@ -27,7 +27,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import type { PortalRole } from "./portal-store";
 
 /**
  * Portal navigation model (Phase 1 buildout — mirrors the design mockup).
@@ -269,42 +268,3 @@ export const MANAGE_ITEMS: readonly PaneItem[] = [
   { id: "whats-new", label: "What's new", icon: Megaphone },
 ];
 
-/* ── Roles: permission (zones/dirs) + relevance (focus) ──────────────── */
-
-export interface RoleDef {
-  name: string;
-  zones: readonly string[];
-  dirs: readonly string[];
-  focus: readonly string[];
-}
-
-const ALL_ZONES = ZONES.map((z) => z.id);
-const ALL_DIRS = DIRECTIONS.map((d) => d.id);
-
-export const ROLES: Record<PortalRole, RoleDef> = {
-  exec: { name: "Exec / Admin", zones: ALL_ZONES, dirs: ALL_DIRS, focus: ALL_DIRS },
-  em: {
-    name: "Eng Manager",
-    zones: ["overview", "directions", "person", "people", "aicost", "scorecard", "reports"],
-    dirs: ["dev", "collab", "wiki"],
-    focus: ["dev", "collab"],
-  },
-  backend: {
-    name: "Backend Engineer",
-    zones: ["overview", "directions", "person", "aicost"],
-    dirs: ["dev", "collab", "wiki"],
-    focus: ["dev", "collab"],
-  },
-  sales: {
-    name: "Sales Lead",
-    zones: ["overview", "directions", "person", "people", "reports"],
-    dirs: ["sales", "collab"],
-    focus: ["sales", "collab"],
-  },
-  support: {
-    name: "Support Lead",
-    zones: ["overview", "directions", "person", "reports"],
-    dirs: ["support", "collab"],
-    focus: ["support", "collab"],
-  },
-};

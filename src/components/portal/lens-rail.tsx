@@ -16,13 +16,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { ROLES, ZONES, type Zone } from "@/lib/portal/nav-model";
-import {
-  setPortalRole,
-  setPortalZone,
-  usePortalRole,
-  type PortalRole,
-} from "@/lib/portal/portal-store";
+import { ZONES, type Zone } from "@/lib/portal/nav-model";
+import { setPortalZone } from "@/lib/portal/portal-store";
 import { useActiveZone } from "@/lib/portal/use-active-zone";
 import { useViewerIsManager } from "@/lib/portal/use-viewer-is-manager";
 
@@ -41,11 +36,9 @@ const IC_ZONES = new Set(["person"]);
  * `collapsible="none"` sidebar so it sits in normal flow beside the pane.
  */
 export function LensRail() {
-  const role = usePortalRole();
   const navigate = useNavigate();
   const { activeZone, activePerson } = useActiveZone();
   const { isManager, isPending: mgrPending } = useViewerIsManager();
-  const permitted = new Set(ROLES[role].zones);
   // An IC (no reports) has no subtree to roll up, so org zones are hidden — the
   // shell collapses to Person. While the viewer's identity is still resolving,
   // assume manager so the rail doesn't flash a collapsed state.
@@ -81,9 +74,7 @@ export function LensRail() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu className="items-center gap-1">
-          {ZONES.filter(
-            (z) => permitted.has(z.id) && (orgZonesVisible || IC_ZONES.has(z.id)),
-          ).map((z) => (
+          {ZONES.filter((z) => orgZonesVisible || IC_ZONES.has(z.id)).map((z) => (
             <ZoneItem
               key={z.id}
               zone={z}
@@ -94,22 +85,6 @@ export function LensRail() {
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="items-center gap-1">
-        <label className="sr-only" htmlFor="portal-role">
-          View as role
-        </label>
-        <select
-          id="portal-role"
-          value={role}
-          onChange={(e) => setPortalRole(e.target.value as PortalRole)}
-          title="View as role (RBAC preview)"
-          className="w-11 rounded-md bg-sidebar-accent py-1 text-center text-[10px] font-semibold text-sidebar-foreground ring-sidebar-ring outline-hidden focus-visible:ring-2"
-        >
-          <option value="exec">Exec</option>
-          <option value="em">EM</option>
-          <option value="backend">Dev</option>
-          <option value="sales">Sales</option>
-          <option value="support">Supp</option>
-        </select>
         <Popover>
           <PopoverTrigger
             render={
