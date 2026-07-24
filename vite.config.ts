@@ -5,9 +5,14 @@ import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import path from "path";
 import { defineConfig, loadEnv } from "vite";
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const proxyTarget = env.VITE_API_PROXY_TARGET;
+  // Dev serve defaults to the compose gateway so /auth + /api always have an
+  // upstream; without one, vite's SPA fallback serves /auth/login itself and
+  // the login redirect loops. Builds never need a proxy.
+  const proxyTarget =
+    env.VITE_API_PROXY_TARGET ||
+    (command === "serve" ? "http://localhost:8080" : undefined);
   return {
     plugins: [
       tanstackRouter({ target: "react", autoCodeSplitting: true }),

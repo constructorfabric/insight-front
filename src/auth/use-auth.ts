@@ -5,9 +5,14 @@ import type { AuthSnapshot } from "./types";
 
 let redirecting = false;
 
-/** Sanitize a return-to into a site-relative path (mirrors the backend guard). */
+/**
+ * Sanitize a return-to into a site-relative path (mirrors the backend guard).
+ * `/auth/*` paths collapse to `/` — a return-to pointing back into the login
+ * flow would nest on every bounce and grow the URL without bound.
+ */
 function safeReturnTo(path: string): string {
-  return path.startsWith("/") && !path.startsWith("//") ? path : "/";
+  if (!path.startsWith("/") || path.startsWith("//")) return "/";
+  return path.startsWith("/auth/") || path === "/auth" ? "/" : path;
 }
 
 /**
@@ -18,7 +23,9 @@ function safeReturnTo(path: string): string {
 export function signIn(returnTo?: string): void {
   if (redirecting) return;
   redirecting = true;
-  const dest = safeReturnTo(returnTo ?? window.location.pathname + window.location.search);
+  const dest = safeReturnTo(
+    returnTo ?? window.location.pathname + window.location.search
+  );
   window.location.assign(`/auth/login?return_to=${encodeURIComponent(dest)}`);
 }
 
@@ -40,7 +47,9 @@ export async function signOut(): Promise<void> {
         ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
       },
     });
-    const body = (await res.json().catch(() => ({}))) as { rp_logout_url?: string | null };
+    const body = (await res.json().catch(() => ({}))) as {
+      rp_logout_url?: string | null;
+    };
     if (body.rp_logout_url) dest = body.rp_logout_url;
   } catch {
     // ignore — best-effort logout; still bounce the browser.
@@ -58,7 +67,7 @@ export function useAuth(): UseAuthResult {
   const snap = useSyncExternalStore(
     authStore.subscribe,
     authStore.getSnapshot,
-    authStore.getSnapshot,
+    authStore.getSnapshot
   );
   return { ...snap, signIn, signOut };
 }

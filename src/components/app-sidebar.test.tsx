@@ -8,6 +8,7 @@ import type { IdentityPerson } from "@/types/insight";
 let currentPath = "/";
 let viewerEmail: string | null = "alice@x.io";
 let viewerData: IdentityPerson | undefined;
+let metricsV2Enabled = false;
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
@@ -36,6 +37,10 @@ vi.mock("@/auth", () => ({
 
 vi.mock("@/queries/ic-dashboard", () => ({
   useIcPerson: () => ({ data: viewerData }),
+}));
+
+vi.mock("@/lib/feature-flags", () => ({
+  useMetricsV2Enabled: () => metricsV2Enabled,
 }));
 
 vi.mock("@/components/sidebar-v2-settings", () => ({
@@ -92,7 +97,7 @@ import { AppSidebar } from "./app-sidebar";
 function person(
   email: string,
   name: string,
-  subordinates: IdentityPerson[] = [],
+  subordinates: IdentityPerson[] = []
 ): IdentityPerson {
   return {
     person_id: email,
@@ -119,6 +124,7 @@ beforeEach(() => {
   currentPath = "/";
   viewerEmail = "alice@x.io";
   viewerData = tree;
+  metricsV2Enabled = false;
 });
 
 describe("AppSidebar", () => {
@@ -185,7 +191,7 @@ describe("AppSidebar", () => {
 
     const links = screen.getAllByTestId("link");
     const personLinks = links.filter(
-      (link) => link.dataset.to === "/ic/$person/personal",
+      (link) => link.dataset.to === "/ic/$person/personal"
     );
     expect(personLinks.map((link) => link.dataset.person)).toEqual([
       "alice@x.io",
@@ -212,5 +218,22 @@ describe("AppSidebar", () => {
     render(<AppSidebar />);
 
     expect(buttonFor("alice@x.io")).toBeInTheDocument();
+  });
+
+  it("hides the metric catalog entry when metrics-v2 is off", () => {
+    render(<AppSidebar />);
+
+    expect(screen.queryByText("Metric catalog")).not.toBeInTheDocument();
+  });
+
+  it("shows the metric catalog entry, active on its route, when metrics-v2 is on", () => {
+    metricsV2Enabled = true;
+    currentPath = "/metrics";
+    render(<AppSidebar />);
+
+    const entry = screen
+      .getByText("Metric catalog")
+      .closest('[data-testid="menu-button"]') as HTMLElement;
+    expect(entry).toHaveAttribute("data-active", "true");
   });
 });
