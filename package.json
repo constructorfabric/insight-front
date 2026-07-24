@@ -9,7 +9,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -b",
     "test": "vitest run --project=unit",
     "test:watch": "vitest --project=unit",
     "test:coverage": "vitest run --project=unit --coverage",
