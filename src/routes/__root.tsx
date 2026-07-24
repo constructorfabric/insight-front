@@ -8,6 +8,8 @@ import { AuthGate } from "@/components/auth-gate";
 import { CenteredSpinner } from "@/components/widgets/centered-spinner";
 import { MockBanner } from "@/components/mock-banner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { PortalLayout } from "@/components/portal/portal-layout";
+import { usePortalEnabled } from "@/lib/portal/portal-store";
 import { queryClient } from "@/query-client";
 
 async function prefetchViewerIdentity(): Promise<void> {
@@ -46,16 +48,21 @@ function RootPending() {
 }
 
 function RootLayout() {
+  const portal = usePortalEnabled();
   return (
     <TooltipProvider>
       <AuthGate>
-        <SidebarProvider>
-          <AppSidebar />
-          <SidebarInset className="min-w-0 overflow-x-clip">
-            <MockBanner />
-            <Outlet />
-          </SidebarInset>
-        </SidebarProvider>
+        {portal ? (
+          <PortalLayout />
+        ) : (
+          <SidebarProvider>
+            <AppSidebar />
+            <SidebarInset className="min-w-0 overflow-x-clip">
+              <MockBanner />
+              <Outlet />
+            </SidebarInset>
+          </SidebarProvider>
+        )}
       </AuthGate>
     </TooltipProvider>
   );

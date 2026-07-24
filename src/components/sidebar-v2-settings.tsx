@@ -1,5 +1,7 @@
-import { HelpCircle, Sparkles } from "lucide-react";
+import { HelpCircle, PanelsTopLeft, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
+
+import { setPortalEnabled, usePortalEnabled } from "@/lib/portal/portal-store";
 
 import {
   SidebarMenu,
@@ -25,11 +27,30 @@ const FOCUS_MODES: ReadonlyArray<FocusMode> = [
 export function SidebarV2Settings() {
   const { t } = useTranslation();
   const v2 = useMetricsV2Enabled();
+  const portal = usePortalEnabled();
   const { focusMode, showExplanations, setFocusMode, setShowExplanations } =
     useSettings();
 
   return (
     <SidebarMenu>
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          onClick={() => setPortalEnabled(!portal)}
+          aria-pressed={portal}
+          className="justify-between"
+        >
+          <span className="flex items-center gap-2">
+            <PanelsTopLeft className="size-4" />
+            <span>Portal (preview)</span>
+          </span>
+          <Switch
+            checked={portal}
+            onCheckedChange={setPortalEnabled}
+            size="sm"
+            tabIndex={-1}
+          />
+        </SidebarMenuButton>
+      </SidebarMenuItem>
       {v2 ? (
         <>
           <SidebarMenuItem className="flex flex-col items-stretch gap-1.5 p-1">

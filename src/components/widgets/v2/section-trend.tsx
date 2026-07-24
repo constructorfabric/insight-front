@@ -85,8 +85,23 @@ export function SectionTrend({
     );
   }
 
+  // Series keys are metric keys like "collab.messages_sent". A dot is illegal
+  // in a CSS custom-property name (so `--color-<key>` never resolves → invisible
+  // strokes) and makes recharts treat the dataKey as a nested path. Remap every
+  // series to a safe, collision-free alias and rewrite the data rows to match.
+  const safeKeys = series.map((s, i) => `s${i}_${s.key.replace(/[^a-zA-Z0-9_-]/g, "_")}`);
+  const safeSeries = series.map((s, i) => ({ ...s, key: safeKeys[i] }));
+  const safeData = data.map((row) => {
+    const next: SectionTrendPoint = { date: row.date as string };
+    series.forEach((s, i) => {
+      const v = row[s.key];
+      if (v != null) next[safeKeys[i]] = v;
+    });
+    return next;
+  });
+
   const config: ChartConfig = Object.fromEntries(
-    series.map((s, i) => [
+    safeSeries.map((s, i) => [
       s.key,
       { label: s.label, color: `var(--${DEFAULT_CHART_KEYS[i % DEFAULT_CHART_KEYS.length]})` },
     ]),
@@ -106,7 +121,7 @@ export function SectionTrend({
           className="w-full"
           style={{ height }}
         >
-          <ComposedChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+          <ComposedChart data={safeData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis
               dataKey="date"
@@ -147,7 +162,7 @@ export function SectionTrend({
                 }}
               />
             ) : null}
-            {series.map((s) => {
+            {safeSeries.map((s) => {
               const yAxisId = s.yAxisId ?? "left";
               const color = `var(--color-${s.key})`;
               if (s.type === "area" || s.type === "stacked-area") {
