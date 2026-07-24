@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { authStore } from "./auth-store";
 import { getViewerEmail } from "./use-viewer";
+import { makeSession } from "@/test/session";
 
 afterEach(() => {
   authStore.reset();
@@ -9,13 +10,7 @@ afterEach(() => {
 
 describe("getViewerEmail", () => {
   it("returns the session email when authenticated", () => {
-    authStore.setAuthenticated({
-      personId: "p-1",
-      email: "bob@example.com",
-      tenantId: "",
-      roles: [],
-      csrfToken: "csrf-1",
-    });
+    authStore.setAuthenticated(makeSession({ email: "bob@example.com", tenantId: "", roles: [] }));
 
     expect(getViewerEmail()).toBe("bob@example.com");
   });

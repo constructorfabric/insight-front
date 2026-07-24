@@ -37,6 +37,7 @@ import {
   useTeamKpisByPeriod,
   useTeamViewConfig,
 } from "./view-configs";
+import { makeSession } from "@/test/session";
 
 const fetchCatalog = catalogClient.fetchCatalog as ReturnType<typeof vi.fn>;
 
@@ -103,13 +104,7 @@ async function renderWithFetched<T>(
 describe("useTeamViewConfig", () => {
   beforeEach(() => {
     authStore.reset();
-    authStore.setAuthenticated({
-      personId: "p-1",
-      email: "bob.park@example.com",
-      tenantId: "t-1",
-      roles: ["user"],
-      csrfToken: "csrf-1",
-    });
+    authStore.setAuthenticated(makeSession());
     fetchCatalog.mockReset();
   });
   afterEach(() => {

@@ -24,6 +24,8 @@ export async function loadSession(): Promise<AuthStatus> {
       tenant_id?: string;
       roles?: string[];
       csrf_token?: string;
+      expires_at?: number;
+      refresh_at?: number;
     };
     // Fail closed on a missing CSRF token. A live session always carries one
     // (the authenticator echoes it on /auth/me), and it is required to send
@@ -43,6 +45,10 @@ export async function loadSession(): Promise<AuthStatus> {
       tenantId: body.tenant_id ?? "",
       roles: body.roles ?? [],
       csrfToken: body.csrf_token,
+      // Missing timestamps (0) mean the refresh driver never schedules — the
+      // session then just times out as it did before the driver existed.
+      expiresAt: body.expires_at ?? 0,
+      refreshAt: body.refresh_at ?? 0,
     });
     return "authenticated";
   } catch {

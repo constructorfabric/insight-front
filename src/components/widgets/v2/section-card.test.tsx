@@ -30,6 +30,7 @@ import {
 } from "@/test/catalog-test-utils";
 import { SectionCard } from "./section-card";
 import type { BulletMetric, PeriodValue } from "@/types/insight";
+import { makeSession } from "@/test/session";
 
 const fetchCatalog = catalogClient.fetchCatalog as ReturnType<typeof vi.fn>;
 
@@ -57,13 +58,7 @@ function makeBullet(overrides: Partial<BulletMetric> = {}): BulletMetric {
 describe("<SectionCard> peer-driven coloring", () => {
   beforeEach(() => {
     authStore.reset();
-    authStore.setAuthenticated({
-      personId: "p-1",
-      email: "bob.park@example.com",
-      tenantId: "t-1",
-      roles: ["user"],
-      csrfToken: "csrf-1",
-    });
+    authStore.setAuthenticated(makeSession());
     fetchCatalog.mockReset();
   });
   afterEach(() => {

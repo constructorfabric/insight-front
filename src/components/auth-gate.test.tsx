@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import i18n from "@/i18n";
 import { authStore } from "@/auth/auth-store";
 import { AuthGate } from "./auth-gate";
+import { makeSession } from "@/test/session";
 
 function renderGate() {
   return render(
@@ -22,13 +23,7 @@ describe("<AuthGate>", () => {
 
   it("renders children when authenticated", () => {
     act(() =>
-      authStore.setAuthenticated({
-        personId: "p-1",
-        email: "bob.park@example.com",
-        tenantId: "t-1",
-        roles: ["user"],
-        csrfToken: "csrf-1",
-      }),
+      authStore.setAuthenticated(makeSession()),
     );
     renderGate();
     expect(screen.getByText("protected")).toBeInTheDocument();
@@ -50,13 +45,7 @@ describe("<AuthGate>", () => {
 
   it("swaps to the overlay when a live session drops to unauthenticated", () => {
     act(() =>
-      authStore.setAuthenticated({
-        personId: "p-1",
-        email: "bob.park@example.com",
-        tenantId: "t-1",
-        roles: ["user"],
-        csrfToken: "csrf-1",
-      }),
+      authStore.setAuthenticated(makeSession()),
     );
     renderGate();
     expect(screen.getByText("protected")).toBeInTheDocument();
