@@ -1,6 +1,11 @@
 import { authStore } from "./auth-store";
 import type { AuthStatus } from "./types";
 
+/** A server unix-seconds timestamp: finite positive number, else 0 (absent). */
+function unixSeconds(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
+}
+
 /**
  * Probe `GET /auth/me` once and populate the store. The browser sends the
  * `__Host-sid` cookie (same-origin, credentials included); the authenticator
@@ -24,6 +29,8 @@ export async function loadSession(): Promise<AuthStatus> {
       tenant_id?: string;
       roles?: string[];
       csrf_token?: string;
+      expires_at?: number;
+      refresh_at?: number;
     };
     // Fail closed on a missing CSRF token. A live session always carries one
     // (the authenticator echoes it on /auth/me), and it is required to send
@@ -43,6 +50,12 @@ export async function loadSession(): Promise<AuthStatus> {
       tenantId: body.tenant_id ?? "",
       roles: body.roles ?? [],
       csrfToken: body.csrf_token,
+      // Missing or malformed timestamps become 0, which the refresh driver
+      // treats as "never schedule" — the session then just times out as it
+      // did before the driver existed. The JSON cast above is compile-time
+      // only, so guard the wire values like refresh.ts guards its inputs.
+      expiresAt: unixSeconds(body.expires_at),
+      refreshAt: unixSeconds(body.refresh_at),
     });
     return "authenticated";
   } catch {

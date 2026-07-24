@@ -25,6 +25,8 @@ describe("loadSession", () => {
         tenant_id: "t-1",
         roles: ["user"],
         csrf_token: "csrf-1",
+        expires_at: 1770000600,
+        refresh_at: 1770000510,
       }),
     });
 
@@ -39,6 +41,8 @@ describe("loadSession", () => {
       tenantId: "t-1",
       roles: ["user"],
       csrfToken: "csrf-1",
+      expiresAt: 1770000600,
+      refreshAt: 1770000510,
     });
     const [url, init] = fetchMock().mock.calls[0];
     expect(url).toBe("/auth/me");
@@ -50,13 +54,32 @@ describe("loadSession", () => {
 
     await loadSession();
 
+    // expiresAt/refreshAt default to 0 — the refresh driver treats that as
+    // "never schedule" (pre-timestamp backend), not as "refresh now".
     expect(authStore.getSnapshot().session).toEqual({
       personId: "",
       email: "",
       tenantId: "",
       roles: [],
       csrfToken: "csrf-1",
+      expiresAt: 0,
+      refreshAt: 0,
     });
+  });
+
+  it("stores malformed timing fields as 0 (driver never schedules from them)", async () => {
+    fetchMock().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        csrf_token: "csrf-1",
+        expires_at: "1770000600", // wire contract violation: string, not number
+        refresh_at: Number.NaN,
+      }),
+    });
+
+    await loadSession();
+
+    expect(authStore.getSnapshot().session).toMatchObject({ expiresAt: 0, refreshAt: 0 });
   });
 
   it("fails closed to unauthenticated when /auth/me omits csrf_token", async () => {

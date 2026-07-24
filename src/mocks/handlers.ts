@@ -289,10 +289,22 @@ const MOCK_SESSION = {
   email: defaultPersonId,
   tenant_id: "00000000-0000-0000-0000-000000000001",
   roles: ["user"],
+  // Required by loadSession's fail-closed guard (a live session always has one).
+  csrf_token: "mock-csrf-token",
 };
 
+// Session timing for the refresh driver: mirror the backend defaults
+// (ttl 600 s, refresh ~90 s before expiry) relative to "now".
+function mockSessionTiming(): { expires_at: number; refresh_at: number } {
+  const now = Math.floor(Date.now() / 1000);
+  return { expires_at: now + 600, refresh_at: now + 510 };
+}
+
 export const handlers = [
-  http.get("/auth/me", () => HttpResponse.json(MOCK_SESSION)),
+  http.get("/auth/me", () =>
+    HttpResponse.json({ ...MOCK_SESSION, ...mockSessionTiming() }),
+  ),
+  http.post("/auth/refresh", () => HttpResponse.json(mockSessionTiming())),
   http.post("/auth/logout", () => HttpResponse.json({ rp_logout_url: null })),
   http.post("/api/analytics/v1/metric-results", async ({ request }) => {
     const body = (await request
