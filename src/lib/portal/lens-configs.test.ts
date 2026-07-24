@@ -1,0 +1,58 @@
+import { describe, expect, it } from "vitest";
+
+import { metricGroups } from "@/lib/insight/groups";
+import { DIRECTIONS } from "@/lib/portal/nav-model";
+import { DIRECTION_LENSES, lensEntry, sectionMetricKeys } from "./lens-configs";
+
+const KNOWN_KEYS = new Set(
+  metricGroups().flatMap((g) => g.collection.metrics.map((m) => m.key)),
+);
+
+describe("DIRECTION_LENSES registry", () => {
+  it("covers every direction and lens declared in nav-model", () => {
+    for (const d of DIRECTIONS) {
+      for (const lens of d.lenses) {
+        expect(lensEntry(d.id, lens), `${d.id}/${lens}`).toBeDefined();
+      }
+    }
+  });
+
+  it("references only metric keys that exist in the groups registry", () => {
+    for (const [dir, lenses] of Object.entries(DIRECTION_LENSES)) {
+      for (const [lens, entry] of Object.entries(lenses)) {
+        if ("comingSoon" in entry) continue;
+        for (const key of sectionMetricKeys(entry)) {
+          expect(KNOWN_KEYS.has(key), `${dir}/${lens}: ${key}`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("stays under the API metric cap per lens", () => {
+    for (const lenses of Object.values(DIRECTION_LENSES)) {
+      for (const entry of Object.values(lenses)) {
+        if ("comingSoon" in entry) continue;
+        expect(sectionMetricKeys(entry).length).toBeLessThanOrEqual(50);
+      }
+    }
+  });
+
+  it("has no orphan configs — every registry dir/lens exists in nav-model", () => {
+    const navLenses: Record<string, Set<string>> = {};
+    for (const d of DIRECTIONS) navLenses[d.id] = new Set(d.lenses);
+    for (const [dir, lenses] of Object.entries(DIRECTION_LENSES)) {
+      for (const lens of Object.keys(lenses)) {
+        expect(navLenses[dir]?.has(lens), `${dir}/${lens}`).toBe(true);
+      }
+    }
+  });
+
+  it("gives every non-comingSoon entry at least one section", () => {
+    for (const [dir, lenses] of Object.entries(DIRECTION_LENSES)) {
+      for (const [lens, entry] of Object.entries(lenses)) {
+        if ("comingSoon" in entry) continue;
+        expect(entry.sections.length, `${dir}/${lens}`).toBeGreaterThanOrEqual(1);
+      }
+    }
+  });
+});
