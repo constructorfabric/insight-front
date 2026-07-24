@@ -64,6 +64,7 @@ describe("<DistributionStrip>", () => {
       email: "bob.park@example.com",
       tenantId: "t-1",
       roles: ["user"],
+      csrfToken: "csrf-1",
     });
     fetchCatalog.mockReset();
   });
