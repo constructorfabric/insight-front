@@ -36,10 +36,16 @@ export function signIn(returnTo?: string): void {
 export async function signOut(): Promise<void> {
   let dest = "/";
   try {
+    // State-changing /auth/* requires the session's CSRF token (fail closed
+    // server-side); it arrived with /auth/me at boot.
+    const csrfToken = authStore.getSnapshot().session?.csrfToken ?? "";
     const res = await fetch("/auth/logout", {
       method: "POST",
       credentials: "include",
-      headers: { Accept: "application/json" },
+      headers: {
+        Accept: "application/json",
+        ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+      },
     });
     const body = (await res.json().catch(() => ({}))) as {
       rp_logout_url?: string | null;

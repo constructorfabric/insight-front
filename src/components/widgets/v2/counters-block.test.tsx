@@ -33,6 +33,7 @@ import {
 import { CountersBlock } from "./counters-block";
 import type { PeerStats } from "@/lib/peers";
 import type { BulletMetric, PeriodValue } from "@/types/insight";
+import { makeSession } from "@/test/session";
 
 const fetchCatalog = catalogClient.fetchCatalog as ReturnType<typeof vi.fn>;
 
@@ -62,12 +63,7 @@ const STATS: PeerStats = { p25: 3, p50: 5, p75: 10, min: 1, max: 15, n: 12 };
 describe("<CountersBlock>", () => {
   beforeEach(() => {
     authStore.reset();
-    authStore.setAuthenticated({
-      personId: "p-1",
-      email: "bob.park@example.com",
-      tenantId: "t-1",
-      roles: ["user"],
-    });
+    authStore.setAuthenticated(makeSession());
     fetchCatalog.mockReset();
   });
   afterEach(() => {

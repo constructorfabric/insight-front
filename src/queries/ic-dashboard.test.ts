@@ -382,12 +382,7 @@ describe("useIcDashboardData", () => {
           status: "error",
           id: it.id,
           metric_id: it.metric_id,
-          error: {
-            type: "about:blank",
-            title: "boom",
-            status: 500,
-            detail: "boom",
-          },
+          error: { type: "about:blank", title: "boom", status: 500, detail: "boom" },
         }),
       ),
     }));

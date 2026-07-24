@@ -4,7 +4,6 @@ import {
   metricTimeseriesFilename,
 } from "@/components/widgets/metric-views/metric-timeseries-export";
 import type { MetricTimeseriesModel } from "@/components/widgets/metric-views/metric-timeseries-model";
-import { formatMetricNumber } from "@/lib/format";
 
 type CsvValue = string | number | null | undefined;
 
@@ -56,31 +55,7 @@ function csvContent(model: MetricTimeseriesModel): string {
       )
     ),
   ]);
-  const total = [
-    "Total",
-    ...model.columns.flatMap((column) =>
-      model.metrics.map((metric) => column.totals.get(metric.metric_key))
-    ),
-  ];
-  const grandTotal = [
-    "Grand total",
-    model.metrics
-      .map((metric, index) => {
-        const value = model.grandTotals[index];
-        return `${metric.label}: ${value == null ? "—" : formatMetricNumber(value, metric.format)}`;
-      })
-      .join(" · "),
-    ...Array(Math.max(0, header.length - 2)).fill(null),
-  ];
-  return [
-    header,
-    ...rows,
-    total,
-    ...(model.dimensions.length > 0 &&
-    model.grandTotals.some((value) => value != null)
-      ? [grandTotal]
-      : []),
-  ]
+  return [header, ...rows]
     .map((row) => row.map(csvCell).join(","))
     .join("\r\n");
 }

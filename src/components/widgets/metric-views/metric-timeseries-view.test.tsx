@@ -2,14 +2,12 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SumMetricResult } from "@/api/metric-results-client";
 import { MetricTimeseriesView } from "@/components/widgets/metric-views/metric-timeseries-view";
 import {
   ENTITY_ID,
   RANGE,
   timeseriesByKey,
 } from "@/components/widgets/metric-views/metric-timeseries.test-fixtures";
-import { normalizeMetricResults } from "@/lib/metrics/collection";
 
 const mocks = vi.hoisted(() => ({
   collection: vi.fn(),
@@ -48,51 +46,6 @@ const ready = {
   refetch: vi.fn(),
 };
 
-// Breakdown of git.commits over the "source" dimension, powering the filter
-// options for the dimension that is NOT the current group-by.
-const sourceBreakdown: SumMetricResult = {
-  metric_key: "git.commits",
-  label: "Commits",
-  unit: "commits",
-  format: "integer",
-  direction: "higher_is_better",
-  computation: "sum",
-  views: [
-    {
-      view: "breakdown",
-      dimensions: ["source"],
-      values: [
-        {
-          entity_id: ENTITY_ID,
-          dimensions: [{ key: "source", value: "github", label: "GitHub" }],
-          value: 4,
-        },
-        {
-          entity_id: ENTITY_ID,
-          dimensions: [{ key: "source", value: "gitlab", label: "GitLab" }],
-          value: 2,
-        },
-      ],
-    },
-  ],
-};
-
-function sourceOptionSet() {
-  return new Map([
-    [
-      "source",
-      {
-        byKey: normalizeMetricResults([sourceBreakdown]),
-        previousByKey: null,
-        isPending: false,
-        isFetching: false,
-        isError: false,
-        refetch: vi.fn(),
-      },
-    ],
-  ]);
-}
-
 describe("MetricTimeseriesView", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -102,7 +55,7 @@ describe("MetricTimeseriesView", () => {
     mocks.xlsx.mockReset().mockResolvedValue(undefined);
   });
 
-  it("switches presentations and persists independent card state", async () => {
+  it("switches presentations and persists presentation per card", async () => {
     const user = userEvent.setup();
     render(
       <MetricTimeseriesView
@@ -115,17 +68,13 @@ describe("MetricTimeseriesView", () => {
     );
     expect(screen.getByText("chart presentation")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Collapse card" })
-    ).toHaveAttribute("aria-pressed", "true");
+      screen.queryByRole("button", { name: "Collapse card" })
+    ).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Table view" }));
     expect(screen.getByText("table presentation")).toBeInTheDocument();
     expect(
       localStorage.getItem("insight.timeseries.git-output.presentation")
     ).toBe("table");
-    await user.click(screen.getByRole("button", { name: "Collapse card" }));
-    expect(localStorage.getItem("insight.timeseries.git-output.expanded")).toBe(
-      "false"
-    );
   });
 
   it("renders pending, error, and empty states", () => {
@@ -161,14 +110,24 @@ describe("MetricTimeseriesView", () => {
     expect(screen.getByText("No data in this period")).toBeInTheDocument();
   });
 
-  it("builds grouped requests with automatic daily bucketing", () => {
+  it("builds bounded grouped requests without a totals breakdown", () => {
     render(
       <MetricTimeseriesView
         id="request"
         entityId={ENTITY_ID}
         range={{ from: "2026-04-20", to: "2026-04-20" }}
         metricKeys={["git.commits"]}
-        groupBy={{ default: "repository", options: ["source"] }}
+        groupBy={{
+          default: "repository",
+          options: ["source"],
+          limits: {
+            repository: {
+              count: 10,
+              rankBy: "git.commits",
+              includeRemainder: true,
+            },
+          },
+        }}
       />
     );
     expect(mocks.collection.mock.calls.at(-1)?.[0]).toMatchObject({
@@ -180,14 +139,68 @@ describe("MetricTimeseriesView", () => {
               view: "timeseries",
               bucket: "day",
               dimensions: ["repository"],
+              groupLimit: {
+                count: 10,
+                rank_by_metric: "git.commits",
+                include_remainder: true,
+              },
             },
-            { view: "breakdown", dimensions: ["repository"] },
             { view: "period" },
           ],
         },
       ],
     });
-    expect(mocks.collectionSet).toHaveBeenCalled();
+    expect(mocks.collectionSet.mock.calls.at(-1)?.[0]).toMatchObject([
+      {
+        key: "source",
+        collection: {
+          metrics: [
+            {
+              key: "git.commits",
+              views: [{ view: "breakdown", dimensions: ["source"] }],
+            },
+          ],
+        },
+      },
+    ]);
+  });
+
+  it("does not cap an uncapped active dimension", () => {
+    render(
+      <MetricTimeseriesView
+        id="uncapped"
+        entityId={ENTITY_ID}
+        range={RANGE}
+        metricKeys={["git.lines_added"]}
+        groupBy={{
+          default: "category",
+          options: ["repository"],
+          limits: {
+            repository: {
+              count: 10,
+              rankBy: "git.lines_added",
+              includeRemainder: true,
+            },
+          },
+        }}
+      />
+    );
+    expect(mocks.collection.mock.calls.at(-1)?.[0]).toMatchObject({
+      metrics: [
+        {
+          views: [
+            {
+              view: "timeseries",
+              dimensions: ["category"],
+            },
+            { view: "period" },
+          ],
+        },
+      ],
+    });
+    expect(
+      mocks.collection.mock.calls.at(-1)?.[0].metrics[0].views[0]
+    ).not.toHaveProperty("groupLimit");
   });
 
   it("exports Excel and CSV through the export menu", async () => {
@@ -228,71 +241,71 @@ describe("MetricTimeseriesView", () => {
     expect(trigger).toHaveTextContent("Commits");
 
     await user.click(trigger);
-    await user.click(await screen.findByRole("option", { name: "Lines added" }));
+    await user.click(
+      await screen.findByRole("option", { name: "Lines added" })
+    );
 
     expect(screen.getByLabelText("Metric")).toHaveTextContent("Lines added");
   });
 
-  it("applies a dimension filter from the popover and clears it via the chip", async () => {
-    mocks.collectionSet.mockReturnValue(sourceOptionSet());
+  it("uses visible group controls and supports selecting multiple filters", async () => {
     const user = userEvent.setup();
+    const options = timeseriesByKey();
+    const metric = options.get("git.commits");
+    if (!metric) throw new Error("missing fixture metric");
+    metric.breakdown = {
+      view: "breakdown",
+      dimensions: ["source"],
+      values: [
+        {
+          entity_id: ENTITY_ID,
+          dimensions: [{ key: "source", value: "github", label: "GitHub" }],
+          value: 4,
+        },
+        {
+          entity_id: ENTITY_ID,
+          dimensions: [{ key: "source", value: "gitlab", label: "GitLab" }],
+          value: 2,
+        },
+      ],
+    };
+    mocks.collectionSet.mockReturnValue(
+      new Map([
+        [
+          "source",
+          {
+            byKey: options,
+            isPending: false,
+            isFetching: false,
+            isError: false,
+          },
+        ],
+      ])
+    );
     render(
       <MetricTimeseriesView
-        id="flt"
+        id="controls"
         entityId={ENTITY_ID}
         range={RANGE}
         metricKeys={["git.commits"]}
         groupBy={{ default: "repository", options: ["source"] }}
       />
-    );
-
-    expect(screen.getByLabelText("Group by")).toHaveTextContent(
-      "Weekly by repository"
     );
 
     await user.click(screen.getByRole("button", { name: "Filters" }));
-    await user.click(await screen.findByLabelText("Filter by source"));
-    await user.click(await screen.findByRole("option", { name: "GitHub" }));
+    await user.click(screen.getByRole("checkbox", { name: "GitHub" }));
+    await user.click(screen.getByRole("checkbox", { name: "GitLab" }));
+    expect(mocks.collection.mock.calls.at(-1)?.[0].metrics[0].filters).toEqual([
+      { dimension: "source", values: ["github", "gitlab"] },
+    ]);
 
-    const chip = await screen.findByRole("button", {
-      name: "Clear Source filter",
-    });
-    expect(chip).toHaveTextContent("Source: GitHub");
-    expect(mocks.collection.mock.calls.at(-1)?.[0].metrics[0]).toMatchObject({
-      filters: [{ dimension: "source", values: ["github"] }],
-    });
-
-    await user.click(chip);
-    expect(
-      screen.queryByRole("button", { name: "Clear Source filter" })
-    ).not.toBeInTheDocument();
-    expect(mocks.collection.mock.calls.at(-1)?.[0].metrics[0]).toMatchObject({
-      filters: [],
-    });
-  });
-
-  it("switches the group-by dimension", async () => {
-    mocks.collectionSet.mockReturnValue(sourceOptionSet());
-    const user = userEvent.setup();
-    render(
-      <MetricTimeseriesView
-        id="dim"
-        entityId={ENTITY_ID}
-        range={RANGE}
-        metricKeys={["git.commits"]}
-        groupBy={{ default: "repository", options: ["source"] }}
-      />
-    );
-
-    await user.click(screen.getByLabelText("Group by"));
-    await user.click(await screen.findByRole("option", { name: "Source" }));
-
-    expect(screen.getByLabelText("Group by")).toHaveTextContent(
-      "Weekly by source"
-    );
+    await user.click(screen.getByRole("button", { name: "Source" }));
     expect(
       mocks.collection.mock.calls.at(-1)?.[0].metrics[0].views[0]
-    ).toMatchObject({ view: "timeseries", dimensions: ["source"] });
+    ).toMatchObject({
+      view: "timeseries",
+      dimensions: ["source"],
+    });
   });
 
   it("overlays a spinner while revalidating already-shown data", () => {

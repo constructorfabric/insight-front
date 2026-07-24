@@ -34,17 +34,13 @@ vi.mock("./catalog-client", async () => {
 import * as catalogClient from "./catalog-client";
 import { useCatalog } from "./use-catalog";
 import { useCatalogLinkMap } from "./use-catalog-link-map";
+import { makeSession } from "@/test/session";
 
 const fetchCatalog = catalogClient.fetchCatalog as ReturnType<typeof vi.fn>;
 
 /** Seed an authenticated session scoped to a single tenant. */
 function signInTenant(tenantId: string): void {
-  authStore.setAuthenticated({
-    personId: "p-1",
-    email: "bob.park@example.com",
-    tenantId,
-    roles: ["user"],
-  });
+  authStore.setAuthenticated(makeSession({ tenantId }));
 }
 
 function makeOkResponse(

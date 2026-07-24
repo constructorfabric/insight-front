@@ -20,6 +20,23 @@ export type Session = {
   tenantId: string;
   /** Access-control roles. */
   roles: string[];
+  /**
+   * CSRF token bound to the session (issued at login, echoed by `/auth/me`).
+   * Sent as `X-CSRF-Token` on state-changing `/auth/*` requests — the
+   * authenticator fails closed without it (NGINX_BFF step 10.5).
+   */
+  csrfToken: string;
+  /**
+   * Unix seconds when the session dies unless `POST /auth/refresh` extends it.
+   * The session is non-sliding: activity never moves this (PRD 5.3).
+   */
+  expiresAt: number;
+  /**
+   * Server-supplied unix seconds when the SPA should call `POST /auth/refresh`
+   * (`expires_at − safety_margin ± jitter`, re-jittered on every response).
+   * Always schedule from this value — never client-computed (PRD 5.4).
+   */
+  refreshAt: number;
 };
 
 export type AuthSnapshot = {

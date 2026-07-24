@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { authStore } from "./auth-store";
 import { signOut } from "./use-auth";
+import { makeSession } from "@/test/session";
 
 const fetchMock = () => globalThis.fetch as ReturnType<typeof vi.fn>;
 
@@ -59,12 +60,7 @@ describe("signOut", () => {
 
   beforeEach(() => {
     authStore.reset();
-    authStore.setAuthenticated({
-      personId: "p-1",
-      email: "bob@example.com",
-      tenantId: "t-1",
-      roles: ["user"],
-    });
+    authStore.setAuthenticated(makeSession({ email: "bob@example.com" }));
     vi.stubGlobal("fetch", vi.fn());
     assign = vi.fn();
     Object.defineProperty(window, "location", {
@@ -89,6 +85,7 @@ describe("signOut", () => {
     const [url, init] = fetchMock().mock.calls[0];
     expect(url).toBe("/auth/logout");
     expect(init).toMatchObject({ method: "POST", credentials: "include" });
+    expect(init.headers).toMatchObject({ "X-CSRF-Token": "csrf-1" });
     expect(authStore.getSnapshot().status).toBe("unauthenticated");
     expect(assign).toHaveBeenCalledWith("https://idp.example/logout");
   });

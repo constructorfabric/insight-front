@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { authStore } from "@/auth/auth-store";
 import { fetchWithAuth } from "./fetch-with-auth";
+import { makeSession } from "@/test/session";
 
 const fetchMock = () => globalThis.fetch as ReturnType<typeof vi.fn>;
 
@@ -15,12 +16,7 @@ describe("fetchWithAuth", () => {
 
   beforeEach(() => {
     authStore.reset();
-    authStore.setAuthenticated({
-      personId: "p-1",
-      email: "bob.park@example.com",
-      tenantId: "t-1",
-      roles: ["user"],
-    });
+    authStore.setAuthenticated(makeSession());
     vi.stubGlobal("fetch", vi.fn());
     // jsdom's `window.location.assign` is a non-configurable no-op; replace
     // the whole location object so the full-page login bounce is observable.
