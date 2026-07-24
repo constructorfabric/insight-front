@@ -19,12 +19,15 @@ import {
 import { usePeriod } from "@/hooks/use-period";
 import { flattenSubordinates, findIdentityNode } from "@/lib/insight/identity-tree";
 import { metricGroups } from "@/lib/insight/groups";
-import { quantile } from "@/lib/insight/within-team-peer";
+import { forEntity, type MetricCollectionConfig } from "@/lib/metrics/collection";
 import {
-  forEntity,
-  type MetricCollectionConfig,
-  type NormalizedMetricResult,
-} from "@/lib/metrics/collection";
+  distribution,
+  fmtCompact,
+  perCapita,
+  representative,
+  topDecileShare,
+  type DistRow,
+} from "@/lib/portal/metric-stats";
 import type { MetricDirection } from "@/api/metric-results-client";
 import { normalizePersonId } from "@/lib/metrics/entity";
 import { formatMetricValue } from "@/lib/format";
@@ -487,108 +490,7 @@ function ModalityView({
   );
 }
 
-/** Representative period value: total for sums, org median otherwise. */
-function representative(
-  r: NormalizedMetricResult | undefined,
-  ids: readonly string[],
-): number | null {
-  if (!r) return null;
-  const vals = ids
-    .map((id) => forEntity(r, id).value)
-    .filter((v): v is number => v != null && Number.isFinite(v));
-  if (!vals.length) return null;
-  if (r.computation === "sum") return vals.reduce((a, b) => a + b, 0);
-  return quantile([...vals].sort((a, b) => a - b), 0.5);
-}
-
-/** Per-active-person mean for a summable metric (denominator = value > 0). */
-function perCapita(r: NormalizedMetricResult, ids: readonly string[]): number {
-  let total = 0;
-  let active = 0;
-  for (const id of ids) {
-    const v = forEntity(r, id).value;
-    if (v != null && Number.isFinite(v) && v > 0) {
-      total += v;
-      active += 1;
-    }
-  }
-  return active ? total / active : 0;
-}
-
-interface DistRow {
-  /** Compact lower-edge tick, e.g. "10" or "1k". */
-  label: string;
-  /** Full band for the tooltip, e.g. "10–15". */
-  range: string;
-  count: number;
-}
-
 const DIST_CONFIG: ChartConfig = { count: { label: "People" } };
-
-/**
- * Frequency distribution of per-person values into evenly-spaced bands, as a
- * histogram (band → people count). Bin width adapts to the data via a 1/2/5
- * ladder so the shape (right-skew, tail) is legible instead of a few coarse
- * blocks. X ticks show the lower edge; the tooltip shows the full band. Labels
- * are unit-agnostic (the caption names the unit) so this works for hours,
- * message counts, or anything else.
- */
-function distribution(
-  values: readonly number[],
-  fmt: (n: number) => string,
-): DistRow[] {
-  if (values.length < 4) return [];
-  const max = Math.max(...values);
-  if (max <= 0) return [];
-  const step = chooseStep(max, 14);
-  const nBins = Math.max(1, Math.ceil(max / step));
-  const counts = new Array(nBins).fill(0) as number[];
-  for (const v of values) {
-    counts[Math.min(nBins - 1, Math.floor(v / step))] += 1;
-  }
-  return counts.map((count, i) => ({
-    label: fmt(i * step),
-    range: `${fmt(i * step)}–${fmt((i + 1) * step)}`,
-    count,
-  }));
-}
-
-/**
- * Smallest whole 1/2/5·10ⁿ step whose bin count stays at or under `maxBins`.
- * Steps start at 1 so integer counters (messages, files) never get fractional
- * bands like "0.5 files"; percent metrics are 0–100 here, so integer steps
- * (e.g. 10%) cover them too.
- */
-function chooseStep(max: number, maxBins: number): number {
-  const mults = [1, 2, 5];
-  for (let pow = 0; pow < 12; pow++) {
-    for (const m of mults) {
-      const step = m * Math.pow(10, pow);
-      if (Math.ceil(max / step) <= maxBins) return step;
-    }
-  }
-  return max;
-}
-
-/** Share of the total held by the busiest 10% of contributors. */
-function topDecileShare(values: readonly number[]): number | null {
-  if (values.length < 4) return null;
-  const sorted = [...values].sort((a, b) => b - a);
-  const total = sorted.reduce((a, b) => a + b, 0);
-  if (total <= 0) return null;
-  const topN = Math.max(1, Math.ceil(sorted.length * 0.1));
-  const top = sorted.slice(0, topN).reduce((a, b) => a + b, 0);
-  return top / total;
-}
-
-/** Compact axis number: 1500 → "1.5k", 10 → "10", 2.5 → "2.5". */
-function fmtCompact(n: number): string {
-  if (Math.abs(n) >= 1000) {
-    const k = n / 1000;
-    return `${Number.isInteger(k) ? k : k.toFixed(1)}k`;
-  }
-  return Number.isInteger(n) ? String(n) : n.toFixed(1);
-}
 
 function Delta({
   now,
