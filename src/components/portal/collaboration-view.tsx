@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { ComingSoon } from "@/components/widgets/coming-soon";
 import { orgScopeGate } from "@/components/portal/org-scope-gate";
 import { SectionTrend } from "@/components/widgets/v2/section-trend";
-import { buildTrendData } from "@/lib/portal/trend-data";
+import { buildTrendData, pickTrendBucket } from "@/lib/portal/trend-data";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   BarChart,
@@ -22,11 +22,10 @@ import { metricGroups } from "@/lib/insight/groups";
 import { quantile } from "@/lib/insight/within-team-peer";
 import {
   forEntity,
-  MAX_PROJECTED_ROWS,
   type MetricCollectionConfig,
   type NormalizedMetricResult,
 } from "@/lib/metrics/collection";
-import type { MetricBucket, MetricDirection } from "@/api/metric-results-client";
+import type { MetricDirection } from "@/api/metric-results-client";
 import { normalizePersonId } from "@/lib/metrics/entity";
 import { formatMetricValue } from "@/lib/format";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
@@ -486,33 +485,6 @@ function ModalityView({
       ) : null}
     </div>
   );
-}
-
-/**
- * Finest bucket (day → week → month) whose projected rows
- * (members × metrics × buckets) fit the backend's all-or-nothing limit, so a
- * large org still gets a (coarser) trend rather than a failed request. Small
- * teams keep daily granularity; the org root falls back to weekly/monthly.
- */
-function pickTrendBucket(
-  members: number,
-  metrics: number,
-  range: { from: string; to: string },
-): MetricBucket {
-  const days = Math.max(1, daysBetween(range.from, range.to));
-  const perBucket = Math.max(1, members * Math.max(1, metrics));
-  // Headroom below the hard limit so we never sit exactly on the cliff.
-  const maxBuckets = Math.max(1, Math.floor((MAX_PROJECTED_ROWS * 0.85) / perBucket));
-  if (days <= maxBuckets) return "day";
-  if (Math.ceil(days / 7) <= maxBuckets) return "week";
-  return "month";
-}
-
-function daysBetween(from: string, to: string): number {
-  const a = Date.parse(`${from}T00:00:00Z`);
-  const b = Date.parse(`${to}T00:00:00Z`);
-  if (Number.isNaN(a) || Number.isNaN(b) || b < a) return 1;
-  return Math.floor((b - a) / 86_400_000) + 1;
 }
 
 /** Representative period value: total for sums, org median otherwise. */

@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { ComingSoon } from "@/components/widgets/coming-soon";
 import { orgScopeGate } from "@/components/portal/org-scope-gate";
 import { SectionTrend } from "@/components/widgets/v2/section-trend";
-import { buildTrendData } from "@/lib/portal/trend-data";
+import { buildTrendData, pickTrendBucket } from "@/lib/portal/trend-data";
 import { Card, CardContent } from "@/components/ui/card";
 import { usePeriod } from "@/hooks/use-period";
 import { flattenSubordinates, findIdentityNode } from "@/lib/insight/identity-tree";
@@ -81,11 +81,21 @@ export function RichDomainView({
     [defs],
   );
   const headlineKeys = useMemo(() => defs.flatMap((d) => d.card.preview), [defs]);
+  // Coarsen the bucket with roster size so an org-wide per-member timeseries
+  // stays under the backend's row limit instead of 500-ing (same fix as the
+  // Collaboration/Overview trends — otherwise Directions shows "unable to load").
+  const trendBucket = useMemo(
+    () => pickTrendBucket(memberIds.length, headlineKeys.length, dateRange),
+    [memberIds.length, headlineKeys.length, dateRange],
+  );
   const trendCollection = useMemo<MetricCollectionConfig>(
     () => ({
-      metrics: headlineKeys.map((key) => ({ key, views: [{ view: "timeseries" }] })),
+      metrics: headlineKeys.map((key) => ({
+        key,
+        views: [{ view: "timeseries" as const, bucket: trendBucket }],
+      })),
     }),
-    [headlineKeys],
+    [headlineKeys, trendBucket],
   );
 
   const grid = useMemberGridData(

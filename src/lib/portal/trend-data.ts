@@ -1,5 +1,38 @@
+import type { MetricBucket } from "@/api/metric-results-client";
 import type { SectionTrendPoint } from "@/components/widgets/v2/section-trend";
-import { forEntity, type NormalizedMetricResult } from "@/lib/metrics/collection";
+import {
+  forEntity,
+  MAX_PROJECTED_ROWS,
+  type NormalizedMetricResult,
+} from "@/lib/metrics/collection";
+
+/**
+ * Finest bucket (day → week → month) whose projected rows
+ * (members × metrics × buckets) fit the backend's all-or-nothing row limit, so
+ * a large org still gets a (coarser) trend rather than a failed request. Small
+ * teams keep daily granularity; the org root falls back to weekly/monthly.
+ * Shared by every portal trend so no view repeats the org-scope row-limit trap.
+ */
+export function pickTrendBucket(
+  members: number,
+  metrics: number,
+  range: { from: string; to: string },
+): MetricBucket {
+  const days = Math.max(1, daysBetween(range.from, range.to));
+  const perBucket = Math.max(1, members * Math.max(1, metrics));
+  // Headroom below the hard limit so we never sit exactly on the cliff.
+  const maxBuckets = Math.max(1, Math.floor((MAX_PROJECTED_ROWS * 0.85) / perBucket));
+  if (days <= maxBuckets) return "day";
+  if (Math.ceil(days / 7) <= maxBuckets) return "week";
+  return "month";
+}
+
+function daysBetween(from: string, to: string): number {
+  const a = Date.parse(`${from}T00:00:00Z`);
+  const b = Date.parse(`${to}T00:00:00Z`);
+  if (Number.isNaN(a) || Number.isNaN(b) || b < a) return 1;
+  return Math.floor((b - a) / 86_400_000) + 1;
+}
 
 /**
  * Sum each metric's per-bucket timeseries points across a roster into a single
