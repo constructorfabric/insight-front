@@ -3,11 +3,57 @@
  * YYYY-MM-DD without a timezone suffix — the backend filters by date string.
  */
 
+import { differenceInCalendarDays, isValid, parseISO } from "date-fns";
+
 import type { CustomRange, PeriodValue } from "@/types/insight";
 
 export type DateRange = { from: string; to: string };
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export const MAX_DATE_RANGE_DAYS = 400;
+
+export type DateRangeValidation =
+  | { valid: true; days: number }
+  | {
+      valid: false;
+      reason: "invalid_date" | "inverted" | "too_long";
+      days?: number;
+    };
+
+function parseISOCalendarDate(value: string): Date | null {
+  if (!ISO_DATE_RE.test(value)) return null;
+
+  const [year, month, day] = value.split("-").map(Number);
+  const date = parseISO(value);
+
+  if (
+    !isValid(date) ||
+    date.getFullYear() !== year ||
+    date.getMonth() !== month! - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return date;
+}
+
+export function validateDateRange(range: DateRange): DateRangeValidation {
+  const from = parseISOCalendarDate(range.from);
+  const to = parseISOCalendarDate(range.to);
+
+  if (!from || !to) return { valid: false, reason: "invalid_date" };
+  if (from > to) return { valid: false, reason: "inverted" };
+
+  const days = differenceInCalendarDays(to, from) + 1;
+
+  if (days > MAX_DATE_RANGE_DAYS) {
+    return { valid: false, reason: "too_long", days };
+  }
+
+  return { valid: true, days };
+}
 
 export function toISODate(d: Date): string {
   const y = d.getFullYear();
@@ -64,18 +110,21 @@ export function periodToDateRange(period: PeriodValue): DateRange {
 }
 
 function assertDateRange(range: DateRange): void {
-  if (
-    !ISO_DATE_RE.test(range.from) ||
-    !ISO_DATE_RE.test(range.to) ||
-    range.from > range.to
-  ) {
-    throw new Error(`Invalid date range: from=${range.from} to=${range.to}`);
+  const validation = validateDateRange(range);
+  if (validation.valid) return;
+
+  if (validation.reason === "too_long") {
+    throw new Error(
+      `Date range exceeds ${MAX_DATE_RANGE_DAYS} days: from=${range.from} to=${range.to}`
+    );
   }
+
+  throw new Error(`Invalid date range: from=${range.from} to=${range.to}`);
 }
 
 export function resolveDateRange(
   period: PeriodValue,
-  customRange: CustomRange | null,
+  customRange: CustomRange | null
 ): DateRange {
   if (customRange) {
     const range: DateRange = { from: customRange.from, to: customRange.to };
@@ -89,7 +138,7 @@ export function resolveDateRange(
 // end-of-month boundaries don't roll forward.
 export function previousPeriodRange(
   range: DateRange,
-  period: PeriodValue,
+  period: PeriodValue
 ): DateRange {
   const shift = (iso: string): string => {
     const [y, m, d] = iso.split("-").map(Number);
@@ -102,7 +151,7 @@ export function previousPeriodRange(
       const lastDay = new Date(
         date.getFullYear(),
         date.getMonth() + 1,
-        0,
+        0
       ).getDate();
       date.setDate(Math.min(originalDay, lastDay));
     };

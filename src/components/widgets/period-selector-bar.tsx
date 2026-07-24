@@ -1,8 +1,13 @@
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, CircleAlert } from "lucide-react";
 import { useState } from "react";
 import type { DateRange as DayPickerRange } from "react-day-picker";
 
-import { resolveDateRange, toISODate } from "@/api/period-to-date-range";
+import {
+  MAX_DATE_RANGE_DAYS,
+  resolveDateRange,
+  toISODate,
+  validateDateRange,
+} from "@/api/period-to-date-range";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -65,6 +70,18 @@ export function PeriodSelectorBar({
 
   const activeRange = resolveDateRange(period, customRange);
   const activeRangeLabel = `${formatShortDate(activeRange.from)} – ${formatShortDate(activeRange.to)}`;
+  const pendingRange = tempRange?.from
+    ? {
+        from: toISODate(tempRange.from),
+        to: toISODate(tempRange.to ?? tempRange.from),
+      }
+    : null;
+  const pendingValidation = pendingRange
+    ? validateDateRange(pendingRange)
+    : null;
+  const rangeTooLong =
+    pendingValidation?.valid === false &&
+    pendingValidation.reason === "too_long";
 
   const handleOpenChange = (open: boolean) => {
     if (open) {
@@ -114,7 +131,7 @@ export function PeriodSelectorBar({
                     <TooltipTrigger
                       render={
                         <span
-                          className="rounded bg-muted px-1 py-px text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+                          className="rounded bg-muted px-1 py-px text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
                           aria-label="Dates bucketed by UTC midnight"
                           onClick={(e) => e.stopPropagation()}
                         >
@@ -159,6 +176,18 @@ export function PeriodSelectorBar({
                 typeof window !== "undefined" && window.innerWidth < 640 ? 1 : 2
               }
             />
+            {rangeTooLong ? (
+              <div
+                role="alert"
+                className="flex items-center gap-2 border-t border-border bg-destructive/5 px-4 py-2 text-xs text-destructive"
+              >
+                <CircleAlert className="size-3.5 shrink-0" />
+                <span>
+                  Selected range is {pendingValidation.days} days. Choose up to{" "}
+                  {MAX_DATE_RANGE_DAYS} days.
+                </span>
+              </div>
+            ) : null}
             <div className="flex items-center gap-3 border-t border-border px-4 py-2">
               {customRange ? (
                 <Button
@@ -184,14 +213,10 @@ export function PeriodSelectorBar({
                 variant="default"
                 size="sm"
                 className="ml-auto"
-                disabled={!tempRange?.from}
+                disabled={!pendingValidation?.valid}
                 onClick={() => {
-                  if (!tempRange?.from) return;
-                  const toDate = tempRange.to ?? tempRange.from;
-                  onRangeChange({
-                    from: toISODate(tempRange.from),
-                    to: toISODate(toDate),
-                  });
+                  if (!pendingRange || !pendingValidation?.valid) return;
+                  onRangeChange(pendingRange);
                   setCalOpen(false);
                 }}
               >
