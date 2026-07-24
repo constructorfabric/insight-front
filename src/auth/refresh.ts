@@ -205,10 +205,13 @@ class RefreshDriver {
         // Re-probe /auth/me: it re-primes csrf_token and both timestamps.
         if ((await loadSession()) !== "authenticated") {
           // loadSession failed closed; the store flip already stopped the
-          // driver via our subscription — still bounce to login like the
-          // 401 path, or the user is stranded on AuthGate's overlay with no
-          // redirect in flight. (The channel closed with stop(), so no
-          // fan-out — other tabs recover on their own next refresh.)
+          // driver via our subscription. Fan out the expiry like the 401
+          // path — broadcast() falls through to the localStorage transport
+          // now that stop() closed the channel, and every tab listens to
+          // storage events regardless of its own transport. Then bounce to
+          // login, or the user is stranded on AuthGate's overlay with no
+          // redirect in flight.
+          this.broadcast({ kind: "expired" });
           this.expire();
           return;
         }

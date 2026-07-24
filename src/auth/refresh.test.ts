@@ -214,6 +214,9 @@ describe("session refresh driver", () => {
     // (signIn's one observable bounce per file is spent by the 401 test;
     // the shared expire() path is asserted there.)
     expect(authStore.getSnapshot().status).toBe("unauthenticated");
+    // Other tabs learn of the expiry like on the 401 path — via the
+    // localStorage transport, since stop() already closed the channel.
+    expect(localStorage.getItem(FALLBACK_MSG_KEY)).toContain('"expired"');
     await vi.advanceTimersByTimeAsync(3_600_000);
     expect(fetchMock()).toHaveBeenCalledTimes(2); // driver stopped, no loop
   });

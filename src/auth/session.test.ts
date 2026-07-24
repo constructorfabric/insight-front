@@ -67,6 +67,21 @@ describe("loadSession", () => {
     });
   });
 
+  it("stores malformed timing fields as 0 (driver never schedules from them)", async () => {
+    fetchMock().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        csrf_token: "csrf-1",
+        expires_at: "1770000600", // wire contract violation: string, not number
+        refresh_at: Number.NaN,
+      }),
+    });
+
+    await loadSession();
+
+    expect(authStore.getSnapshot().session).toMatchObject({ expiresAt: 0, refreshAt: 0 });
+  });
+
   it("fails closed to unauthenticated when /auth/me omits csrf_token", async () => {
     // A live session always carries a CSRF token; without it, state-changing
     // /auth/* would be rejected server-side — so treat it as no session.
