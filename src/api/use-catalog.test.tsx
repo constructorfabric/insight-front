@@ -44,6 +44,7 @@ function signInTenant(tenantId: string): void {
     email: "bob.park@example.com",
     tenantId,
     roles: ["user"],
+    csrfToken: "csrf-1",
   });
 }
 

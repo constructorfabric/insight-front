@@ -14,6 +14,7 @@ describe("getViewerEmail", () => {
       email: "bob@example.com",
       tenantId: "",
       roles: [],
+      csrfToken: "csrf-1",
     });
 
     expect(getViewerEmail()).toBe("bob@example.com");

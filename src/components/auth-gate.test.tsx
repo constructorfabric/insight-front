@@ -27,6 +27,7 @@ describe("<AuthGate>", () => {
         email: "bob.park@example.com",
         tenantId: "t-1",
         roles: ["user"],
+        csrfToken: "csrf-1",
       }),
     );
     renderGate();
@@ -54,6 +55,7 @@ describe("<AuthGate>", () => {
         email: "bob.park@example.com",
         tenantId: "t-1",
         roles: ["user"],
+        csrfToken: "csrf-1",
       }),
     );
     renderGate();
