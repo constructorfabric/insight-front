@@ -153,8 +153,9 @@ export function familyObserved(
 
 /**
  * Domain coverage (Overview design O5): the share of members with at least one
- * OBSERVED metric among `groupKeys` — via `entityObserved` (peer target), never
- * zero-filled period sums. Null on an empty roster so callers can suppress.
+ * OBSERVED metric among `groupKeys` — via `entityObserved` (peer target when
+ * present; non-zero period value otherwise, so zero-filled sums never count as
+ * observed). Null on an empty roster so callers can suppress.
  */
 export function groupCoverage(
   byKey: Map<string, NormalizedMetricResult>,

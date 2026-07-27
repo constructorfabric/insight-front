@@ -496,6 +496,11 @@ export function legacyGroups(): LegacyGroup[] {
   return GROUPS.filter((g): g is LegacyGroup => g.kind === "legacy");
 }
 
+/** Every group's card-preview keys, deduped — the cross-domain headline set. */
+export function headlineMetricKeys(): string[] {
+  return [...new Set(metricGroups().flatMap((g) => g.card.preview))];
+}
+
 /**
  * The "At a glance" KPI row: array order is display order. `legacy` tiles
  * come from the legacy KPI batch; `metric` tiles come from the derived

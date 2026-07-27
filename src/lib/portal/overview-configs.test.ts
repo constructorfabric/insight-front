@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { metricGroups } from "@/lib/insight/groups";
 import { ZONE_SECTIONS } from "@/lib/portal/nav-model";
 import { sectionMetricKeys } from "@/lib/portal/lens-configs";
-import { OVERVIEW_ITEMS, overviewMetricKeys } from "./overview-configs";
+import { DEFAULT_OVERVIEW_ITEM, OVERVIEW_ITEMS, overviewMetricKeys } from "./overview-configs";
 
 const KNOWN_KEYS = new Set(
   metricGroups().flatMap((g) => g.collection.metrics.map((m) => m.key)),
@@ -41,5 +41,21 @@ describe("OVERVIEW_ITEMS registry", () => {
     for (const [id, config] of Object.entries(OVERVIEW_ITEMS)) {
       expect(config.sections.length, id).toBeGreaterThanOrEqual(1);
     }
+  });
+
+  it("keeps the router default item present", () => {
+    expect(OVERVIEW_ITEMS[DEFAULT_OVERVIEW_ITEM]).toBeDefined();
+  });
+
+  it("direction-cards keys are variant-independent", () => {
+    const compact = sectionMetricKeys({
+      title: "t",
+      sections: [{ kind: "direction-cards", variant: "compact" }],
+    });
+    const full = sectionMetricKeys({
+      title: "t",
+      sections: [{ kind: "direction-cards", variant: "full" }],
+    });
+    expect([...compact].sort()).toEqual([...full].sort());
   });
 });

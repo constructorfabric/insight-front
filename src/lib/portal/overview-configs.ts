@@ -1,4 +1,4 @@
-import { metricGroups } from "@/lib/insight/groups";
+import { headlineMetricKeys } from "@/lib/insight/groups";
 import { sectionMetricKeys, type LensConfig } from "@/lib/portal/lens-configs";
 
 /**
@@ -9,12 +9,13 @@ import { sectionMetricKeys, type LensConfig } from "@/lib/portal/lens-configs";
  */
 
 /** Attention scans the cross-domain headline set — every group's card preview. */
-const ATTENTION_KEYS: readonly string[] = [
-  ...new Set(metricGroups().flatMap((g) => g.card.preview)),
-];
+const ATTENTION_KEYS: readonly string[] = headlineMetricKeys();
+
+/** The item the router renders when no pane item is selected. */
+export const DEFAULT_OVERVIEW_ITEM = "at-a-glance";
 
 export const OVERVIEW_ITEMS: Record<string, LensConfig> = {
-  "at-a-glance": {
+  [DEFAULT_OVERVIEW_ITEM]: {
     title: "Overview",
     tagline: "cross-functional org rollup",
     sections: [
@@ -60,6 +61,9 @@ export const OVERVIEW_ITEMS: Record<string, LensConfig> = {
     title: "Overview · Contribution breakdown",
     tagline: "who carries the output — shape, not leaderboard",
     sections: [
+      // Headline gives the per-capita + delta rollup AND feeds the automatic
+      // by-unit comparison when a slice is active (review decision).
+      { kind: "headline", metrics: ["git.commits"] },
       { kind: "concentration", metrics: ["git.commits"], framing: "bus-factor" },
       {
         kind: "distribution",

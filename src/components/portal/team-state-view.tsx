@@ -10,7 +10,7 @@ import {
   attentionSummary,
   computeAttentionFlags,
 } from "@/lib/insight/attention-flags";
-import { metricGroups } from "@/lib/insight/groups";
+import { headlineMetricKeys, metricGroups } from "@/lib/insight/groups";
 import {
   availableSlices,
   cohortKey,
@@ -87,10 +87,7 @@ export function TeamStateView() {
   // Headline metrics only (card.preview): the set a lead scans, and — crucially —
   // small enough to stay under the API's 50-metrics-per-request cap when the full
   // metric catalog across every group would blow past it.
-  const headlineKeys = useMemo(
-    () => [...new Set(groups.flatMap((g) => g.card.preview))],
-    [groups],
-  );
+  const headlineKeys = useMemo(() => headlineMetricKeys(), []);
   const gridCollection = useMemo<MetricCollectionConfig>(() => {
     const want = new Set(headlineKeys);
     const seen = new Set<string>();

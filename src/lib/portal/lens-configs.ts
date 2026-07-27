@@ -1,4 +1,4 @@
-import { metricGroups } from "@/lib/insight/groups";
+import { headlineMetricKeys } from "@/lib/insight/groups";
 
 /**
  * The Directions registry: every direction × lens maps to either a LensConfig
@@ -53,15 +53,13 @@ export function sectionMetricKeys(config: LensConfig): string[] {
       case "trend":
       case "concentration":
       case "participation":
+      case "attention":
         for (const k of s.metrics) keys.add(k);
         break;
       case "distribution":
       case "composition":
       case "event-histogram":
         keys.add(s.metric);
-        break;
-      case "attention":
-        for (const k of s.metrics) keys.add(k);
         break;
       case "direction-cards":
         // Cards derive from every configured direction Overview lens (design O4).
@@ -74,7 +72,7 @@ export function sectionMetricKeys(config: LensConfig): string[] {
         }
         break;
       case "coverage-radar":
-        for (const g of metricGroups()) for (const k of g.card.preview) keys.add(k);
+        for (const k of headlineMetricKeys()) keys.add(k);
         break;
       default: {
         const _exhaustive: never = s;
