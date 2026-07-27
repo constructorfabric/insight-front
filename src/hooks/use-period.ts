@@ -3,13 +3,13 @@ import { useSyncExternalStore } from "react";
 import {
   resolveDateRange,
   type DateRange,
+  validateDateRange,
 } from "@/api/period-to-date-range";
 import type { CustomRange, PeriodValue, ViewMode } from "@/types/insight";
 
 const PERIOD_KEY = "insight.period";
 const VIEW_MODE_KEY = "insight.view-mode";
 
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const VALID_PERIODS: ReadonlySet<PeriodValue> = new Set([
   "week",
   "month",
@@ -44,13 +44,17 @@ function readCustomRange(): CustomRange | null {
   const raw = window.localStorage.getItem(`${PERIOD_KEY}.custom`);
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as CustomRange;
+    const parsed = JSON.parse(raw) as unknown;
     if (
-      ISO_DATE_RE.test(parsed.from) &&
-      ISO_DATE_RE.test(parsed.to) &&
-      parsed.from <= parsed.to
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "from" in parsed &&
+      "to" in parsed &&
+      typeof parsed.from === "string" &&
+      typeof parsed.to === "string"
     ) {
-      return parsed;
+      const range = { from: parsed.from, to: parsed.to };
+      if (validateDateRange(range).valid) return range;
     }
   } catch {
     return null;
@@ -94,7 +98,7 @@ function setState(next: Partial<PersistedState>): void {
       if (state.customRange) {
         window.localStorage.setItem(
           `${PERIOD_KEY}.custom`,
-          JSON.stringify(state.customRange),
+          JSON.stringify(state.customRange)
         );
       } else {
         window.localStorage.removeItem(`${PERIOD_KEY}.custom`);
@@ -141,7 +145,14 @@ export function usePeriod(): {
     customRange: snap.customRange,
     dateRange: resolveDateRange(snap.period, snap.customRange),
     setPeriod: (period) => setState({ period, customRange: null }),
-    setCustomRange: (customRange) => setState({ customRange }),
+    setCustomRange: (customRange) => {
+      if (customRange && !validateDateRange(customRange).valid) {
+        throw new Error(
+          `Invalid date range: from=${customRange.from} to=${customRange.to}`
+        );
+      }
+      setState({ customRange });
+    },
   };
 }
 

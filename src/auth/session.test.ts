@@ -43,6 +43,7 @@ describe("loadSession", () => {
       csrfToken: "csrf-1",
       expiresAt: 1770000600,
       refreshAt: 1770000510,
+      impersonatorEmail: null,
     });
     const [url, init] = fetchMock().mock.calls[0];
     expect(url).toBe("/auth/me");
@@ -50,7 +51,10 @@ describe("loadSession", () => {
   });
 
   it("defaults missing fields to empty values (csrf_token present)", async () => {
-    fetchMock().mockResolvedValueOnce({ ok: true, json: async () => ({ csrf_token: "csrf-1" }) });
+    fetchMock().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ csrf_token: "csrf-1" }),
+    });
 
     await loadSession();
 
@@ -64,6 +68,26 @@ describe("loadSession", () => {
       csrfToken: "csrf-1",
       expiresAt: 0,
       refreshAt: 0,
+      impersonatorEmail: null,
+    });
+  });
+
+  it("surfaces impersonator_email from a view-as session (insight#1941)", async () => {
+    fetchMock().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        user: "p-target",
+        email: "target@example.com",
+        csrf_token: "csrf-1",
+        impersonator_email: "admin@example.com",
+      }),
+    });
+
+    await loadSession();
+
+    expect(authStore.getSnapshot().session).toMatchObject({
+      email: "target@example.com",
+      impersonatorEmail: "admin@example.com",
     });
   });
 
@@ -79,7 +103,10 @@ describe("loadSession", () => {
 
     await loadSession();
 
-    expect(authStore.getSnapshot().session).toMatchObject({ expiresAt: 0, refreshAt: 0 });
+    expect(authStore.getSnapshot().session).toMatchObject({
+      expiresAt: 0,
+      refreshAt: 0,
+    });
   });
 
   it("fails closed to unauthenticated when /auth/me omits csrf_token", async () => {
@@ -87,7 +114,12 @@ describe("loadSession", () => {
     // /auth/* would be rejected server-side — so treat it as no session.
     fetchMock().mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ user: "p-1", email: "bob@example.com", tenant_id: "t-1", roles: ["user"] }),
+      json: async () => ({
+        user: "p-1",
+        email: "bob@example.com",
+        tenant_id: "t-1",
+        roles: ["user"],
+      }),
     });
 
     const status = await loadSession();

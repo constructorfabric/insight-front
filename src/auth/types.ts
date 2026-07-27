@@ -37,6 +37,13 @@ export type Session = {
    * Always schedule from this value — never client-computed (PRD 5.4).
    */
   refreshAt: number;
+  /**
+   * The real principal behind a `__override` view-as session (insight#1941):
+   * the authenticator mints the session AS another person and names who is
+   * actually signed in here. `null` on normal sessions; non-null drives the
+   * "viewing as" banner.
+   */
+  impersonatorEmail: string | null;
 };
 
 export type AuthSnapshot = {

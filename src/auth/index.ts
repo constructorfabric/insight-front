@@ -1,4 +1,5 @@
 export { authStore } from "./auth-store";
+export { consumeOverrideParam } from "./override";
 export { loadSession } from "./session";
 export { startSessionRefresh } from "./refresh";
 export { useAuth, signIn, signOut } from "./use-auth";
