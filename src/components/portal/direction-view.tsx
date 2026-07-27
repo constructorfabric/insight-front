@@ -10,15 +10,7 @@ import { DIRECTIONS } from "@/lib/portal/nav-model";
  * its honest ComingSoon note (design D1). The grid fetch is direction-scoped
  * (union of the direction's lens keys) so switching lenses never re-spins.
  */
-export function DirectionView({
-  scopePerson,
-  dir,
-  lens,
-}: {
-  scopePerson: string;
-  dir: string;
-  lens: string;
-}) {
+export function DirectionView({ dir, lens }: { dir: string; lens: string }) {
   const entry = lensEntry(dir, lens);
   const gridKeys = useMemo(() => directionMetricKeys(dir), [dir]);
   if (!entry) {
@@ -26,11 +18,5 @@ export function DirectionView({
     return <Pending label={`“${lens}” isn't a metric family in ${name} yet.`} />;
   }
   if ("comingSoon" in entry) return <Pending label={entry.comingSoon} />;
-  return (
-    <DomainLensView
-      scopePerson={scopePerson}
-      config={entry}
-      gridKeys={gridKeys}
-    />
-  );
+  return <DomainLensView config={entry} gridKeys={gridKeys} />;
 }

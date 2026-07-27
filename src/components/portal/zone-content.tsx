@@ -13,6 +13,10 @@ import { useActiveZone } from "@/lib/portal/use-active-zone";
  * Content for the non-entity portal zones. Overview rolls the org up; Directions
  * route each lens to a focused domain view or an honest ComingSoon; Manage reads
  * the live catalog; Scorecard / Reports are honest scaffolds.
+ *
+ * Org zones take no person prop — they read the global org scope (design §6) via
+ * `useOrgScope`, so the topbar badge and every org subtitle always agree. Only
+ * the entity lenses (Person / People) stay route-driven.
  */
 export function ZoneContent() {
   const { activeZone, activePerson } = useActiveZone();
@@ -24,11 +28,11 @@ export function ZoneContent() {
     case "person":
       return <PersonView person={activePerson} />;
     case "overview":
-      return <OverviewView scopePerson={activePerson} item={item} />;
+      return <OverviewView item={item} />;
     case "directions":
-      return <DirectionView scopePerson={activePerson} dir={dir} lens={lens} />;
+      return <DirectionView dir={dir} lens={lens} />;
     case "aicost":
-      return <AiCostView scopePerson={activePerson} item={item} />;
+      return <AiCostView item={item} />;
     case "people":
       return <PeopleView person={activePerson} item={item} />;
     case "manage":

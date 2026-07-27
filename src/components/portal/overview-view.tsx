@@ -20,7 +20,6 @@ import {
   attentionSummary,
   computeAttentionFlags,
 } from "@/lib/insight/attention-flags";
-import { flattenSubordinates, findIdentityNode } from "@/lib/insight/identity-tree";
 import { metricGroups, type GroupId } from "@/lib/insight/groups";
 import {
   cohortKey,
@@ -35,7 +34,7 @@ import {
 } from "@/lib/metrics/collection";
 import { normalizePersonId } from "@/lib/metrics/entity";
 import { setPortalDir, setPortalZone, usePortalSlice } from "@/lib/portal/portal-store";
-import { useIcPerson } from "@/queries/ic-dashboard";
+import { useOrgScope } from "@/lib/portal/use-org-scope";
 import { useTeamMembers } from "@/queries/team-view";
 import { useMetricCollection } from "@/queries/metric-results";
 import { useMemberGridData } from "@/queries/v2/member-grid";
@@ -80,28 +79,18 @@ const TREND_KEYS = ["git.commits", "git.prs_merged", "collab.messages_sent"];
 const CONTRIB_KEY = "git.commits";
 
 /**
- * Overview — org-level, cross-domain rollup (whole org under the viewer). Six
+ * Overview — org-level, cross-domain rollup of the active org scope. Six
  * sections, each real: totals glance, per-direction cards, org trend, org-wide
  * attention (cohort-aware), a domain-coverage radar, and a contribution
- * breakdown by the active slice. Period + slice come from the global bar.
+ * breakdown by the active slice. Period, slice and scope come from the global
+ * bar — the view owns none of them.
  */
-export function OverviewView({
-  scopePerson,
-  item,
-}: {
-  scopePerson: string;
-  item: string | null;
-}) {
+export function OverviewView({ item }: { item: string | null }) {
   const { period, dateRange } = usePeriod();
 
-  const viewerQ = useIcPerson(scopePerson);
-  const tree = viewerQ.data ?? null;
-  const pivot = useMemo(
-    () => (tree && scopePerson.includes("@") ? findIdentityNode(tree, scopePerson) : null),
-    [tree, scopePerson],
-  );
-  const roster = useMemo(() => (pivot ? flattenSubordinates(pivot) : null), [pivot]);
-  const membersQ = useTeamMembers(scopePerson, roster, period, dateRange, {
+  const orgScope = useOrgScope();
+  const { pivot, roster, pivotEmail } = orgScope;
+  const membersQ = useTeamMembers(pivotEmail, roster, period, dateRange, {
     keepPrevious: true,
   });
   const members = useMemo(() => membersQ.data ?? [], [membersQ.data]);
@@ -120,8 +109,8 @@ export function OverviewView({
 
   const slice = usePortalSlice();
   const attrByEntity = useMemo(
-    () => collectRosterAttrs(tree, normalizePersonId),
-    [tree],
+    () => collectRosterAttrs(pivot, normalizePersonId),
+    [pivot],
   );
   const cohortOf = useMemo(
     () => (id: string) => cohortKey(attrByEntity.get(id), slice),
@@ -199,11 +188,11 @@ export function OverviewView({
     [headlineKeys, grid.byKey, grid.previousByKey, memberIds, cohortOf, nameByEntity, emailByEntity, sliceLabel],
   );
 
-  const teamName = pivot?.display_name ?? "";
+  const teamName = orgScope.label;
 
   const gate = orgScopeGate({
-    viewerLoading: viewerQ.isLoading,
-    viewerError: viewerQ.isError,
+    viewerLoading: orgScope.isLoading,
+    viewerError: orgScope.isError,
     membersLoading: membersQ.isLoading,
     membersError: membersQ.isError,
     memberCount: members.length,
@@ -211,7 +200,7 @@ export function OverviewView({
     gridError: grid.isError,
     emptyLabel: "No org under this node.",
     onRetry: () => {
-      viewerQ.refetch();
+      orgScope.refetch();
       membersQ.refetch();
       grid.refetch();
     },

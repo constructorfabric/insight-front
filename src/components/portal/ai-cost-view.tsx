@@ -1,11 +1,10 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import { CenteredSpinner } from "@/components/widgets/centered-spinner";
 import { ComingSoon } from "@/components/widgets/coming-soon";
 import { orgScopeGate } from "@/components/portal/org-scope-gate";
 import { MembersGrid } from "@/components/widgets/v2/members-grid";
 import { Card, CardContent } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -16,12 +15,6 @@ import {
 } from "@/components/ui/table";
 import { usePeriod } from "@/hooks/use-period";
 import { formatMetricValue } from "@/lib/format";
-import {
-  flattenSubordinates,
-  findIdentityNode,
-  hasIndirectReports,
-  scopeRosterToDirectReports,
-} from "@/lib/insight/identity-tree";
 import { metricGroups } from "@/lib/insight/groups";
 import {
   availableSlices,
@@ -38,7 +31,7 @@ import {
 } from "@/lib/metrics/collection";
 import { normalizePersonId } from "@/lib/metrics/entity";
 import { usePortalSlice } from "@/lib/portal/portal-store";
-import { useIcPerson } from "@/queries/ic-dashboard";
+import { useOrgScope } from "@/lib/portal/use-org-scope";
 import { useTeamMembers } from "@/queries/team-view";
 import { useMemberGridData } from "@/queries/v2/member-grid";
 import { useMetricCollection } from "@/queries/metric-results";
@@ -102,42 +95,22 @@ function aggregateByTool(
 const PLANNED_KEYS = new Set(PLANNED_SLICES.map((d) => d.key));
 
 /**
- * AI & Cost — org-level adoption + spend, scoped to the viewer's org (direct
- * reports by default). Shows what's actually ingested; everything unavailable
- * is an explicit ComingSoon rather than a fabricated or zero-filled panel.
+ * AI & Cost — org-level adoption + spend across the active org scope (set in
+ * the topbar). Shows what's actually ingested; everything unavailable is an
+ * explicit ComingSoon rather than a fabricated or zero-filled panel.
  *
  * Honest data caveats surfaced in the UI:
  *  - only Claude Code is usage-metered → the cost total is Claude-only;
  *  - ChatGPT/Codex report usage but no per-user cost (subscription / token
  *    billing isn't ingested), so their cost reads "not tracked", never $0.
  */
-export function AiCostView({
-  scopePerson,
-  item,
-}: {
-  scopePerson: string;
-  item: string | null;
-}) {
+export function AiCostView({ item }: { item: string | null }) {
   const { period, dateRange } = usePeriod();
 
-  const viewerQ = useIcPerson(scopePerson);
-  const tree = viewerQ.data ?? null;
-  const pivot = useMemo(
-    () => (tree && scopePerson.includes("@") ? findIdentityNode(tree, scopePerson) : null),
-    [tree, scopePerson],
-  );
-  const fullRoster = useMemo(
-    () => (pivot ? flattenSubordinates(pivot) : null),
-    [pivot],
-  );
-  const canScope = hasIndirectReports(fullRoster);
-  const [directOnly, setDirectOnly] = useState(true);
-  const roster = useMemo(
-    () => scopeRosterToDirectReports(fullRoster, canScope && directOnly),
-    [fullRoster, canScope, directOnly],
-  );
+  const orgScope = useOrgScope();
+  const { pivot, roster, pivotEmail } = orgScope;
 
-  const membersQ = useTeamMembers(scopePerson, roster, period, dateRange, {
+  const membersQ = useTeamMembers(pivotEmail, roster, period, dateRange, {
     keepPrevious: true,
   });
   const members = useMemo(() => membersQ.data ?? [], [membersQ.data]);
@@ -180,7 +153,7 @@ export function AiCostView({
     dateRange,
   );
 
-  const teamName = pivot?.display_name ?? "";
+  const teamName = orgScope.label;
 
   const sum = (key: string) => {
     const r = grid.byKey.get(key);
@@ -291,8 +264,8 @@ export function AiCostView({
     );
 
   const gate = orgScopeGate({
-    viewerLoading: viewerQ.isLoading,
-    viewerError: viewerQ.isError,
+    viewerLoading: orgScope.isLoading,
+    viewerError: orgScope.isError,
     membersLoading: membersQ.isLoading,
     membersError: membersQ.isError,
     memberCount: members.length,
@@ -300,7 +273,7 @@ export function AiCostView({
     gridError: grid.isError,
     emptyLabel: "No org under this node — pick a manager or the org root.",
     onRetry: () => {
-      viewerQ.refetch();
+      orgScope.refetch();
       membersQ.refetch();
       grid.refetch();
     },
@@ -329,23 +302,11 @@ export function AiCostView({
 
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">AI &amp; Cost</h1>
-          <p className="text-sm text-muted-foreground">
-            {teamName ? `${teamName}'s org` : "Org"} · {members.length}{" "}
-            {directOnly && canScope ? "direct reports" : "people"}
-          </p>
-        </div>
-        {canScope && fullRoster ? (
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground select-none">
-            <Switch checked={directOnly} onCheckedChange={setDirectOnly} />
-            <span>Direct reports only</span>
-            <span className="text-xs text-muted-foreground">
-              ({roster?.length ?? 0}/{fullRoster.length})
-            </span>
-          </label>
-        ) : null}
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight">AI &amp; Cost</h1>
+        <p className="text-sm text-muted-foreground">
+          {teamName ? `${teamName}'s org` : "Org"} · {members.length} people
+        </p>
       </div>
 
       {/* Headline */}

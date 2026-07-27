@@ -17,7 +17,6 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { usePeriod } from "@/hooks/use-period";
-import { findIdentityNode, flattenSubordinates } from "@/lib/insight/identity-tree";
 import { availableSlices, collectRosterAttrs, PLANNED_SLICES } from "@/lib/insight/slices";
 import { MIN_COHORT } from "@/lib/insight/within-team-peer";
 import {
@@ -45,7 +44,7 @@ import {
 } from "@/lib/portal/lens-configs";
 import { buildTrendData, pickTrendBucket } from "@/lib/portal/trend-data";
 import { usePortalSlice } from "@/lib/portal/portal-store";
-import { useIcPerson } from "@/queries/ic-dashboard";
+import { useOrgScope } from "@/lib/portal/use-org-scope";
 import { useTeamMembers } from "@/queries/team-view";
 import { useMetricCollection } from "@/queries/metric-results";
 import { useMemberGridData } from "@/queries/v2/member-grid";
@@ -60,11 +59,9 @@ const EMPTY_COLLECTION: MetricCollectionConfig = { metrics: [] };
  * (rule 6), and no individual is ever named (rule 10).
  */
 export function DomainLensView({
-  scopePerson,
   config,
   gridKeys: gridKeysProp,
 }: {
-  scopePerson: string;
   config: LensConfig;
   /**
    * Direction-wide metric key union (see `directionMetricKeys`). When
@@ -79,14 +76,9 @@ export function DomainLensView({
 }) {
   const { period, dateRange } = usePeriod();
 
-  const viewerQ = useIcPerson(scopePerson);
-  const tree = viewerQ.data ?? null;
-  const pivot = useMemo(
-    () => (tree && scopePerson.includes("@") ? findIdentityNode(tree, scopePerson) : null),
-    [tree, scopePerson],
-  );
-  const roster = useMemo(() => (pivot ? flattenSubordinates(pivot) : null), [pivot]);
-  const membersQ = useTeamMembers(scopePerson, roster, period, dateRange, {
+  const orgScope = useOrgScope();
+  const { pivot, roster, pivotEmail } = orgScope;
+  const membersQ = useTeamMembers(pivotEmail, roster, period, dateRange, {
     keepPrevious: true,
   });
   const members = useMemo(() => membersQ.data ?? [], [membersQ.data]);
@@ -183,8 +175,8 @@ export function DomainLensView({
     : null;
 
   const gate = orgScopeGate({
-    viewerLoading: viewerQ.isLoading,
-    viewerError: viewerQ.isError,
+    viewerLoading: orgScope.isLoading,
+    viewerError: orgScope.isError,
     membersLoading: membersQ.isLoading,
     membersError: membersQ.isError,
     memberCount: members.length,
@@ -193,7 +185,7 @@ export function DomainLensView({
     emptyLabel:
       "No team under this node — a Direction shows a domain across the team; pick a manager (or the org root).",
     onRetry: () => {
-      viewerQ.refetch();
+      orgScope.refetch();
       membersQ.refetch();
       grid.refetch();
     },

@@ -1,22 +1,15 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import { AttentionList } from "@/components/portal/attention-list";
 import { orgScopeGate } from "@/components/portal/org-scope-gate";
 import { MembersGrid } from "@/components/widgets/v2/members-grid";
 import { Card, CardContent } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import { usePeriod } from "@/hooks/use-period";
 import { formatMetricValue } from "@/lib/format";
 import {
   attentionSummary,
   computeAttentionFlags,
 } from "@/lib/insight/attention-flags";
-import {
-  flattenSubordinates,
-  findIdentityNode,
-  hasIndirectReports,
-  scopeRosterToDirectReports,
-} from "@/lib/insight/identity-tree";
 import { metricGroups } from "@/lib/insight/groups";
 import {
   availableSlices,
@@ -32,7 +25,7 @@ import {
 } from "@/lib/metrics/collection";
 import { normalizePersonId } from "@/lib/metrics/entity";
 import { usePortalSlice } from "@/lib/portal/portal-store";
-import { useIcPerson } from "@/queries/ic-dashboard";
+import { useOrgScope } from "@/lib/portal/use-org-scope";
 import { useTeamMembers } from "@/queries/team-view";
 import { useMemberGridData } from "@/queries/v2/member-grid";
 
@@ -46,29 +39,16 @@ const EMPTY_COLLECTION: MetricCollectionConfig = { metrics: [] };
  *   • decline — a member's metric materially worse than last period;
  *   • collapse — zero on an activity the team otherwise shows.
  * The AI summary is rule-based for now (a real insights endpoint would slot in).
+ * The roster is the active org scope (topbar) — the view owns no scoping of its
+ * own.
  */
-export function TeamStateView({ scopePerson }: { scopePerson: string }) {
+export function TeamStateView() {
   const { period, dateRange } = usePeriod();
 
-  const viewerQ = useIcPerson(scopePerson);
-  const tree = viewerQ.data ?? null;
-  const pivot = useMemo(
-    () => (tree && scopePerson.includes("@") ? findIdentityNode(tree, scopePerson) : null),
-    [tree, scopePerson],
-  );
-  const fullRoster = useMemo(
-    () => (pivot ? flattenSubordinates(pivot) : null),
-    [pivot],
-  );
-  // With no indirect reports the toggle can't change anything — hide it.
-  const canScope = hasIndirectReports(fullRoster);
-  const [directOnly, setDirectOnly] = useState(true);
-  const roster = useMemo(
-    () => scopeRosterToDirectReports(fullRoster, canScope && directOnly),
-    [fullRoster, canScope, directOnly],
-  );
+  const orgScope = useOrgScope();
+  const { pivot, roster, pivotEmail } = orgScope;
 
-  const membersQ = useTeamMembers(scopePerson, roster, period, dateRange, {
+  const membersQ = useTeamMembers(pivotEmail, roster, period, dateRange, {
     keepPrevious: true,
   });
   const members = useMemo(() => membersQ.data ?? [], [membersQ.data]);
@@ -127,7 +107,7 @@ export function TeamStateView({ scopePerson }: { scopePerson: string }) {
     period,
   );
 
-  const teamName = pivot?.display_name ?? "";
+  const teamName = orgScope.label;
 
   // ── Headline: team totals (summable) / medians (everything else) ──
   const summary = useMemo(() => {
@@ -205,8 +185,8 @@ export function TeamStateView({ scopePerson }: { scopePerson: string }) {
   }, [shownKeys, grid.byKey, memberIds, cohortOf]);
 
   const gate = orgScopeGate({
-    viewerLoading: viewerQ.isLoading,
-    viewerError: viewerQ.isError,
+    viewerLoading: orgScope.isLoading,
+    viewerError: orgScope.isError,
     membersLoading: membersQ.isLoading,
     membersError: membersQ.isError,
     memberCount: members.length,
@@ -214,7 +194,7 @@ export function TeamStateView({ scopePerson }: { scopePerson: string }) {
     gridError: grid.isError,
     emptyLabel: "No team under this node — pick a manager or the org root.",
     onRetry: () => {
-      viewerQ.refetch();
+      orgScope.refetch();
       membersQ.refetch();
       grid.refetch();
     },
@@ -225,25 +205,13 @@ export function TeamStateView({ scopePerson }: { scopePerson: string }) {
 
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">
-            {teamName ? `${teamName}'s team` : "Team"}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {members.length} {directOnly && canScope ? "direct reports" : "people"} ·
-            state &amp; attention
-          </p>
-        </div>
-        {canScope && fullRoster ? (
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground select-none">
-            <Switch checked={directOnly} onCheckedChange={setDirectOnly} />
-            <span>Direct reports only</span>
-            <span className="text-xs text-muted-foreground">
-              ({roster?.length ?? 0}/{fullRoster.length})
-            </span>
-          </label>
-        ) : null}
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight">
+          {teamName ? `${teamName}'s team` : "Team"}
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          {members.length} people · state &amp; attention
+        </p>
       </div>
 
       {/* Team state at a glance */}

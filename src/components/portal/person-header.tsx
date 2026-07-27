@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useIcPerson } from "@/queries/ic-dashboard";
-import { setPortalZone } from "@/lib/portal/portal-store";
+import { setPortalScope, setPortalZone } from "@/lib/portal/portal-store";
 import { cn } from "@/lib/utils";
 
 /**
@@ -20,8 +20,9 @@ import { cn } from "@/lib/utils";
  * manager's direct reports) so you can hop between people without bouncing back
  * to People. The supervisor chip drills sideways into the manager; "Team" jumps
  * to People — scoped to the person's own reports if they're a manager, else to
- * their manager's team. Everything is route-driven (clears the pinned zone) and
- * sourced from the identity profile; absent fields render nothing.
+ * their manager's team — and that jump also sets the global org scope. Everything
+ * is route-driven (clears the pinned zone) and sourced from the identity profile;
+ * absent fields render nothing.
  */
 export function PersonHeader({ person }: { person: string }) {
   const navigate = useNavigate();
@@ -53,6 +54,9 @@ export function PersonHeader({ person }: { person: string }) {
   }
   function goTeam(email: string) {
     setPortalZone(null);
+    // Jumping to a team makes that node the visible org scope (design §6), so
+    // the topbar badge and every org zone agree with where you just landed.
+    setPortalScope({ root: email });
     void navigate({ to: "/ic/$person/team", params: { person: email } });
   }
 

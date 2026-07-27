@@ -8,6 +8,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { setPortalScope } from "@/lib/portal/portal-store";
 import { useIcPerson } from "@/queries/ic-dashboard";
 import type { IdentityPerson } from "@/types/insight";
 
@@ -40,10 +41,16 @@ function PersonNode({
       : false;
   const open = depth === 0 || isActive || hasActiveDescendant;
   // A lead's name lands on their team; an IC's on their own page. (The two
-  // literal `to`s keep the typed router happy vs. a computed path.)
+  // literal `to`s keep the typed router happy vs. a computed path.) Drilling
+  // into a lead also *sets the org scope* (design §6) so the topbar badge and
+  // every org zone follow the node you just clicked.
   const link =
     hasReports && leadsToTeam ? (
-      <Link to="/ic/$person/team" params={{ person: node.email }} />
+      <Link
+        to="/ic/$person/team"
+        params={{ person: node.email }}
+        onClick={() => setPortalScope({ root: node.email })}
+      />
     ) : (
       <Link to="/ic/$person/personal" params={{ person: node.email }} />
     );
