@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { setPortalZone } from "@/lib/portal/portal-store";
 import { useIcPerson } from "@/queries/ic-dashboard";
 import type { IdentityPerson } from "@/types/insight";
 import { cn } from "@/lib/utils";
@@ -130,6 +131,9 @@ export function EmployeesView() {
                   <Link
                     to="/ic/$person/personal"
                     params={{ person: e.email }}
+                    // Clear the pinned Manage zone so the route-driven Person
+                    // zone takes over (same pattern as the rail).
+                    onClick={() => setPortalZone(null)}
                     className="font-medium hover:underline"
                   >
                     {e.displayName}

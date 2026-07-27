@@ -3,6 +3,7 @@ import { AlertTriangle, ArrowDownRight, Sparkles, TrendingDown } from "lucide-re
 
 import { Card, CardContent } from "@/components/ui/card";
 import type { AttentionFlag, FlagKind } from "@/lib/insight/attention-flags";
+import { setPortalZone } from "@/lib/portal/portal-store";
 import { cn } from "@/lib/utils";
 
 const FLAG_ICON: Record<FlagKind, typeof AlertTriangle> = {
@@ -59,6 +60,10 @@ export function AttentionList({
                 key={`${f.email}-${f.metricKey}`}
                 to="/ic/$person/personal"
                 params={{ person: f.email }}
+                // A pinned theme zone (Overview, Manage) wins over the route in
+                // `useActiveZone` — clear it so the navigation actually lands
+                // on the Person zone (same pattern as the rail).
+                onClick={() => setPortalZone(null)}
                 className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2 text-sm transition-colors hover:bg-accent"
               >
                 <Icon
