@@ -271,7 +271,7 @@ export function AiCostView({ item }: { item: string | null }) {
     memberCount: members.length,
     gridPending: grid.isPending,
     gridError: grid.isError,
-    emptyLabel: "No org under this node — pick a manager or the org root.",
+    emptyLabel: "No people in the current scope — pick a different scope in the topbar.",
     onRetry: () => {
       orgScope.refetch();
       membersQ.refetch();
@@ -305,7 +305,7 @@ export function AiCostView({ item }: { item: string | null }) {
       <div>
         <h1 className="text-xl font-semibold tracking-tight">AI &amp; Cost</h1>
         <p className="text-sm text-muted-foreground">
-          {teamName ? `${teamName}'s org` : "Org"} · {members.length} people
+          {teamName ? `${teamName}'s org` : "Org"} · {orgScope.count} people
         </p>
       </div>
 

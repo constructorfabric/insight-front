@@ -1,9 +1,17 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 import { EmployeesView } from "@/components/portal/employees-view";
 import { TeamStateView } from "@/components/portal/team-state-view";
 import { ComingSoon } from "@/components/widgets/coming-soon";
 import { setPortalScope } from "@/lib/portal/portal-store";
+
+/**
+ * Module-scoped, deliberately NOT a ref: the guard must outlive this component.
+ * A per-mount ref would re-fire the route sync every time the user leaves the
+ * People zone and comes back, silently reverting a scope they picked in the
+ * topbar. Keyed by person, so an actual route change still syncs.
+ */
+let lastRouteSync: string | null = null;
 
 /**
  * People zone content, driven by the selected pane item. The roster is a
@@ -23,12 +31,11 @@ export function PeopleView({
   person: string;
   item: string | null;
 }) {
-  // Sync route → scope once per person, not on every render: the effect must
-  // not fight a scope the user then changes from the topbar.
-  const lastSynced = useRef<string | null>(null);
+  // Sync route → scope once per person, not on every render or remount: the
+  // effect must not fight a scope the user then changes from the topbar.
   useEffect(() => {
-    if (person && lastSynced.current !== person) {
-      lastSynced.current = person;
+    if (person && lastRouteSync !== person) {
+      lastRouteSync = person;
       setPortalScope({ root: person });
     }
   }, [person]);

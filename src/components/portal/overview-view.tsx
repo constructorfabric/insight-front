@@ -198,7 +198,7 @@ export function OverviewView({ item }: { item: string | null }) {
     memberCount: members.length,
     gridPending: grid.isPending,
     gridError: grid.isError,
-    emptyLabel: "No org under this node.",
+    emptyLabel: "No people in the current scope — pick a different scope in the topbar.",
     onRetry: () => {
       orgScope.refetch();
       membersQ.refetch();
@@ -216,7 +216,7 @@ export function OverviewView({ item }: { item: string | null }) {
     <div>
       <h1 className="text-xl font-semibold tracking-tight">Overview</h1>
       <p className="text-sm text-muted-foreground">
-        {teamName ? `${teamName}'s org` : "Org"} · {members.length} people · {activeAi} using AI
+        {teamName ? `${teamName}'s org` : "Org"} · {orgScope.count} people · {activeAi} using AI
       </p>
     </div>
   );

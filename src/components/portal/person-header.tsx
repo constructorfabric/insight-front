@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { Check, ChevronsUpDown, ChevronUp, Users } from "lucide-react";
+import { useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useIcPerson } from "@/queries/ic-dashboard";
 import { setPortalScope, setPortalZone } from "@/lib/portal/portal-store";
+import { useOrgScope } from "@/lib/portal/use-org-scope";
 import { cn } from "@/lib/utils";
 
 /**
@@ -20,8 +22,9 @@ import { cn } from "@/lib/utils";
  * manager's direct reports) so you can hop between people without bouncing back
  * to People. The supervisor chip drills sideways into the manager; "Team" jumps
  * to People — scoped to the person's own reports if they're a manager, else to
- * their manager's team — and that jump also sets the global org scope. Everything
- * is route-driven (clears the pinned zone) and sourced from the identity profile;
+ * their manager's team — and that jump also sets the global org scope, so it only
+ * renders when the target is a node the scope can actually reach. Everything is
+ * route-driven (clears the pinned zone) and sourced from the identity profile;
  * absent fields render nothing.
  */
 export function PersonHeader({ person }: { person: string }) {
@@ -30,6 +33,13 @@ export function PersonHeader({ person }: { person: string }) {
   const supervisorEmail = data?.supervisor_email ?? data?.parent_email ?? null;
   // Fetch the manager to enumerate siblings; the query self-disables on "".
   const { data: manager } = useIcPerson(supervisorEmail ?? "");
+  // Every node the org scope can actually resolve to — identity serves the
+  // viewer only their own subtree, so anything outside it is unreachable.
+  const { managerNodes } = useOrgScope();
+  const scopeRoots = useMemo(
+    () => new Set(managerNodes.map((n) => n.email.toLowerCase())),
+    [managerNodes],
+  );
 
   if (!data) return null;
 
@@ -40,6 +50,13 @@ export function PersonHeader({ person }: { person: string }) {
   const isManager = data.subordinates.length > 0;
   // Manager → their own team; IC → their manager's team (peers).
   const teamTarget = isManager ? data.email : supervisorEmail;
+  // An IC viewer's own supervisor sits ABOVE them, outside the subtree identity
+  // serves — scoping there resolves to the viewer's (empty) org and the People
+  // zone would render "no people". Hide the button instead of dead-ending,
+  // matching the IC-aware shell where org zones don't exist at all.
+  const canScopeToTeam = teamTarget
+    ? scopeRoots.has(teamTarget.toLowerCase())
+    : false;
 
   const peers = [...(manager?.subordinates ?? [])]
     .filter((p) => p.email)
@@ -135,7 +152,7 @@ export function PersonHeader({ person }: { person: string }) {
             <span className="max-w-40 truncate">{supervisorName}</span>
           </Button>
         ) : null}
-        {teamTarget ? (
+        {teamTarget && canScopeToTeam ? (
           <Button
             variant="outline"
             size="sm"

@@ -183,7 +183,7 @@ export function DomainLensView({
     gridPending: grid.isPending,
     gridError: grid.isError,
     emptyLabel:
-      "No team under this node — a Direction shows a domain across the team; pick a manager (or the org root).",
+      "No team in the current scope — a Direction shows a domain across a team; pick a different scope in the topbar.",
     onRetry: () => {
       orgScope.refetch();
       membersQ.refetch();

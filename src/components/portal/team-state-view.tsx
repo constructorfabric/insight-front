@@ -192,7 +192,7 @@ export function TeamStateView() {
     memberCount: members.length,
     gridPending: grid.isPending,
     gridError: grid.isError,
-    emptyLabel: "No team under this node — pick a manager or the org root.",
+    emptyLabel: "No people in the current scope — pick a different scope in the topbar.",
     onRetry: () => {
       orgScope.refetch();
       membersQ.refetch();
@@ -210,7 +210,7 @@ export function TeamStateView() {
           {teamName ? `${teamName}'s team` : "Team"}
         </h1>
         <p className="text-sm text-muted-foreground">
-          {members.length} people · state &amp; attention
+          {orgScope.count} people · state &amp; attention
         </p>
       </div>
 

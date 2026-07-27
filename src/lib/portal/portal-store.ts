@@ -113,8 +113,25 @@ export function setPortalSlice(slice: string): void {
   emit();
 }
 
+/**
+ * Patch the org scope. `root` is normalised to lowercase — route params and
+ * identity-tree emails differ in casing, and `findIdentityNode` is
+ * case-insensitive, so without this the same node written two ways looks like a
+ * change. No-op patches bail before `emit()`, so a route→scope sync effect can
+ * never bounce against a subscriber that re-renders and writes back.
+ */
 export function setPortalScope(patch: Partial<OrgScope>): void {
-  state = { ...state, scope: { ...state.scope, ...patch } };
+  const next: OrgScope = { ...state.scope, ...patch };
+  if ("root" in patch) next.root = patch.root?.toLowerCase() ?? null;
+  const prev = state.scope;
+  if (
+    next.root === prev.root &&
+    next.directOnly === prev.directOnly &&
+    next.attrFilter === prev.attrFilter
+  ) {
+    return;
+  }
+  state = { ...state, scope: next };
   emit();
 }
 
