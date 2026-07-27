@@ -1,0 +1,247 @@
+// @vitest-environment jsdom
+/**
+ * Shell + router semantics: which view each zone/item/lens resolves to, the
+ * manager-vs-IC landing decision, the route→scope one-shot sync and the
+ * global slice control. Heavy leaf views are stubbed — their own behavior is
+ * covered in their dedicated test files; here we assert the ROUTING.
+ */
+import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  email: "boss@x" as string | null,
+  isManager: true,
+  isPending: false,
+  zone: { activeZone: "overview", activePerson: "boss@x" },
+}));
+
+vi.mock("@/auth", () => ({ useViewer: () => ({ email: mocks.email }) }));
+vi.mock("@/lib/portal/use-viewer-is-manager", () => ({
+  useViewerIsManager: () => ({ isManager: mocks.isManager, isPending: mocks.isPending }),
+}));
+vi.mock("@/lib/portal/use-active-zone", () => ({
+  useActiveZone: () => mocks.zone,
+}));
+vi.mock("@/queries/ic-dashboard", () => ({
+  useIcPerson: () => ({ data: undefined, isPending: false, isLoading: false, isError: false, refetch: vi.fn() }),
+}));
+
+// Leaf views become labelled placeholders so routing is observable.
+vi.mock("@/components/portal/domain-lens-view", () => ({
+  DomainLensView: ({ config }: { config: { title: string } }) => (
+    <div data-testid="domain-lens">{config.title}</div>
+  ),
+  Pending: ({ label }: { label: string }) => <div data-testid="pending">{label}</div>,
+}));
+vi.mock("@/components/portal/ai-cost-view", () => ({
+  AiCostView: () => <div data-testid="ai-cost" />,
+}));
+vi.mock("@/components/portal/manage-view", () => ({
+  ManageView: () => <div data-testid="manage" />,
+}));
+vi.mock("@/components/portal/team-state-view", () => ({
+  TeamStateView: () => <div data-testid="team-state" />,
+}));
+vi.mock("@/components/portal/employees-view", () => ({
+  EmployeesView: () => <div data-testid="employees" />,
+}));
+vi.mock("@/components/portal/metric-groups-view", () => ({
+  MetricGroupsView: ({ personId }: { personId: string }) => (
+    <div data-testid="metric-groups">{personId}</div>
+  ),
+}));
+vi.mock("@/components/portal/single-group-view", () => ({
+  SingleGroupView: ({ groupId }: { groupId: string }) => (
+    <div data-testid="single-group">{groupId}</div>
+  ),
+}));
+vi.mock("@/components/portal/person-header", () => ({
+  PersonHeader: ({ person }: { person: string }) => (
+    <div data-testid="person-header">{person}</div>
+  ),
+}));
+vi.mock("@/components/portal/lens-rail", () => ({ LensRail: () => <div /> }));
+vi.mock("@/components/portal/context-pane", () => ({ ContextPane: () => <div /> }));
+vi.mock("@/components/portal/portal-topbar", () => ({ PortalTopBar: () => <div /> }));
+vi.mock("@/components/mock-banner", () => ({ MockBanner: () => <div /> }));
+
+import {
+  setPortalDir,
+  setPortalItem,
+  setPortalLens,
+  setPortalScope,
+  setPortalSlice,
+  setPortalZone,
+  usePortalScope,
+  usePortalSlice,
+  usePortalZone,
+} from "@/lib/portal/portal-store";
+import { renderHook } from "@testing-library/react";
+
+import { DirectionView } from "./direction-view";
+import { OverviewView } from "./overview-view";
+import { PeopleView } from "./people-view";
+import { PersonView } from "./person-view";
+import { PortalLayout } from "./portal-layout";
+import { SliceSelect } from "./slice-select";
+import { ZoneContent } from "./zone-content";
+
+// SidebarProvider (inside PortalLayout) reads a media query; jsdom has none.
+beforeEach(() => {
+  window.matchMedia ??= ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia;
+  mocks.isManager = true;
+  mocks.isPending = false;
+  mocks.zone = { activeZone: "overview", activePerson: "boss@x" };
+  act(() => {
+    setPortalZone(null);
+    setPortalItem(null);
+    setPortalDir("dev");
+    setPortalLens("Delivery");
+    setPortalSlice("");
+    setPortalScope({ root: null, directOnly: false });
+  });
+});
+
+describe("ZoneContent routing", () => {
+  const cases: Array<[string, string]> = [
+    ["person", "person-header"],
+    ["overview", "domain-lens"],
+    ["directions", "domain-lens"],
+    ["aicost", "ai-cost"],
+    ["people", "team-state"],
+    ["manage", "manage"],
+  ];
+  it.each(cases)("zone %s renders its view", (zone, testid) => {
+    mocks.zone = { activeZone: zone, activePerson: "boss@x" };
+    render(<ZoneContent />);
+    expect(screen.getByTestId(testid)).toBeInTheDocument();
+  });
+
+  it("scorecard renders an honest scaffold, not a fake dashboard", () => {
+    mocks.zone = { activeZone: "scorecard", activePerson: "boss@x" };
+    render(<ZoneContent />);
+    expect(screen.getByText("Scorecard")).toBeInTheDocument();
+    expect(screen.getByText(/org snapshots/)).toBeInTheDocument();
+  });
+});
+
+describe("DirectionView", () => {
+  it("routes a configured lens to DomainLensView", () => {
+    render(<DirectionView dir="dev" lens="Overview" />);
+    expect(screen.getByTestId("domain-lens")).toBeInTheDocument();
+  });
+
+  it("renders the roadmap note for a ComingSoon lens", () => {
+    render(<DirectionView dir="dev" lens="Repositories" />);
+    expect(screen.getByTestId("pending").textContent).toMatch(/Repository-level rollups/);
+  });
+
+  it("names the direction in the unknown-lens note", () => {
+    render(<DirectionView dir="dev" lens="Nope" />);
+    expect(screen.getByTestId("pending").textContent).toMatch(
+      /“Nope” isn't a metric family in Development yet/,
+    );
+  });
+});
+
+describe("OverviewView", () => {
+  it("defaults a null item to At a glance", () => {
+    render(<OverviewView item={null} />);
+    expect(screen.getByTestId("domain-lens")).toHaveTextContent("Overview");
+  });
+
+  it("resolves a named item through the registry", () => {
+    render(<OverviewView item="contribution" />);
+    expect(screen.getByTestId("domain-lens")).toHaveTextContent(
+      "Overview · Contribution breakdown",
+    );
+  });
+
+  it("renders Pending for an unknown item instead of crashing", () => {
+    render(<OverviewView item="nope" />);
+    expect(screen.getByTestId("pending").textContent).toMatch(/isn't an Overview view yet/);
+  });
+});
+
+describe("PersonView", () => {
+  it("defaults to the at-a-glance dashboard with the person's header", () => {
+    render(<PersonView person="a@x" />);
+    expect(screen.getByTestId("person-header")).toHaveTextContent("a@x");
+    expect(screen.getByTestId("metric-groups")).toHaveTextContent("a@x");
+  });
+
+  it("expands a selected metric group inline", () => {
+    act(() => setPortalItem("git_output"));
+    render(<PersonView person="a@x" />);
+    expect(screen.getByTestId("single-group")).toHaveTextContent("git_output");
+    expect(screen.queryByTestId("metric-groups")).not.toBeInTheDocument();
+  });
+});
+
+describe("PeopleView", () => {
+  it("routes items: roster (default), employees, median-by-role scaffold", () => {
+    const { rerender } = render(<PeopleView person="p1@x" item={null} />);
+    expect(screen.getByTestId("team-state")).toBeInTheDocument();
+    rerender(<PeopleView person="p1@x" item="employees" />);
+    expect(screen.getByTestId("employees")).toBeInTheDocument();
+    rerender(<PeopleView person="p1@x" item="median-by-role" />);
+    expect(screen.getByText(/Cohort role medians/)).toBeInTheDocument();
+  });
+
+  it("syncs the route person into the org scope ONCE, then defers to the user", () => {
+    const scope = renderHook(() => usePortalScope());
+    render(<PeopleView person="p2@x" item={null} />);
+    expect(scope.result.current.root).toBe("p2@x");
+    // The user re-picks a scope from the topbar…
+    act(() => setPortalScope({ root: "other@x" }));
+    // …and a remount for the SAME person must NOT revert it.
+    render(<PeopleView person="p2@x" item={null} />);
+    expect(scope.result.current.root).toBe("other@x");
+  });
+});
+
+describe("PortalLayout landing", () => {
+  it("pins a manager's landing zone to Overview once resolved", () => {
+    const zone = renderHook(() => usePortalZone());
+    render(<PortalLayout />);
+    expect(zone.result.current).toBe("overview");
+  });
+
+  it("leaves an IC route-driven (their own Person page)", () => {
+    mocks.isManager = false;
+    const zone = renderHook(() => usePortalZone());
+    render(<PortalLayout />);
+    expect(zone.result.current).toBeNull();
+  });
+});
+
+describe("SliceSelect", () => {
+  it("shows the active dimension and writes the store on change", async () => {
+    const slice = renderHook(() => usePortalSlice());
+    render(<SliceSelect dims={[{ key: "division", label: "Division" }]} />);
+    expect(screen.getByText("Slice: Team (all)")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Slice by" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Division" }));
+    expect(slice.result.current).toBe("division");
+  });
+
+  it("maps the team sentinel back to an empty slice", async () => {
+    act(() => setPortalSlice("division"));
+    render(<SliceSelect dims={[{ key: "division", label: "Division" }]} />);
+    const slice = renderHook(() => usePortalSlice());
+    await userEvent.click(screen.getByRole("combobox", { name: "Slice by" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Team (all)" }));
+    expect(slice.result.current).toBe("");
+  });
+});

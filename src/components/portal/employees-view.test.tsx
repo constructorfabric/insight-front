@@ -1,0 +1,82 @@
+// @vitest-environment jsdom
+/**
+ * Employees directory semantics: the org tree flattens into a de-duplicated,
+ * sorted roster; search filters across name/title/department; rows link into
+ * Person; identity failures surface as a retryable error.
+ */
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { IdentityPerson } from "@/types/insight";
+
+const mocks = vi.hoisted(() => ({
+  email: "boss@x" as string | null,
+  ic: {
+    data: undefined as IdentityPerson | undefined,
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  },
+}));
+
+vi.mock("@/auth", () => ({ useViewer: () => ({ email: mocks.email }) }));
+vi.mock("@/queries/ic-dashboard", () => ({ useIcPerson: () => mocks.ic }));
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, params }: { children: React.ReactNode; params: { person: string } }) => (
+    <a href={`/ic/${encodeURIComponent(params.person)}/personal`}>{children}</a>
+  ),
+}));
+
+import { EmployeesView } from "./employees-view";
+
+const person = (
+  email: string,
+  over: Partial<IdentityPerson> = {},
+  subs: IdentityPerson[] = [],
+): IdentityPerson =>
+  ({ email, display_name: email.split("@")[0], subordinates: subs, ...over }) as unknown as IdentityPerson;
+
+beforeEach(() => {
+  mocks.ic.isPending = false;
+  mocks.ic.isError = false;
+  mocks.ic.data = person("boss@x", { display_name: "Boss", job_title: "Director" }, [
+    person("zoe@x", { display_name: "Zoe", job_title: "QA Engineer", department: "Quality" } as never),
+    person("adam@x", { display_name: "Adam", job_title: "Backend Dev" } as never, [
+      // duplicate email deeper in the tree must NOT double a row
+      person("zoe@x", { display_name: "Zoe" } as never),
+    ]),
+  ]);
+});
+
+describe("EmployeesView", () => {
+  it("flattens the tree, de-duplicates and sorts by display name", () => {
+    render(<EmployeesView />);
+    const rows = screen.getAllByRole("link").map((a) => a.textContent);
+    expect(rows).toEqual(["Adam", "Boss", "Zoe"]);
+    expect(screen.getByText(/3 people/)).toBeInTheDocument();
+  });
+
+  it("links each row into that person's Person view", () => {
+    render(<EmployeesView />);
+    expect(screen.getAllByRole("link")[2]).toHaveAttribute(
+      "href",
+      "/ic/zoe%40x/personal",
+    );
+  });
+
+  it("filters across name / title / department and shows the filtered count", async () => {
+    render(<EmployeesView />);
+    await userEvent.type(screen.getByRole("textbox"), "quality");
+    expect(screen.getAllByRole("link").map((a) => a.textContent)).toEqual(["Zoe"]);
+    expect(screen.getByText(/1 of 3/)).toBeInTheDocument();
+  });
+
+  it("surfaces an identity failure as a retryable error", async () => {
+    mocks.ic.data = undefined;
+    mocks.ic.isError = true;
+    render(<EmployeesView />);
+    await userEvent.click(screen.getByRole("button", { name: /retry/i }));
+    expect(mocks.ic.refetch).toHaveBeenCalledOnce();
+  });
+});
