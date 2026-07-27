@@ -60,10 +60,14 @@ export function personAttributes(p: IdentityPerson): Record<string, SliceAttr> {
   return out;
 }
 
-/** Dimensions declared in the product but not backed by ingested data yet. */
-export const PLANNED_SLICES: readonly SliceDim[] = [
-  { key: "functional-team", label: "Functional team", planned: true },
-];
+/**
+ * Dimensions declared in the product but not backed by ingested data yet.
+ * Empty today — "Functional team" was removed as speculative (no source is
+ * even planned near-term); add entries here only when a real dimension has a
+ * committed data path, and the by-unit section will render an honest
+ * ComingSoon note for it until the data lands.
+ */
+export const PLANNED_SLICES: readonly SliceDim[] = [];
 
 /**
  * Discover usable slice dimensions from a roster of attribute maps: present,
