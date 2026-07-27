@@ -157,6 +157,13 @@ export function collectionSetPending(
   return [...set.values()].some((result) => result.isPending);
 }
 
+export interface MetricCollectionSetOptions {
+  /** Keeps the prior collection's data on screen while a new one (e.g. a
+   *  lens switch, which mints a new grid key) loads, instead of a full
+   *  loading-gate flash. */
+  keepPreviousData?: boolean;
+}
+
 /**
  * One query per collection for a dynamic list (e.g. every metrics-backed
  * group in the registry) — `useQueries`, so the list length can change
@@ -166,7 +173,8 @@ export function collectionSetPending(
 export function useMetricCollectionSet(
   collections: readonly KeyedCollection[],
   entity: MetricCollectionEntity,
-  range: DateRange
+  range: DateRange,
+  options?: MetricCollectionSetOptions
 ): Map<string, MetricCollectionResult> {
   const ids = canonicalEntityIds(entity);
   const enabled = ids.length > 0 && Boolean(range.from && range.to);
@@ -193,6 +201,7 @@ export function useMetricCollectionSet(
       queryKey: queryKeyFor(entity, chunkIds, range, request.metrics),
       queryFn: () => queryMetricResults(request),
       enabled,
+      placeholderData: options?.keepPreviousData ? keepPreviousData : undefined,
     })),
   });
 

@@ -25,6 +25,25 @@ export function representative(
   return quantile([...vals].sort((a, b) => a - b), 0.5);
 }
 
+/**
+ * Median across people, regardless of the result's own `computation` kind.
+ * Unlike `representative`, this never sums — useful for stat-tile sections
+ * that want a per-person median health read on a metric that's normally
+ * summed (e.g. a counter's per-person spread), without re-wrapping the
+ * result to fake a different computation kind.
+ */
+export function medianAcross(
+  r: NormalizedMetricResult | undefined,
+  ids: readonly string[],
+): number | null {
+  if (!r) return null;
+  const vals = ids
+    .map((id) => forEntity(r, id).value)
+    .filter((v): v is number => v != null && Number.isFinite(v));
+  if (!vals.length) return null;
+  return quantile([...vals].sort((a, b) => a - b), 0.5);
+}
+
 /** Per-active-person mean for a summable metric (denominator = value > 0). */
 export function perCapita(r: NormalizedMetricResult, ids: readonly string[]): number {
   let total = 0;

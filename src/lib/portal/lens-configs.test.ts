@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { metricGroups } from "@/lib/insight/groups";
 import { DIRECTIONS } from "@/lib/portal/nav-model";
-import { DIRECTION_LENSES, lensEntry, sectionMetricKeys } from "./lens-configs";
+import { DIRECTION_LENSES, lensEntry, sectionMetricKeys, type SectionSpec } from "./lens-configs";
 
 const KNOWN_KEYS = new Set(
   metricGroups().flatMap((g) => g.collection.metrics.map((m) => m.key)),
@@ -52,6 +52,20 @@ describe("DIRECTION_LENSES registry", () => {
       for (const [lens, entry] of Object.entries(lenses)) {
         if ("comingSoon" in entry) continue;
         expect(entry.sections.length, `${dir}/${lens}`).toBeGreaterThanOrEqual(1);
+      }
+    }
+  });
+
+  it("never has two composition sections sharing the same metric (compData is keyed by metric)", () => {
+    for (const [dir, lenses] of Object.entries(DIRECTION_LENSES)) {
+      for (const [lens, entry] of Object.entries(lenses)) {
+        if ("comingSoon" in entry) continue;
+        const compMetrics = entry.sections
+          .filter(
+            (s): s is Extract<SectionSpec, { kind: "composition" }> => s.kind === "composition",
+          )
+          .map((s) => s.metric);
+        expect(new Set(compMetrics).size, `${dir}/${lens}`).toBe(compMetrics.length);
       }
     }
   });

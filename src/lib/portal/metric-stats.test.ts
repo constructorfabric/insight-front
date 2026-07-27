@@ -6,6 +6,7 @@ import {
   distribution,
   familyObserved,
   fmtCompact,
+  medianAcross,
   perCapita,
   representative,
   topDecileShare,
@@ -88,6 +89,15 @@ describe("familyObserved", () => {
     const r = fixture({ period: [["a", 0], ["b", 7]], peerTargets: [["a", null], ["b", 7]] });
     expect(familyObserved(new Map([["t.metric", r]]), ["t.metric"], ["a", "b"])).toBe(true);
   });
+});
+
+describe("medianAcross", () => {
+  it("medians a summable metric instead of summing it (unlike representative)", () => {
+    const r = fixture({ computation: "sum", period: [["a", 10], ["b", 20], ["c", 30]] });
+    expect(medianAcross(r, ["a", "b", "c"])).toBe(20);
+    expect(representative(r, ["a", "b", "c"])).toBe(60);
+  });
+  it("null when the metric is missing", () => expect(medianAcross(undefined, ["a"])).toBeNull());
 });
 
 describe("fmtCompact", () => {

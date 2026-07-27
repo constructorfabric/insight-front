@@ -18,19 +18,21 @@ import {
 } from "@/components/ui/chart";
 import { usePeriod } from "@/hooks/use-period";
 import { findIdentityNode, flattenSubordinates } from "@/lib/insight/identity-tree";
-import { availableSlices, collectRosterAttrs } from "@/lib/insight/slices";
+import { availableSlices, collectRosterAttrs, PLANNED_SLICES } from "@/lib/insight/slices";
+import { MIN_COHORT } from "@/lib/insight/within-team-peer";
 import {
   forEntity,
   type MetricCollectionConfig,
   type NormalizedMetricResult,
 } from "@/lib/metrics/collection";
-import type { MetricDirection } from "@/api/metric-results-client";
+import type { MetricBucket, MetricDirection } from "@/api/metric-results-client";
 import { normalizePersonId } from "@/lib/metrics/entity";
 import { formatMetricValue } from "@/lib/format";
 import {
   distribution,
   familyObserved,
   fmtCompact,
+  medianAcross,
   perCapita,
   representative,
   topDecileShare,
@@ -98,6 +100,7 @@ export function DomainLensView({
     { type: "person", ids: memberIds },
     dateRange,
     period,
+    { keepPrevious: true },
   );
 
   // Trend: bucket coarsened to the roster so org scope never trips the row limit.
@@ -206,17 +209,20 @@ export function DomainLensView({
           trend={trend}
           trendBucket={trendBucket}
           compData={compData.byKey}
+          compIsError={compData.isError}
+          compRefetch={compData.refetch}
           memberIds={memberIds}
         />
       ))}
 
-      {slice && sliceLabel ? (
+      {slice ? (
         <ByUnitSection
           config={config}
           grid={grid.byKey}
           memberIds={memberIds}
           keyOf={(id) => attrByEntity.get(id)?.[slice]?.value ?? null}
-          sliceLabel={sliceLabel}
+          sliceKey={slice}
+          sliceLabel={sliceLabel ?? slice}
         />
       ) : null}
     </div>
@@ -242,13 +248,17 @@ function Section({
   trend,
   trendBucket,
   compData,
+  compIsError,
+  compRefetch,
   memberIds,
 }: {
   spec: SectionSpec;
   grid: GridData;
   trend: TrendData;
-  trendBucket: string;
+  trendBucket: MetricBucket;
   compData: Map<string, NormalizedMetricResult>;
+  compIsError: boolean;
+  compRefetch: () => void;
   memberIds: readonly string[];
 }) {
   switch (spec.kind) {
@@ -267,7 +277,16 @@ function Section({
     case "concentration":
       return <ConcentrationSection spec={spec} grid={grid} memberIds={memberIds} />;
     case "composition":
-      return <CompositionSection spec={spec} compData={compData} grid={grid} memberIds={memberIds} />;
+      return (
+        <CompositionSection
+          spec={spec}
+          compData={compData}
+          compIsError={compIsError}
+          compRefetch={compRefetch}
+          grid={grid}
+          memberIds={memberIds}
+        />
+      );
     case "event-histogram":
     case "participation":
       // P3 sections — configs may stage them early; render nothing until then.
@@ -347,12 +366,9 @@ function StatTilesSection({
     .map((key) => {
       const r = grid.byKey.get(key);
       if (!r) return null;
-      const median = representative({ ...r, computation: "median" } as NormalizedMetricResult, memberIds);
+      const median = medianAcross(r, memberIds);
       if (median == null) return null;
-      const prevR = grid.previousByKey.get(key);
-      const prev = prevR
-        ? representative({ ...prevR, computation: "median" } as NormalizedMetricResult, memberIds)
-        : null;
+      const prev = medianAcross(grid.previousByKey.get(key), memberIds);
       return { key, r, median, prev };
     })
     .filter((x): x is NonNullable<typeof x> => x != null);
@@ -395,21 +411,22 @@ function TrendSection({
   metrics: readonly string[];
   grid: GridData;
   trend: TrendData;
-  bucket: string;
+  bucket: MetricBucket;
   memberIds: readonly string[];
 }) {
   const series = metrics
-    .map((key, i) => {
+    .map((key) => {
       const r = grid.byKey.get(key);
       if (!r || r.computation !== "sum") return null;
-      return {
-        key,
-        label: r.short_label ?? r.label,
-        type: "line" as const,
-        yAxisId: (i === 0 ? "left" : "right") as "left" | "right",
-      };
+      return { key, label: r.short_label ?? r.label };
     })
-    .filter((x): x is NonNullable<typeof x> => x != null);
+    .filter((x): x is NonNullable<typeof x> => x != null)
+    .map((s, i) => ({
+      key: s.key,
+      label: s.label,
+      type: "line" as const,
+      yAxisId: (i === 0 ? "left" : "right") as "left" | "right",
+    }));
   const data = buildTrendData(series.map((s) => s.key), trend.byKey, memberIds);
 
   if (series.length === 0) return null;
@@ -572,14 +589,34 @@ function ConcentrationSection({
 function CompositionSection({
   spec,
   compData,
+  compIsError,
+  compRefetch,
   grid,
   memberIds,
 }: {
   spec: Extract<SectionSpec, { kind: "composition" }>;
   compData: Map<string, NormalizedMetricResult>;
+  compIsError: boolean;
+  compRefetch: () => void;
   grid: GridData;
   memberIds: readonly string[];
 }) {
+  if (compIsError) {
+    return (
+      <section className="flex flex-col gap-3">
+        <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+          {spec.title}
+        </p>
+        <ComingSoon
+          variant="card"
+          state="error"
+          label={`${spec.title} — unable to load`}
+          onRetry={compRefetch}
+        />
+      </section>
+    );
+  }
+
   const r = grid.byKey.get(spec.metric);
   const bd = compData.get(spec.metric);
   const bucket = new Map<string, number>();
@@ -593,7 +630,8 @@ function CompositionSection({
     }
   }
   const rows = toBarRows(bucket);
-  if (!rows.length) return null;
+  // A single 100%-share bar is an empty shell (rule 11), same as ByUnitSection.
+  if (rows.length < 2) return null;
 
   return (
     <BarList title={spec.title} rows={rows} format={r?.format ?? "integer"} unit={r?.unit ?? null} />
@@ -602,26 +640,39 @@ function CompositionSection({
 
 /* ── by-unit auto-section (rule 7) ───────────────────────────────────── */
 
+const NO_COMPARABLE_UNITS_NOTE =
+  "No comparable units for this lens at this slice (needs a summable headline metric and ≥2 units of ≥4 people).";
+
 function ByUnitSection({
   config,
   grid,
   memberIds,
   keyOf,
+  sliceKey,
   sliceLabel,
 }: {
   config: LensConfig;
   grid: Map<string, NormalizedMetricResult>;
   memberIds: readonly string[];
   keyOf: (id: string) => string | null;
+  sliceKey: string;
   sliceLabel: string;
 }) {
+  // A declared-but-unfed dimension (e.g. functional team) can never produce
+  // by-unit data — say so plainly rather than fall through to the generic
+  // "no comparable units" note, which would wrongly suggest a data quirk.
+  const planned = PLANNED_SLICES.find((d) => d.key === sliceKey);
+  if (planned) {
+    return <SliceNote text={`The ${planned.label} dimension isn't ingested yet.`} />;
+  }
+
   // Compare units on the lens's first headline counter, per active person.
   const headline = config.sections.find(
     (s): s is Extract<SectionSpec, { kind: "headline" }> => s.kind === "headline",
   );
   const key = headline?.metrics.find((k) => grid.get(k)?.computation === "sum");
   const r = key ? grid.get(key) : undefined;
-  if (!r) return null;
+  if (!r) return <SliceNote text={NO_COMPARABLE_UNITS_NOTE} />;
 
   const byUnit = new Map<string, string[]>();
   for (const id of memberIds) {
@@ -631,12 +682,12 @@ function ByUnitSection({
   }
   const bucket = new Map<string, number>();
   for (const [unit, ids] of byUnit) {
-    if (ids.length < 4) continue; // small-cohort suppression, same floor as MIN_COHORT
+    if (ids.length < MIN_COHORT) continue; // small-cohort suppression
     const v = perCapita(r, ids);
     if (v > 0) bucket.set(`${unit} · ${ids.length}`, v);
   }
   const rows = toBarRows(bucket);
-  if (rows.length < 2) return null;
+  if (rows.length < 2) return <SliceNote text={NO_COMPARABLE_UNITS_NOTE} />;
 
   return (
     <BarList
@@ -644,6 +695,7 @@ function ByUnitSection({
       rows={rows}
       format={r.format}
       unit={r.unit}
+      showShare={false}
     />
   );
 }
@@ -669,16 +721,24 @@ function BarList({
   rows,
   format,
   unit,
+  showShare = true,
 }: {
   title: string;
   rows: BarRow[];
   format: NormalizedMetricResult["format"];
   unit: string | null;
+  /** False for per-capita values, where a share-of-total percent would mislead. */
+  showShare?: boolean;
 }) {
   const max = rows[0]?.value || 1;
+  // toBarRows caps at 12 — when the cap is hit, the list is a sample, not the
+  // full picture, and the title should say so.
+  const displayTitle = rows.length === 12 ? `${title} · top 12` : title;
   return (
     <section className="flex flex-col gap-3">
-      <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">{title}</p>
+      <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+        {displayTitle}
+      </p>
       <Card>
         <CardContent className="flex flex-col gap-2 p-4">
           {rows.map((row) => (
@@ -690,7 +750,8 @@ function BarList({
                   style={{ width: `${Math.round((row.value / max) * 100)}%` }}
                 />
                 <span className="absolute inset-y-0 left-2 flex items-center text-xs font-medium tabular-nums">
-                  {formatMetricValue(row.value, format, unit)} · {row.pct}%
+                  {formatMetricValue(row.value, format, unit)}
+                  {showShare ? ` · ${row.pct}%` : ""}
                 </span>
               </div>
             </div>
@@ -698,6 +759,14 @@ function BarList({
         </CardContent>
       </Card>
     </section>
+  );
+}
+
+function SliceNote({ text }: { text: string }) {
+  return (
+    <p className="rounded-md border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+      {text}
+    </p>
   );
 }
 

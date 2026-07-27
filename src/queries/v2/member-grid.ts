@@ -45,6 +45,7 @@ export function useMemberGridData(
   entity: MetricCollectionEntity,
   range: DateRange,
   period: PeriodValue,
+  options?: { keepPrevious?: boolean },
 ): MemberGridData {
   const currentCollections = useMemo<readonly KeyedCollection[]>(
     () => [{ key: GRID_KEY, collection: projectViews(collection, ["period", "peer"]) }],
@@ -55,7 +56,11 @@ export function useMemberGridData(
     [collection],
   );
 
-  const current = useMetricCollectionSet(currentCollections, entity, range);
+  const setOptions = useMemo(
+    () => ({ keepPreviousData: options?.keepPrevious }),
+    [options?.keepPrevious],
+  );
+  const current = useMetricCollectionSet(currentCollections, entity, range, setOptions);
   const previousRange = useMemo(
     () => previousPeriodRange(range, period),
     [range, period],
@@ -64,6 +69,7 @@ export function useMemberGridData(
     previousCollections,
     entity,
     previousRange,
+    setOptions,
   );
 
   const cur = current.get(GRID_KEY);
