@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import {
   PolarAngleAxis,
@@ -1163,9 +1163,11 @@ function toBarRows(bucket: Map<string, number>): BarRow[] {
   const total = [...bucket.values()].reduce((a, b) => a + b, 0) || 1;
   return [...bucket.entries()]
     .map(([label, value]) => ({ label, value, pct: Math.round((value / total) * 100) }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 12);
+    .sort((a, b) => b.value - a.value);
 }
+
+/** Rows shown before the reader opts into the full list. */
+const BAR_LIST_COLLAPSED = 12;
 
 function BarList({
   title,
@@ -1181,10 +1183,15 @@ function BarList({
   /** False for per-capita values, where a share-of-total percent would mislead. */
   showShare?: boolean;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? rows : rows.slice(0, BAR_LIST_COLLAPSED);
   const max = rows[0]?.value || 1;
-  // toBarRows caps at 12 — when the cap is hit, the list is a sample, not the
-  // full picture, and the title should say so.
-  const displayTitle = rows.length === 12 ? `${title} · top 12` : title;
+  // Collapsed view is a sample, not the full picture — the title says so,
+  // and the "+N more" button below hands over the rest on demand.
+  const displayTitle =
+    !expanded && rows.length > BAR_LIST_COLLAPSED
+      ? `${title} · top ${BAR_LIST_COLLAPSED}`
+      : title;
   return (
     <section className="flex flex-col gap-3">
       <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
@@ -1192,7 +1199,7 @@ function BarList({
       </p>
       <Card>
         <CardContent className="flex flex-col gap-2 p-4">
-          {rows.map((row) => (
+          {visible.map((row) => (
             <div key={row.label} className="flex items-center gap-3">
               <div className="w-44 shrink-0 truncate text-sm">{row.label}</div>
               <div className="relative h-6 flex-1 overflow-hidden rounded bg-muted">
@@ -1207,6 +1214,15 @@ function BarList({
               </div>
             </div>
           ))}
+          {rows.length > BAR_LIST_COLLAPSED ? (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="self-start pt-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              {expanded ? "Show less" : `+${rows.length - BAR_LIST_COLLAPSED} more`}
+            </button>
+          ) : null}
         </CardContent>
       </Card>
     </section>

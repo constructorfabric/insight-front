@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { AlertTriangle, ArrowDownRight, Sparkles, TrendingDown } from "lucide-react";
 
@@ -29,7 +30,8 @@ export function AttentionList({
   peopleLabel?: string;
   max?: number;
 }) {
-  const shown = flags.slice(0, max);
+  const [expanded, setExpanded] = useState(false);
+  const shown = expanded ? flags : flags.slice(0, max);
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
@@ -81,10 +83,14 @@ export function AttentionList({
               </Link>
             );
           })}
-          {flags.length > shown.length ? (
-            <p className="px-3 pt-1 text-xs text-muted-foreground">
-              +{flags.length - shown.length} more
-            </p>
+          {flags.length > max ? (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="self-start px-3 pt-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              {expanded ? "Show less" : `+${flags.length - max} more`}
+            </button>
           ) : null}
         </div>
       ) : (
