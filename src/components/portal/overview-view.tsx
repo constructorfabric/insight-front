@@ -155,7 +155,10 @@ export function OverviewView({
 
   const trendCollection = useMemo<MetricCollectionConfig>(
     () => ({
-      metrics: TREND_KEYS.map((key) => ({ key, views: [{ view: "timeseries" as const }] })),
+      metrics: TREND_KEYS.map((key) => ({
+        key,
+        views: [{ view: "timeseries" as const, bucket: "auto" as const }],
+      })),
     }),
     [],
   );
@@ -529,7 +532,7 @@ function Contribution({
                     style={{ width: `${Math.round((row.value / max) * 100)}%` }}
                   />
                   <span className="absolute inset-y-0 left-2 flex items-center text-xs font-medium tabular-nums">
-                    {formatMetricValue(row.value, r?.format ?? "number", r?.unit ?? null)} ·{" "}
+                    {formatMetricValue(row.value, r?.format ?? "integer", r?.unit ?? null)} ·{" "}
                     {row.pct}%
                   </span>
                 </div>

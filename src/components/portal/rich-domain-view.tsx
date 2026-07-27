@@ -275,7 +275,7 @@ export function RichDomainView({
         <BarList
           title={composition.title}
           rows={compRows}
-          format={compR?.format ?? "number"}
+          format={compR?.format ?? "integer"}
           unit={compR?.unit ?? null}
         />
       ) : null}

@@ -358,7 +358,7 @@ export function AiCostView({
         <Tile label="Active AI users" value={String(activeUsers)} sub={`${adoptionPct}% of ${members.length}`} />
         <Tile
           label="AI-accepted lines"
-          value={formatMetricValue(totalLines, linesR?.format ?? "number", linesR?.unit ?? null)}
+          value={formatMetricValue(totalLines, linesR?.format ?? "integer", linesR?.unit ?? null)}
           sub="org total"
         />
         <Tile
@@ -403,7 +403,7 @@ export function AiCostView({
                     {t.costTracked ? "cost" : "cost not tracked"}
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    {t.users} users · {formatMetricValue(t.lines, "number", null)} lines
+                    {t.users} users · {formatMetricValue(t.lines, "integer", null)} lines
                   </div>
                 </CardContent>
               </Card>
@@ -540,7 +540,7 @@ function UnitSection({
                   {formatMetricValue(r.cost, costR?.format ?? "currency", costR?.unit ?? "USD")}
                 </TableCell>
                 <TableCell className="text-right tabular-nums text-muted-foreground">
-                  {formatMetricValue(r.lines, linesR?.format ?? "number", linesR?.unit ?? null)}
+                  {formatMetricValue(r.lines, linesR?.format ?? "integer", linesR?.unit ?? null)}
                 </TableCell>
               </TableRow>
             ))}
