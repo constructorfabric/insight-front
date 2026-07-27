@@ -10,9 +10,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { MetricTimeseriesModel } from "@/components/widgets/metric-views/metric-timeseries-model";
+import {
+  resolveMetricTimeseriesTableColumns,
+  type MetricTimeseriesTableColumn,
+} from "@/components/widgets/metric-views/metric-timeseries-table-model";
+import type { MetricTimeseriesTableConfig } from "@/lib/metrics/timeseries-table";
 
 export interface MetricTimeseriesTableProps {
   model: MetricTimeseriesModel;
+  config?: MetricTimeseriesTableConfig;
 }
 
 const BUCKET_LABEL = {
@@ -21,37 +27,73 @@ const BUCKET_LABEL = {
   month: "Month",
 } as const;
 
-function MetricValues({
-  model,
-  values,
-  showLabels = false,
+const TONE_CLASS = {
+  default: undefined,
+  muted: "text-muted-foreground",
+  success: "text-success",
+  destructive: "text-destructive",
+} as const;
+
+function MetricTableValue({
+  column,
+  valueFor,
 }: {
-  model: MetricTimeseriesModel;
-  values: Array<number | null | undefined>;
-  showLabels?: boolean;
+  column: MetricTimeseriesTableColumn;
+  valueFor: (metricKey: string) => number | null | undefined;
 }) {
-  if (values.every((value) => value == null)) return <>—</>;
+  const hasValue = column.parts.some(
+    (part) => part.kind === "metric" && valueFor(part.metricKey) != null
+  );
+  if (!hasValue) return <>—</>;
+
   return (
-    <span className="inline-flex items-center gap-1.5">
-      {model.metrics.map((metric, index) => (
-        <span
-          key={metric.metric_key}
-          className="inline-flex items-center gap-1.5"
-        >
-          {index > 0 ? <span className="text-muted-foreground">·</span> : null}
-          <span>
-            {showLabels ? `${metric.label}: ` : ""}
-            {values[index] == null
-              ? "—"
-              : formatMetricNumber(values[index], metric.format)}
+    <span>
+      {column.parts.map((part, index) => {
+        if (part.kind === "text") return <span key={index}>{part.text}</span>;
+        const value = valueFor(part.metricKey);
+        const metric = part.metric;
+        if (value == null || !metric) {
+          return (
+            <span
+              key={`${part.metricKey}-${index}`}
+              className={TONE_CLASS.muted}
+            >
+              —
+            </span>
+          );
+        }
+        return (
+          <span
+            key={`${part.metricKey}-${index}`}
+            className={TONE_CLASS[part.tone]}
+          >
+            {part.prefix}
+            {formatMetricNumber(value, metric.format)}
           </span>
-        </span>
-      ))}
+        );
+      })}
     </span>
   );
 }
 
-export function MetricTimeseriesTable({ model }: MetricTimeseriesTableProps) {
+export function MetricTimeseriesTable({
+  model,
+  config,
+}: MetricTimeseriesTableProps) {
+  const tableColumns = resolveMetricTimeseriesTableColumns(model, config);
+  const grandTotals = new Map(
+    model.metrics.map((metric, index) => [
+      metric.metric_key,
+      model.grandTotals[index],
+    ])
+  );
+  const hasGrandTotal = tableColumns.some((column) =>
+    column.parts.some(
+      (part) =>
+        part.kind === "metric" && grandTotals.get(part.metricKey) != null
+    )
+  );
+
   return (
     <Table
       className="min-w-max text-xs"
@@ -63,20 +105,20 @@ export function MetricTimeseriesTable({ model }: MetricTimeseriesTableProps) {
             <TableHead className="sticky top-0 left-0 z-30 h-10 w-28 max-w-28 min-w-28 bg-card py-0 shadow-[inset_0_-1px_0_0_var(--border)] after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-border">
               {BUCKET_LABEL[model.bucket]}
             </TableHead>
-            {model.metrics.map((metric, metricIndex) => (
+            {tableColumns.map((column, columnIndex) => (
               <TableHead
-                key={metric.metric_key}
+                key={column.key}
                 className={cn(
                   "sticky top-0 z-20 h-10 min-w-24 bg-card py-0 text-right shadow-[inset_0_-1px_0_0_var(--border)]",
-                  metricIndex > 0 &&
+                  columnIndex > 0 &&
                     "before:absolute before:inset-y-0 before:left-0 before:w-px before:bg-border"
                 )}
               >
-                {metric.label}
+                {column.label}
               </TableHead>
             ))}
           </TableRow>
-        ) : model.metrics.length === 1 ? (
+        ) : tableColumns.length === 1 ? (
           <TableRow>
             <TableHead className="sticky top-0 left-0 z-30 h-10 w-28 max-w-28 min-w-28 bg-card py-0 shadow-[inset_0_-1px_0_0_var(--border)] after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-border">
               {BUCKET_LABEL[model.bucket]}
@@ -103,7 +145,7 @@ export function MetricTimeseriesTable({ model }: MetricTimeseriesTableProps) {
               {model.columns.map((column, index) => (
                 <TableHead
                   key={column.key}
-                  colSpan={model.metrics.length}
+                  colSpan={tableColumns.length}
                   className={cn(
                     "sticky top-0 z-20 h-10 bg-card py-0 text-center after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-border",
                     index > 0 &&
@@ -120,16 +162,16 @@ export function MetricTimeseriesTable({ model }: MetricTimeseriesTableProps) {
                 className="sticky top-10 left-0 z-30 h-9 w-28 max-w-28 min-w-28 bg-card py-0 shadow-[inset_0_-1px_0_0_var(--border)] after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-border"
               />
               {model.columns.flatMap((column, columnIndex) =>
-                model.metrics.map((metric, metricIndex) => (
+                tableColumns.map((tableColumn, tableColumnIndex) => (
                   <TableHead
-                    key={`${column.key}-${metric.metric_key}`}
+                    key={`${column.key}-${tableColumn.key}`}
                     className={cn(
                       "sticky top-10 z-20 h-9 min-w-24 bg-card py-0 text-right after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-border",
-                      (columnIndex > 0 || metricIndex > 0) &&
+                      (columnIndex > 0 || tableColumnIndex > 0) &&
                         "before:absolute before:inset-y-0 before:left-0 before:w-px before:bg-border"
                     )}
                   >
-                    {metric.label}
+                    {tableColumn.label}
                   </TableHead>
                 ))
               )}
@@ -144,21 +186,21 @@ export function MetricTimeseriesTable({ model }: MetricTimeseriesTableProps) {
               {bucketStart}
             </TableCell>
             {model.columns.flatMap((column, columnIndex) =>
-              model.metrics.map((metric, metricIndex) => {
-                const value = column.points
-                  .get(metric.metric_key)
-                  ?.get(bucketStart);
+              tableColumns.map((tableColumn, tableColumnIndex) => {
                 return (
                   <TableCell
-                    key={`${column.key}-${metric.metric_key}`}
+                    key={`${column.key}-${tableColumn.key}`}
                     className={cn(
                       "px-2 py-1 text-right tabular-nums",
-                      (columnIndex > 0 || metricIndex > 0) && "border-l"
+                      (columnIndex > 0 || tableColumnIndex > 0) && "border-l"
                     )}
                   >
-                    {value == null
-                      ? "—"
-                      : formatMetricNumber(value, metric.format)}
+                    <MetricTableValue
+                      column={tableColumn}
+                      valueFor={(metricKey) =>
+                        column.points.get(metricKey)?.get(bucketStart)
+                      }
+                    />
                   </TableCell>
                 );
               })
@@ -172,39 +214,52 @@ export function MetricTimeseriesTable({ model }: MetricTimeseriesTableProps) {
             Total
           </TableCell>
           {model.columns.flatMap((column, columnIndex) =>
-            model.metrics.map((metric, metricIndex) => {
-              const value = column.totals.get(metric.metric_key);
+            tableColumns.map((tableColumn, tableColumnIndex) => {
               return (
                 <TableCell
-                  key={`${column.key}-${metric.metric_key}`}
+                  key={`${column.key}-${tableColumn.key}`}
                   className={cn(
                     "px-2 py-1 text-right font-semibold tabular-nums",
-                    (columnIndex > 0 || metricIndex > 0) && "border-l"
+                    (columnIndex > 0 || tableColumnIndex > 0) && "border-l"
                   )}
                 >
-                  {value == null
-                    ? "—"
-                    : formatMetricNumber(value, metric.format)}
+                  <MetricTableValue
+                    column={tableColumn}
+                    valueFor={(metricKey) => column.totals.get(metricKey)}
+                  />
                 </TableCell>
               );
             })
           )}
         </TableRow>
-        {model.dimensions.length > 0 &&
-        model.grandTotals.some((value) => value != null) ? (
+        {model.dimensions.length > 0 && hasGrandTotal ? (
           <TableRow>
             <TableCell className="sticky left-0 z-10 w-28 max-w-28 min-w-28 bg-muted px-2 pt-1 pb-5 font-semibold after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-border">
               Grand total
             </TableCell>
             <TableCell
-              colSpan={model.columns.length * model.metrics.length}
+              colSpan={model.columns.length * tableColumns.length}
               className="bg-muted px-2 pt-1 pb-5 text-left font-semibold tabular-nums"
             >
-              <MetricValues
-                model={model}
-                values={model.grandTotals}
-                showLabels
-              />
+              <span className="inline-flex flex-wrap items-center gap-1.5">
+                {tableColumns.map((tableColumn, index) => (
+                  <span
+                    key={tableColumn.key}
+                    className="inline-flex items-center gap-1.5"
+                  >
+                    {index > 0 ? (
+                      <span className="text-muted-foreground">·</span>
+                    ) : null}
+                    <span>
+                      {tableColumn.label}:{" "}
+                      <MetricTableValue
+                        column={tableColumn}
+                        valueFor={(metricKey) => grandTotals.get(metricKey)}
+                      />
+                    </span>
+                  </span>
+                ))}
+              </span>
             </TableCell>
           </TableRow>
         ) : null}
