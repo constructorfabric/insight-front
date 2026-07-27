@@ -3,6 +3,7 @@ import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import {
   PolarAngleAxis,
   PolarGrid,
+  PolarRadiusAxis,
   Radar,
   RadarChart,
   ResponsiveContainer,
@@ -1062,11 +1063,16 @@ function CoverageRadarSection({
               <RadarChart data={data} outerRadius="70%">
                 <PolarGrid />
                 <PolarAngleAxis dataKey="domain" tick={{ fontSize: 12 }} />
+                {/* Percent scale is absolute: full edge = 100% coverage, not
+                    the period's max — and the explicit axis gives recharts a
+                    radius scale (without one the polygon collapses to center). */}
+                <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
                 <Radar
                   dataKey="coverage"
                   stroke="var(--primary)"
                   fill="var(--primary)"
                   fillOpacity={0.25}
+                  isAnimationActive={false}
                 />
               </RadarChart>
             </ResponsiveContainer>
