@@ -10,6 +10,18 @@ import { useSyncExternalStore } from "react";
  * content area shows its scaffold.
  */
 
+/**
+ * Org scope — WHO is counted in every org zone (design §6). `root` is the
+ * email of a manager node inside the viewer's subtree (null = the viewer's
+ * whole org); `directOnly` narrows to direct reports. Phase 2 reserves
+ * `attrFilter` (attribute-value cut across the tree) — no UI yet.
+ */
+export interface OrgScope {
+  root: string | null;
+  directOnly: boolean;
+  attrFilter?: { key: string; value: string };
+}
+
 const ENABLED_KEY = "insight.portal";
 
 interface PortalState {
@@ -26,6 +38,7 @@ interface PortalState {
    * no grouping). A key like "division"/"title" groups + compares within it.
    */
   slice: string;
+  scope: OrgScope;
 }
 
 function readEnabled(): boolean {
@@ -44,6 +57,7 @@ let state: PortalState = {
   dir: "dev",
   lens: "Delivery",
   slice: "",
+  scope: { root: null, directOnly: false },
 };
 
 const listeners = new Set<() => void>();
@@ -99,6 +113,11 @@ export function setPortalSlice(slice: string): void {
   emit();
 }
 
+export function setPortalScope(patch: Partial<OrgScope>): void {
+  state = { ...state, scope: { ...state.scope, ...patch } };
+  emit();
+}
+
 export function usePortalEnabled(): boolean {
   return useSyncExternalStore(
     subscribe,
@@ -129,4 +148,10 @@ export function usePortalLens(): string {
 
 export function usePortalSlice(): string {
   return useSyncExternalStore(subscribe, () => state.slice, () => "");
+}
+
+const DEFAULT_SCOPE: OrgScope = { root: null, directOnly: false };
+
+export function usePortalScope(): OrgScope {
+  return useSyncExternalStore(subscribe, () => state.scope, () => DEFAULT_SCOPE);
 }
