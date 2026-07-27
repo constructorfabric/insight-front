@@ -1,6 +1,14 @@
 import { useMemo } from "react";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+import {
+  PolarAngleAxis,
+  PolarGrid,
+  Radar,
+  RadarChart,
+  ResponsiveContainer,
+} from "recharts";
 
+import { AttentionList } from "@/components/portal/attention-list";
 import { ComingSoon } from "@/components/widgets/coming-soon";
 import { orgScopeGate } from "@/components/portal/org-scope-gate";
 import { SectionTrend } from "@/components/widgets/v2/section-trend";
@@ -17,7 +25,12 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { usePeriod } from "@/hooks/use-period";
-import { availableSlices, collectRosterAttrs, PLANNED_SLICES } from "@/lib/insight/slices";
+import {
+  attentionSummary,
+  computeAttentionFlags,
+} from "@/lib/insight/attention-flags";
+import { metricGroups } from "@/lib/insight/groups";
+import { availableSlices, cohortKey, collectRosterAttrs, PLANNED_SLICES } from "@/lib/insight/slices";
 import { MIN_COHORT } from "@/lib/insight/within-team-peer";
 import {
   forEntity,
@@ -32,19 +45,22 @@ import {
   distribution,
   familyObserved,
   fmtCompact,
+  groupCoverage,
   medianAcross,
   perCapita,
   representative,
   topDecileShare,
 } from "@/lib/portal/metric-stats";
 import {
+  lensEntry,
   sectionMetricKeys,
   type ConcentrationFraming,
   type LensConfig,
   type SectionSpec,
 } from "@/lib/portal/lens-configs";
+import { DIRECTIONS } from "@/lib/portal/nav-model";
 import { buildTrendData, pickTrendBucket } from "@/lib/portal/trend-data";
-import { usePortalSlice } from "@/lib/portal/portal-store";
+import { setPortalDir, setPortalLens, setPortalZone, usePortalSlice } from "@/lib/portal/portal-store";
 import { useOrgScope } from "@/lib/portal/use-org-scope";
 import { useTeamMembers } from "@/queries/team-view";
 import { useMetricCollection } from "@/queries/metric-results";
@@ -198,6 +214,20 @@ export function DomainLensView({
     ? (sliceDims.find((d) => d.key === slice)?.label ?? slice)
     : null;
 
+  const nameByEntity = useMemo(
+    () => new Map(members.map((m) => [normalizePersonId(m.person_id), m.name])),
+    [members],
+  );
+  const emailByEntity = useMemo(
+    () => new Map(members.map((m) => [normalizePersonId(m.person_id), m.person_id])),
+    [members],
+  );
+  const cohortOf = useMemo(
+    () => (id: string) => cohortKey(attrByEntity.get(id), slice),
+    [attrByEntity, slice],
+  );
+  const cohortLabel = slice ? (sliceLabel ?? "cohort").toLowerCase() : "team";
+
   const gate = orgScopeGate({
     viewerLoading: orgScope.isLoading,
     viewerError: orgScope.isError,
@@ -247,6 +277,10 @@ export function DomainLensView({
           eventByKey={eventData.byKey}
           eventIsError={eventData.isError}
           memberIds={memberIds}
+          cohortOf={cohortOf}
+          cohortLabel={cohortLabel}
+          nameByEntity={nameByEntity}
+          emailByEntity={emailByEntity}
         />
       ))}
 
@@ -288,6 +322,10 @@ function Section({
   eventByKey,
   eventIsError,
   memberIds,
+  cohortOf,
+  cohortLabel,
+  nameByEntity,
+  emailByEntity,
 }: {
   spec: SectionSpec;
   grid: GridData;
@@ -299,6 +337,10 @@ function Section({
   eventByKey: Map<string, NormalizedMetricResult>;
   eventIsError: boolean;
   memberIds: readonly string[];
+  nameByEntity: Map<string, string>;
+  emailByEntity: Map<string, string>;
+  cohortOf: (id: string) => string | null;
+  cohortLabel: string;
 }) {
   switch (spec.kind) {
     case "headline":
@@ -338,6 +380,22 @@ function Section({
           memberIds={memberIds}
         />
       );
+    case "attention":
+      return (
+        <AttentionSection
+          spec={spec}
+          grid={grid}
+          memberIds={memberIds}
+          cohortOf={cohortOf}
+          cohortLabel={cohortLabel}
+          nameByEntity={nameByEntity}
+          emailByEntity={emailByEntity}
+        />
+      );
+    case "direction-cards":
+      return <DirectionCardsSection variant={spec.variant} grid={grid} memberIds={memberIds} />;
+    case "coverage-radar":
+      return <CoverageRadarSection grid={grid} memberIds={memberIds} />;
   }
 }
 
@@ -848,6 +906,181 @@ function CompositionSection({
   );
 }
 
+/* ── attention (Overview design O3: the ONLY section that names people —
+      actionable pointers into Person, not a leaderboard) ───────────────── */
+
+function AttentionSection({
+  spec,
+  grid,
+  memberIds,
+  cohortOf,
+  cohortLabel,
+  nameByEntity,
+  emailByEntity,
+}: {
+  spec: Extract<SectionSpec, { kind: "attention" }>;
+  grid: GridData;
+  memberIds: readonly string[];
+  cohortOf: (id: string) => string | null;
+  cohortLabel: string;
+  nameByEntity: Map<string, string>;
+  emailByEntity: Map<string, string>;
+}) {
+  const flags = useMemo(
+    () =>
+      computeAttentionFlags({
+        headlineKeys: spec.metrics,
+        byKey: grid.byKey,
+        previousByKey: grid.previousByKey,
+        memberIds,
+        cohortOf,
+        nameOf: (id) => nameByEntity.get(id) ?? id,
+        emailOf: (id) => emailByEntity.get(id) ?? id,
+        cohortLabel,
+      }),
+    [spec.metrics, grid.byKey, grid.previousByKey, memberIds, cohortOf, cohortLabel, nameByEntity, emailByEntity],
+  );
+  if (!memberIds.length) return null;
+  const flaggedPeople = new Set(flags.map((f) => f.email)).size;
+  return (
+    <AttentionList
+      flags={flags}
+      summary={attentionSummary(flags, flaggedPeople, memberIds.length)}
+      peopleLabel={flags.length ? `${flaggedPeople} of ${memberIds.length} people` : undefined}
+      max={spec.max}
+    />
+  );
+}
+
+/* ── direction-cards (Overview design O4: cards derive from DIRECTION_LENSES,
+      click routes into the Directions zone) ─────────────────────────────── */
+
+function DirectionCardsSection({
+  variant,
+  grid,
+  memberIds,
+}: {
+  variant: "compact" | "full";
+  grid: GridData;
+  memberIds: readonly string[];
+}) {
+  const cards = DIRECTIONS.map((d) => {
+    const entry = lensEntry(d.id, "Overview");
+    if (!entry || "comingSoon" in entry) return null;
+    const headline = entry.sections.find(
+      (s): s is Extract<SectionSpec, { kind: "headline" }> => s.kind === "headline",
+    );
+    if (!headline) return null;
+    const keys = variant === "compact" ? headline.metrics.slice(0, 2) : headline.metrics;
+    const observed = familyObserved(grid.byKey, sectionMetricKeys(entry), memberIds);
+    return { id: d.id, name: d.name, keys, observed };
+  }).filter((c): c is NonNullable<typeof c> => c != null);
+  if (!cards.length) return null;
+
+  const go = (dir: string) => {
+    setPortalDir(dir);
+    setPortalLens("Overview");
+    setPortalZone("directions");
+  };
+
+  return (
+    <section className="flex flex-col gap-3">
+      <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+        By direction
+      </p>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(16rem,1fr))] gap-3">
+        {cards.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => go(c.id)}
+            className="rounded-xl border bg-card text-left transition-colors hover:bg-accent"
+          >
+            <div className="flex flex-col gap-2 p-4">
+              <div className="text-sm font-semibold">{c.name}</div>
+              {c.observed ? (
+                c.keys.map((key) => {
+                  const r = grid.byKey.get(key);
+                  if (!r) return null;
+                  const now = representative(r, memberIds);
+                  if (now == null) return null;
+                  const prev = representative(grid.previousByKey.get(key), memberIds);
+                  const isSum = r.computation === "sum";
+                  return (
+                    <div key={key} className="flex items-center justify-between gap-2 text-sm">
+                      <span className="truncate text-muted-foreground">
+                        {r.short_label ?? r.label}
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <span className="font-medium tabular-nums">
+                          {formatMetricValue(isSum ? perCapita(r, memberIds) : now, r.format, r.unit)}
+                        </span>
+                        <Delta now={now} prev={prev} direction={r.direction} />
+                      </span>
+                    </div>
+                  );
+                })
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  source isn&apos;t ingested for this org yet
+                </span>
+              )}
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ── coverage-radar (Overview design O5: coverage = share of members with ≥1
+      OBSERVED metric per group — entityObserved, never zero-filled sums) ── */
+
+function CoverageRadarSection({
+  grid,
+  memberIds,
+}: {
+  grid: GridData;
+  memberIds: readonly string[];
+}) {
+  if (memberIds.length < MIN_COHORT) return null;
+  const data = metricGroups().map((g) => ({
+    domain: g.title,
+    coverage: Math.round((groupCoverage(grid.byKey, g.card.preview, memberIds) ?? 0) * 100),
+  }));
+  if (data.every((d) => d.coverage === 0)) return null;
+
+  return (
+    <section className="flex flex-col gap-3">
+      <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+        Health radar
+      </p>
+      <Card>
+        <CardContent className="p-4">
+          <div className="h-72 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart data={data} outerRadius="70%">
+                <PolarGrid />
+                <PolarAngleAxis dataKey="domain" tick={{ fontSize: 12 }} />
+                <Radar
+                  dataKey="coverage"
+                  stroke="var(--primary)"
+                  fill="var(--primary)"
+                  fillOpacity={0.25}
+                />
+              </RadarChart>
+            </ResponsiveContainer>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Coverage — % of people in scope with any observed activity in each domain this
+            period.
+          </p>
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
 /* ── by-unit auto-section (rule 7) ───────────────────────────────────── */
 
 const NO_COMPARABLE_UNITS_NOTE =
@@ -880,7 +1113,9 @@ function ByUnitSection({
   const headline = config.sections.find(
     (s): s is Extract<SectionSpec, { kind: "headline" }> => s.kind === "headline",
   );
-  const key = headline?.metrics.find((k) => grid.get(k)?.computation === "sum");
+  // No headline → by-unit was never promised for this lens; stay silent.
+  if (!headline) return null;
+  const key = headline.metrics.find((k) => grid.get(k)?.computation === "sum");
   const r = key ? grid.get(key) : undefined;
   if (!r) return <SliceNote text={NO_COMPARABLE_UNITS_NOTE} />;
 
