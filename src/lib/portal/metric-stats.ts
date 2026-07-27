@@ -150,3 +150,25 @@ export function familyObserved(
   }
   return false;
 }
+
+/**
+ * Domain coverage (Overview design O5): the share of members with at least one
+ * OBSERVED metric among `groupKeys` — via `entityObserved` (peer target), never
+ * zero-filled period sums. Null on an empty roster so callers can suppress.
+ */
+export function groupCoverage(
+  byKey: Map<string, NormalizedMetricResult>,
+  groupKeys: readonly string[],
+  ids: readonly string[],
+): number | null {
+  if (!ids.length) return null;
+  let covered = 0;
+  for (const id of ids) {
+    const has = groupKeys.some((k) => {
+      const r = byKey.get(k);
+      return r != null && entityObserved(r, id);
+    });
+    if (has) covered += 1;
+  }
+  return covered / ids.length;
+}

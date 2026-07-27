@@ -6,6 +6,7 @@ import {
   distribution,
   familyObserved,
   fmtCompact,
+  groupCoverage,
   medianAcross,
   perCapita,
   representative,
@@ -103,4 +104,22 @@ describe("medianAcross", () => {
 describe("fmtCompact", () => {
   it("abbreviates thousands", () => expect(fmtCompact(1500)).toBe("1.5k"));
   it("keeps small integers", () => expect(fmtCompact(10)).toBe("10"));
+});
+
+describe("groupCoverage", () => {
+  it("counts only entityObserved members (zero-filled sums excluded)", () => {
+    const r = fixture({
+      period: [["a", 0], ["b", 7], ["c", 3]],
+      peerTargets: [["a", null], ["b", 7], ["c", 3]],
+    });
+    const byKey = new Map([["t.metric", r]]);
+    expect(groupCoverage(byKey, ["t.metric"], ["a", "b", "c"])).toBeCloseTo(2 / 3, 5);
+  });
+  it("returns null for an empty roster", () => {
+    expect(groupCoverage(new Map(), ["t.metric"], [])).toBeNull();
+  });
+  it("returns 0 when the group has no observations", () => {
+    const r = fixture({ period: [["a", 0]], peerTargets: [["a", null]] });
+    expect(groupCoverage(new Map([["t.metric", r]]), ["t.metric"], ["a"])).toBe(0);
+  });
 });
