@@ -1,3 +1,5 @@
+import { metricGroups } from "@/lib/insight/groups";
+
 /**
  * The Directions registry: every direction × lens maps to either a LensConfig
  * (rendered by DomainLensView from typed sections) or an honest ComingSoon
@@ -20,7 +22,11 @@ export type SectionSpec =
   // edges align (they don't on the current API — honest fallback, see design §7);
   // participation counts active people.
   | { kind: "event-histogram"; metric: string; title: string }
-  | { kind: "participation"; metrics: readonly string[]; title: string; noun: string };
+  | { kind: "participation"; metrics: readonly string[]; title: string; noun: string }
+  // Overview-motivated, zone-agnostic sections (design DESIGN-2026-07-27-overview §4).
+  | { kind: "attention"; metrics: readonly string[]; max: number }
+  | { kind: "direction-cards"; variant: "compact" | "full" }
+  | { kind: "coverage-radar" };
 
 export interface LensConfig {
   title: string;
@@ -53,6 +59,22 @@ export function sectionMetricKeys(config: LensConfig): string[] {
       case "composition":
       case "event-histogram":
         keys.add(s.metric);
+        break;
+      case "attention":
+        for (const k of s.metrics) keys.add(k);
+        break;
+      case "direction-cards":
+        // Cards derive from every configured direction Overview lens (design O4).
+        for (const lenses of Object.values(DIRECTION_LENSES)) {
+          const overview = lenses["Overview"];
+          if (!overview || "comingSoon" in overview) continue;
+          for (const sec of overview.sections) {
+            if (sec.kind === "headline") for (const k of sec.metrics) keys.add(k);
+          }
+        }
+        break;
+      case "coverage-radar":
+        for (const g of metricGroups()) for (const k of g.card.preview) keys.add(k);
         break;
       default: {
         const _exhaustive: never = s;

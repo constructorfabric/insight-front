@@ -90,3 +90,30 @@ describe("directionMetricKeys", () => {
     expect(keys.some((k) => k.startsWith("tasks."))).toBe(true);
   });
 });
+
+describe("sectionMetricKeys — Overview section kinds", () => {
+  it("collects attention metrics", () => {
+    const keys = sectionMetricKeys({
+      title: "t",
+      sections: [{ kind: "attention", metrics: ["git.commits", "wiki.edits"], max: 8 }],
+    });
+    expect(keys.sort()).toEqual(["git.commits", "wiki.edits"]);
+  });
+  it("derives direction-cards keys from every configured Overview lens headline", () => {
+    const keys = sectionMetricKeys({
+      title: "t",
+      sections: [{ kind: "direction-cards", variant: "full" }],
+    });
+    expect(keys).toContain("git.commits");
+    expect(keys).toContain("collab.messages_sent");
+    expect(keys).toContain("wiki.pages_created");
+  });
+  it("derives coverage-radar keys from every group's card preview", () => {
+    const keys = new Set(
+      sectionMetricKeys({ title: "t", sections: [{ kind: "coverage-radar" }] }),
+    );
+    for (const g of metricGroups()) {
+      for (const k of g.card.preview) expect(keys.has(k), k).toBe(true);
+    }
+  });
+});
