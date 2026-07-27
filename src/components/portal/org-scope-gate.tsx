@@ -8,7 +8,7 @@ import { ComingSoon } from "@/components/widgets/coming-soon";
 
 export interface OrgScopeGateArgs {
   /** Viewer identity query — `isLoading` (not `isPending`), so a disabled query
-   * on an empty scopePerson doesn't spin forever. */
+   * (viewer email still unresolved) doesn't spin forever. */
   viewerLoading: boolean;
   viewerError: boolean;
   membersLoading: boolean;

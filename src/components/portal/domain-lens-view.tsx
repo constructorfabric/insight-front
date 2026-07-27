@@ -230,7 +230,7 @@ export function DomainLensView({
       <div>
         <h1 className="text-xl font-semibold tracking-tight">{config.title}</h1>
         <p className="text-sm text-muted-foreground">
-          {members.length} members · {config.tagline ?? "trend & balance"}
+          {orgScope.count} members · {config.tagline ?? "trend & balance"}
         </p>
       </div>
 

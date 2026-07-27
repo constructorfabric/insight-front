@@ -16,7 +16,9 @@ export type SectionSpec =
   | { kind: "distribution"; metric: string; title: string; caption: string; unitLabel: string }
   | { kind: "concentration"; metrics: readonly string[]; framing: ConcentrationFraming }
   | { kind: "composition"; metric: string; dimension: string; title: string }
-  // P3 sections — types land now so configs can be staged; renderer arrives in P3.
+  // Flow-depth sections: event-histogram merges per-entity server bins when
+  // edges align (they don't on the current API — honest fallback, see design §7);
+  // participation counts active people.
   | { kind: "event-histogram"; metric: string; title: string }
   | { kind: "participation"; metrics: readonly string[]; title: string; noun: string };
 
