@@ -223,6 +223,21 @@ describe("PortalLayout landing", () => {
     render(<PortalLayout />);
     expect(zone.result.current).toBeNull();
   });
+
+  it("never overrides a zone the manager picked while their role resolved", () => {
+    act(() => setPortalZone("directions"));
+    const zone = renderHook(() => usePortalZone());
+    render(<PortalLayout />);
+    expect(zone.result.current).toBe("directions");
+  });
+
+  it("resets an IC stranded on an org zone (hidden for them) to route-driven", () => {
+    mocks.isManager = false;
+    act(() => setPortalZone("overview"));
+    const zone = renderHook(() => usePortalZone());
+    render(<PortalLayout />);
+    expect(zone.result.current).toBeNull();
+  });
 });
 
 describe("SliceSelect", () => {

@@ -47,7 +47,10 @@ const ATTR_FIELDS: readonly {
   { key: "division", label: "Division", get: (p) => p.division },
   { key: "department", label: "Department", get: (p) => p.department },
   { key: "title", label: "Title", get: (p) => p.job_title },
-  { key: "manager", label: "Manager", get: (p) => p.supervisor_name },
+  // Keyed by EMAIL, not display name: two managers sharing a name must not
+  // merge into one cohort. The email doubles as the visible unit label — less
+  // pretty, but unambiguous; a display-label lookup is a follow-up.
+  { key: "manager", label: "Manager", get: (p) => p.supervisor_email },
 ];
 
 /** A person's sliceable attributes as a generic key→attr map (empty values dropped). */

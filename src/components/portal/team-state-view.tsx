@@ -83,19 +83,22 @@ export function TeamStateView() {
     ? (sliceDims.find((d) => d.key === slice)?.label ?? "cohort").toLowerCase()
     : "team";
 
-  const groups = metricGroups();
   // Headline metrics only (card.preview): the set a lead scans, and — crucially —
   // small enough to stay under the API's 50-metrics-per-request cap when the full
-  // metric catalog across every group would blow past it.
+  // metric catalog across every group would blow past it. `metricGroups()` is
+  // called INSIDE the memo — it returns a fresh array per call, and a fresh
+  // dependency would defeat the memo and re-key the grid query every render.
   const headlineKeys = useMemo(() => headlineMetricKeys(), []);
   const gridCollection = useMemo<MetricCollectionConfig>(() => {
     const want = new Set(headlineKeys);
-    const seen = new Set<string>();
-    const metrics = groups
-      .flatMap((g) => g.collection.metrics)
-      .filter((m) => want.has(m.key) && !seen.has(m.key) && seen.add(m.key));
-    return { metrics };
-  }, [groups, headlineKeys]);
+    const byKey = new Map<string, MetricCollectionConfig["metrics"][number]>();
+    for (const g of metricGroups()) {
+      for (const m of g.collection.metrics) {
+        if (want.has(m.key) && !byKey.has(m.key)) byKey.set(m.key, m);
+      }
+    }
+    return { metrics: [...byKey.values()] };
+  }, [headlineKeys]);
 
   const grid = useMemberGridData(
     gridCollection.metrics.length ? gridCollection : EMPTY_COLLECTION,
@@ -252,7 +255,7 @@ export function TeamStateView() {
               byKey={heatByKey}
               previousByKey={grid.previousByKey}
               caption={`${teamName} — members × metrics`}
-              cohortLabel="team"
+              cohortLabel={cohortLabel}
             />
           </CardContent>
         </Card>

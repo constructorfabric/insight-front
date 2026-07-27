@@ -17,7 +17,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { ZONES, type Zone } from "@/lib/portal/nav-model";
-import { setPortalZone } from "@/lib/portal/portal-store";
+import { setPortalItem, setPortalZone } from "@/lib/portal/portal-store";
 import { useActiveZone } from "@/lib/portal/use-active-zone";
 import { useViewerIsManager } from "@/lib/portal/use-viewer-is-manager";
 
@@ -52,6 +52,9 @@ export function LensRail() {
   // gets in the way. Theme / directions / manage zones aren't route-backed, so
   // they still pin the zone.
   function selectZone(zone: Zone) {
+    // `portal.item` is a per-zone selection; carrying it across zones makes
+    // the target view render a fallback while the pane highlights nothing.
+    if (activeZone !== zone.id) setPortalItem(null);
     if (zone.kind === "person") {
       setPortalZone(null);
       if (activePerson)

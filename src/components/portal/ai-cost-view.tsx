@@ -246,13 +246,15 @@ export function AiCostView({ item }: { item: string | null }) {
     const daysR = grid.byKey.get(DAYS_KEY);
     const days = memberIds.map((id) => (daysR ? (forEntity(daysR, id).value ?? 0) : 0));
     const users = days.filter((d) => d > 0).sort((a, b) => a - b);
-    const med = users.length ? quantile(users, 0.5) : 0;
-    const p75 = users.length ? quantile(users, 0.75) : 0;
+    // Rounded ONCE and reused for both the label and the comparison, so the
+    // stage count always matches the threshold the label promises.
+    const med = users.length ? Math.round(quantile(users, 0.5)) : 0;
+    const p75 = users.length ? Math.round(quantile(users, 0.75)) : 0;
     return [
       { label: "In org", n: memberIds.length },
       { label: "Used AI (≥1 day)", n: users.length },
-      { label: `Active (≥${Math.round(med)} days · median)`, n: days.filter((d) => d > 0 && d >= med).length },
-      { label: `Heavy (≥${Math.round(p75)} days · top quartile)`, n: days.filter((d) => d > 0 && d >= p75).length },
+      { label: `Active (≥${med} days · median)`, n: days.filter((d) => d > 0 && d >= med).length },
+      { label: `Heavy (≥${p75} days · top quartile)`, n: days.filter((d) => d > 0 && d >= p75).length },
     ];
   }, [grid.byKey, memberIds]);
 

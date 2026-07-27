@@ -59,6 +59,15 @@ export function SingleGroupView({
     );
   }
   if (data.isPending) return <CenteredSpinner className="min-h-[60vh]" />;
+  // A failed fetch must surface as a retryable error, not a drilldown
+  // rendered over an empty dataset (same policy as MetricGroupsView).
+  if (data.isError) {
+    return (
+      <div className="mx-auto w-full max-w-md p-8">
+        <ComingSoon variant="card" state="error" onRetry={() => data.refetch()} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">

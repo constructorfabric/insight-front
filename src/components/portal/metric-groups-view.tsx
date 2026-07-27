@@ -103,7 +103,9 @@ export function MetricGroupsView({
     cohortIds.length ? { type: "person" as const, ids: cohortIds } : CLOSED_ENTITY;
   const cohortKpi = useMetricCollection(
     cohortIds.length && showKpis ? KPI_ROW_COLLECTION : EMPTY_COLLECTION,
-    cohortEntity,
+    // Entity gated on the SAME condition as the collection — a live entity
+    // with an empty collection still issues a useless network request.
+    cohortIds.length && showKpis ? cohortEntity : CLOSED_ENTITY,
     dateRange,
   );
   const cohortGroup = useMetricCollectionSet(

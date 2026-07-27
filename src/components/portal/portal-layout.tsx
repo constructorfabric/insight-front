@@ -6,7 +6,7 @@ import { LensRail } from "@/components/portal/lens-rail";
 import { PortalTopBar } from "@/components/portal/portal-topbar";
 import { ZoneContent } from "@/components/portal/zone-content";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { setPortalZone } from "@/lib/portal/portal-store";
+import { setPortalZone, usePortalZone } from "@/lib/portal/portal-store";
 import { useViewerIsManager } from "@/lib/portal/use-viewer-is-manager";
 
 /**
@@ -19,15 +19,22 @@ import { useViewerIsManager } from "@/lib/portal/use-viewer-is-manager";
 export function PortalLayout() {
   // Pin the landing zone exactly once, when the viewer's manager status first
   // resolves: a manager lands on the Overview org rollup; an IC has no subtree,
-  // so we leave the zone route-driven (null) → their own Person page. Guarded
-  // so it never fights later navigation.
+  // so we leave the zone route-driven (null) → their own Person page. The rail
+  // stays interactive while the status resolves, so honour a zone the user
+  // already picked: a manager's choice is never overridden, and an IC who
+  // landed on an org zone (now hidden for them) is reset to route-driven.
   const { isManager, isPending } = useViewerIsManager();
+  const zone = usePortalZone();
   const landed = useRef(false);
   useEffect(() => {
     if (isPending || landed.current) return;
     landed.current = true;
-    if (isManager) setPortalZone("overview");
-  }, [isPending, isManager]);
+    if (isManager) {
+      if (zone == null) setPortalZone("overview");
+    } else if (zone != null && zone !== "person") {
+      setPortalZone(null);
+    }
+  }, [isPending, isManager, zone]);
 
   return (
     <SidebarProvider className="h-svh overflow-hidden">

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
 import { useViewer } from "@/auth";
-import { collectRosterAttrs } from "@/lib/insight/slices";
+import { cohortKey, collectRosterAttrs } from "@/lib/insight/slices";
 import { normalizePersonId } from "@/lib/metrics/entity";
 import { usePortalSlice } from "@/lib/portal/portal-store";
 import { useIcPerson } from "@/queries/ic-dashboard";
@@ -23,10 +23,12 @@ export function usePersonCohort(entityId: string): string[] {
   );
   return useMemo(() => {
     if (!slice) return [];
-    const own = attrByEntity.get(entityId)?.[slice]?.value;
+    // Membership via the shared `cohortKey` predicate so this hook can never
+    // drift from how every other surface derives cohorts.
+    const own = cohortKey(attrByEntity.get(entityId), slice);
     if (own == null) return [];
     return [...attrByEntity.entries()]
-      .filter(([, a]) => a[slice]?.value === own)
+      .filter(([, a]) => cohortKey(a, slice) === own)
       .map(([id]) => id);
   }, [attrByEntity, slice, entityId]);
 }
