@@ -58,7 +58,13 @@ export function perCapita(r: NormalizedMetricResult, ids: readonly string[]): nu
   return active ? total / active : 0;
 }
 
-export interface DistRow {
+/**
+ * Not exported: nothing outside this module imports the type by name.
+ * `DomainLensView` consumes `distribution()`'s return structurally (it reads
+ * `.label`/`.range`/`.count` off the inferred row type without naming
+ * `DistRow`) — re-export only if a future consumer needs to name the shape.
+ */
+interface DistRow {
   /** Compact lower-edge tick, e.g. "10" or "1.5k". */
   label: string;
   /** Full band for the tooltip, e.g. "10–15". */

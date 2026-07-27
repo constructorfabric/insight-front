@@ -27,6 +27,7 @@ import {
 import type { MetricBucket, MetricDirection } from "@/api/metric-results-client";
 import { normalizePersonId } from "@/lib/metrics/entity";
 import { formatMetricValue } from "@/lib/format";
+import { mergeEventHistogram } from "@/lib/portal/event-histogram";
 import {
   distribution,
   familyObserved,
@@ -166,6 +167,29 @@ export function DomainLensView({
     dateRange,
   );
 
+  // Event histograms: per-entity server bins, merged org-side only when edges
+  // align across every member (design §7 open question — probed, not assumed).
+  const eventSections = useMemo(
+    () =>
+      config.sections.filter(
+        (s): s is Extract<SectionSpec, { kind: "event-histogram" }> => s.kind === "event-histogram",
+      ),
+    [config],
+  );
+  const eventCollection = useMemo<MetricCollectionConfig>(
+    () => ({
+      metrics: eventSections.map((s) => ({ key: s.metric, views: [{ view: "histogram" as const }] })),
+    }),
+    [eventSections],
+  );
+  const eventData = useMetricCollection(
+    eventSections.length && memberIds.length ? eventCollection : EMPTY_COLLECTION,
+    eventSections.length && memberIds.length
+      ? { type: "person", ids: memberIds }
+      : { type: "person", ids: [] },
+    dateRange,
+  );
+
   // Slice → by-unit auto-section (rule 7).
   const slice = usePortalSlice();
   const attrByEntity = useMemo(() => collectRosterAttrs(pivot, normalizePersonId), [pivot]);
@@ -220,6 +244,8 @@ export function DomainLensView({
           compData={compData.byKey}
           compIsError={compData.isError}
           compRefetch={compData.refetch}
+          eventByKey={eventData.byKey}
+          eventIsError={eventData.isError}
           memberIds={memberIds}
         />
       ))}
@@ -259,6 +285,8 @@ function Section({
   compData,
   compIsError,
   compRefetch,
+  eventByKey,
+  eventIsError,
   memberIds,
 }: {
   spec: SectionSpec;
@@ -268,6 +296,8 @@ function Section({
   compData: Map<string, NormalizedMetricResult>;
   compIsError: boolean;
   compRefetch: () => void;
+  eventByKey: Map<string, NormalizedMetricResult>;
+  eventIsError: boolean;
   memberIds: readonly string[];
 }) {
   switch (spec.kind) {
@@ -299,8 +329,15 @@ function Section({
     case "participation":
       return <ParticipationSection spec={spec} grid={grid} trend={trend} memberIds={memberIds} />;
     case "event-histogram":
-      // P3 section — arrives next task; render nothing until then.
-      return null;
+      return (
+        <EventHistogramSection
+          spec={spec}
+          grid={grid}
+          eventByKey={eventByKey}
+          eventIsError={eventIsError}
+          memberIds={memberIds}
+        />
+      );
   }
 }
 
@@ -601,6 +638,94 @@ function DistributionSection({
             </BarChart>
           </ChartContainer>
           <p className="mt-1 text-center text-[10px] text-muted-foreground">{spec.unitLabel}</p>
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
+/* ── event-histogram (design §7 — bin-aligned merge, honest fallback) ── */
+
+/**
+ * Org-wide event histogram assembled from per-entity server bins. This is an
+ * enhancement probe, not a guaranteed capability: org-wide bin alignment
+ * across entities is unknown until observed (design §7 open question). When
+ * `mergeEventHistogram` can't align edges (or errors on the underlying
+ * fetch), this section renders nothing — the Flow stat-tiles above still
+ * carry the tab, and a missing chart here reads as "not available", never as
+ * a fabricated or wrong distribution.
+ */
+function EventHistogramSection({
+  spec,
+  grid,
+  eventByKey,
+  eventIsError,
+  memberIds,
+}: {
+  spec: Extract<SectionSpec, { kind: "event-histogram" }>;
+  grid: GridData;
+  eventByKey: Map<string, NormalizedMetricResult>;
+  eventIsError: boolean;
+  memberIds: readonly string[];
+}) {
+  if (eventIsError) return null;
+  const r = grid.byKey.get(spec.metric);
+  const bins = mergeEventHistogram(eventByKey.get(spec.metric), memberIds);
+  if (!bins) return null;
+
+  const fmt =
+    r?.format === "percent" ? (n: number) => formatMetricValue(n, "percent", null) : fmtCompact;
+  const rows = bins.map((bin) => ({
+    label: fmt(bin.lo),
+    range: `${fmt(bin.lo)}–${fmt(bin.hi)}`,
+    count: bin.count,
+  }));
+  const total = bins.reduce((sum, bin) => sum + bin.count, 0);
+
+  return (
+    <section className="flex flex-col gap-3">
+      <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+        {spec.title} · {total} events
+      </p>
+      <Card>
+        <CardContent className="p-4">
+          <p className="mb-3 text-xs text-muted-foreground">
+            Distribution of events (every PR), not people.
+          </p>
+          <ChartContainer config={DIST_CONFIG} className="h-56 w-full">
+            <BarChart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                tickLine={false}
+                axisLine={false}
+                interval="preserveStartEnd"
+              />
+              <YAxis
+                allowDecimals={false}
+                width={28}
+                tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                tickLine={false}
+                axisLine={false}
+              />
+              <ChartTooltip
+                content={
+                  <ChartTooltipContent
+                    className="min-w-40"
+                    labelFormatter={(_, p) =>
+                      (p?.[0]?.payload as { range?: string } | undefined)?.range ?? ""
+                    }
+                  />
+                }
+              />
+              <ChartBar dataKey="count" name="Events" radius={[2, 2, 0, 0]} fill="var(--chart-1)" />
+            </BarChart>
+          </ChartContainer>
+          <p className="mt-1 text-center text-[10px] text-muted-foreground">
+            {r?.short_label ?? r?.label ?? spec.metric}
+            {r?.unit ? ` (${r.unit})` : ""}
+          </p>
         </CardContent>
       </Card>
     </section>

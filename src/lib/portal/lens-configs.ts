@@ -113,7 +113,6 @@ const DEV: Record<string, LensEntry> = {
     ],
   },
   Flow: {
-    // P3 adds { kind: "event-histogram", metric: "git.pr_cycle_time_h", ... }.
     title: "Development · Flow",
     tagline: "how smoothly work moves",
     sections: [
@@ -127,6 +126,11 @@ const DEV: Record<string, LensEntry> = {
           "git.merge_rate",
           "git.commits_per_active_day",
         ],
+      },
+      {
+        kind: "event-histogram",
+        metric: "git.pr_cycle_time_h",
+        title: "PR cycle-time distribution (events)",
       },
     ],
   },
