@@ -200,6 +200,11 @@
     "title": "Synthetic data",
     "description_html": "UI is rendering using mock data."
   },
+  "view_as_banner": {
+    "title": "Viewing as {{email}}",
+    "description": "You are signed in as {{impersonator}} and seeing the portal as this person.",
+    "exit": "Exit view-as"
+  },
   "members_table": {
     "view_team_stats": "View team stats",
     "click_hint": "Click member to open IC dashboard"

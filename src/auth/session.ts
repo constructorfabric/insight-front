@@ -3,7 +3,9 @@ import type { AuthStatus } from "./types";
 
 /** A server unix-seconds timestamp: finite positive number, else 0 (absent). */
 function unixSeconds(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : 0;
 }
 
 /**
@@ -31,6 +33,7 @@ export async function loadSession(): Promise<AuthStatus> {
       csrf_token?: string;
       expires_at?: number;
       refresh_at?: number;
+      impersonator_email?: string;
     };
     // Fail closed on a missing CSRF token. A live session always carries one
     // (the authenticator echoes it on /auth/me), and it is required to send
@@ -40,7 +43,9 @@ export async function loadSession(): Promise<AuthStatus> {
     // backend — treat it as no session (redirects to login, which re-mints a
     // session with a token). Requires the backend to be deployed first.
     if (!body.csrf_token) {
-      console.warn("/auth/me returned no csrf_token; treating as unauthenticated");
+      console.warn(
+        "/auth/me returned no csrf_token; treating as unauthenticated"
+      );
       authStore.setUnauthenticated();
       return "unauthenticated";
     }
@@ -56,6 +61,8 @@ export async function loadSession(): Promise<AuthStatus> {
       // only, so guard the wire values like refresh.ts guards its inputs.
       expiresAt: unixSeconds(body.expires_at),
       refreshAt: unixSeconds(body.refresh_at),
+      // Present only on `__override` view-as sessions (insight#1941).
+      impersonatorEmail: body.impersonator_email || null,
     });
     return "authenticated";
   } catch {
