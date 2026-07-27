@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 
 import { useViewer } from "@/auth";
+import { ScopeSelect } from "@/components/portal/scope-select";
 import { SliceSelect } from "@/components/portal/slice-select";
 import { PeriodSelectorBar } from "@/components/widgets/period-selector-bar";
 import { usePeriod } from "@/hooks/use-period";
@@ -27,6 +28,7 @@ export function PortalTopBar() {
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-2 border-b px-4 py-2 md:px-6">
+      <ScopeSelect />
       <SliceSelect dims={dims} />
       <PeriodSelectorBar
         period={period}
