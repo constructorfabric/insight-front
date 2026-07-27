@@ -296,11 +296,87 @@ function Section({
           memberIds={memberIds}
         />
       );
-    case "event-histogram":
     case "participation":
-      // P3 sections — configs may stage them early; render nothing until then.
+      return <ParticipationSection spec={spec} grid={grid} trend={trend} memberIds={memberIds} />;
+    case "event-histogram":
+      // P3 section — arrives next task; render nothing until then.
       return null;
   }
+}
+
+/* ── participation (rule 8 variant — "N of M are active") ────────────── */
+
+function ParticipationSection({
+  spec,
+  grid,
+  trend,
+  memberIds,
+}: {
+  spec: Extract<SectionSpec, { kind: "participation" }>;
+  grid: GridData;
+  trend: TrendData;
+  memberIds: readonly string[];
+}) {
+  const isActive = (byKey: Map<string, NormalizedMetricResult>, id: string) =>
+    spec.metrics.some((key) => {
+      const r = byKey.get(key);
+      return r != null && (forEntity(r, id).value ?? 0) > 0;
+    });
+
+  const active = memberIds.filter((id) => isActive(grid.byKey, id)).length;
+  const prevActive = memberIds.filter((id) => isActive(grid.previousByKey, id)).length;
+  if (memberIds.length === 0) return null;
+
+  // Active people per trend bucket (client count over the fetched timeseries).
+  const byDate = new Map<string, Set<string>>();
+  for (const key of spec.metrics) {
+    const r = trend.byKey.get(key);
+    if (!r) continue;
+    for (const id of memberIds) {
+      for (const s of forEntity(r, id).series) {
+        for (const p of s.points) {
+          if ((p.value ?? 0) > 0) {
+            (byDate.get(p.bucket_start) ?? byDate.set(p.bucket_start, new Set()).get(p.bucket_start)!).add(id);
+          }
+        }
+      }
+    }
+  }
+  const data = [...byDate.entries()]
+    .map(([date, ids]) => ({ date, active: ids.size }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  return (
+    <section className="flex flex-col gap-3">
+      <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+        {spec.title}
+      </p>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(14rem,1fr))] gap-3">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs font-medium text-muted-foreground">{spec.noun}</div>
+              <Delta now={active} prev={prevActive || null} direction="higher_is_better" />
+            </div>
+            <div className="mt-1 text-2xl font-semibold tabular-nums">
+              {active} of {memberIds.length}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {Math.round((active / memberIds.length) * 100)}% of the team this period
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+      {data.length > 1 ? (
+        <SectionTrend
+          title="Active people over time"
+          series={[{ key: "active", label: spec.noun, type: "line" }]}
+          data={data}
+          isPending={trend.isPending}
+        />
+      ) : null}
+    </section>
+  );
 }
 
 /* ── headline (rules 1-2) ────────────────────────────────────────────── */

@@ -320,8 +320,23 @@ const WIKI: Record<string, LensEntry> = {
       },
     ],
   },
-  // Becomes a real participation view in P3.
-  "Active authors": { comingSoon: "Active-author participation view lands with the flow-depth phase." },
+  "Active authors": {
+    title: "Wiki · Active authors",
+    tagline: "who writes at all",
+    sections: [
+      {
+        kind: "participation",
+        metrics: ["wiki.pages_created", "wiki.edits", "wiki.comments"],
+        title: "Participation",
+        noun: "Active authors",
+      },
+      // Participation's per-bucket count reads the trend query; wiki.edits
+      // dominates wiki activity, so the trend fetch keys off it alone — do NOT
+      // add all three (row budget at org scope). The headline "N of M" uses the
+      // period grid over all three metrics.
+      { kind: "trend", metrics: ["wiki.edits"] },
+    ],
+  },
 };
 
 /* ── Sales / Support (bullet-only directions) ────────────────────────── */
