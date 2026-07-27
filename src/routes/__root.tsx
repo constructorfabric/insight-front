@@ -7,6 +7,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { AuthGate } from "@/components/auth-gate";
 import { CenteredSpinner } from "@/components/widgets/centered-spinner";
 import { MockBanner } from "@/components/mock-banner";
+import { ViewAsBanner } from "@/components/view-as-banner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { queryClient } from "@/query-client";
 
@@ -53,6 +54,7 @@ function RootLayout() {
           <AppSidebar />
           <SidebarInset className="min-w-0 overflow-x-clip">
             <MockBanner />
+            <ViewAsBanner />
             <Outlet />
           </SidebarInset>
         </SidebarProvider>
