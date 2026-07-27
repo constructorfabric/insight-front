@@ -2,6 +2,11 @@ import type {
   MetricCollectionConfig,
   MetricTimeseriesGroupLimitConfig,
 } from "@/lib/metrics/collection";
+import type {
+  MetricTimeseriesTableColumnConfig,
+  MetricTimeseriesTableConfig,
+} from "@/lib/metrics/timeseries-table";
+import type { MetricTimeseriesChartConfig } from "@/lib/metrics/timeseries-chart";
 
 /**
  * Dashboard composition registry: named groups of metrics and the KPI row.
@@ -35,11 +40,13 @@ export type DrilldownBlock =
       view: "timeseries";
       metrics: string[];
       defaultPresentation?: "chart" | "table";
+      chart?: MetricTimeseriesChartConfig;
       groupBy?: {
         default: string;
         options?: string[];
         limits?: Record<string, MetricTimeseriesGroupLimitConfig>;
       };
+      table?: MetricTimeseriesTableConfig;
     }
   | { view: "breakdown"; chart: BreakdownChartKind; metrics: string[] }
   | { view: "histogram"; chart: HistogramChartKind; metrics: string[] };
@@ -193,6 +200,19 @@ const GIT_OUTPUT_COLLECTION: MetricCollectionConfig = {
   ],
 };
 
+const GIT_LINES_TABLE_COLUMN = {
+  label: "Lines",
+  template: [
+    { metric: "git.lines_added", prefix: "+", tone: "success" },
+    { text: " / " },
+    {
+      metric: "git.lines_removed",
+      prefix: "−",
+      tone: "destructive",
+    },
+  ],
+} satisfies MetricTimeseriesTableColumnConfig;
+
 const COLLABORATION_COLLECTION: MetricCollectionConfig = {
   metrics: [
     {
@@ -319,6 +339,7 @@ export const GROUPS: readonly GroupDef[] = [
         id: "task-throughput",
         view: "timeseries",
         metrics: ["tasks.closed", "tasks.bugs_fixed"],
+        chart: { multiMetric: "combined" },
       },
       {
         chart: "histogram",
@@ -352,6 +373,13 @@ export const GROUPS: readonly GroupDef[] = [
           "git.lines_removed",
         ],
         defaultPresentation: "table",
+        table: {
+          columns: [
+            { metric: "git.commits" },
+            { metric: "git.prs_merged", labelSource: "short" },
+            GIT_LINES_TABLE_COLUMN,
+          ],
+        },
         groupBy: {
           default: "repository",
           limits: {
@@ -367,16 +395,11 @@ export const GROUPS: readonly GroupDef[] = [
         id: "lines-added-by-category",
         view: "timeseries",
         metrics: ["git.lines_added", "git.lines_removed"],
+        table: {
+          columns: [GIT_LINES_TABLE_COLUMN],
+        },
         groupBy: {
           default: "category",
-          options: ["category", "repository"],
-          limits: {
-            repository: {
-              count: 10,
-              rankBy: "git.lines_added",
-              includeRemainder: true,
-            },
-          },
         },
       },
       {
@@ -447,6 +470,7 @@ export const GROUPS: readonly GroupDef[] = [
         id: "wiki-activity",
         view: "timeseries",
         metrics: ["wiki.pages_created", "wiki.edits"],
+        chart: { multiMetric: "combined" },
       },
     ],
   },

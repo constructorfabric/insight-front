@@ -163,7 +163,9 @@ export function CollectionDrilldown({
               range={range}
               metricKeys={block.metrics}
               defaultPresentation={block.defaultPresentation}
+              chart={block.chart}
               groupBy={block.groupBy}
+              table={block.table}
             />
           ))}
         </div>

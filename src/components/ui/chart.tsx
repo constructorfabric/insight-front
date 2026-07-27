@@ -119,6 +119,7 @@ const ComposedChart = RechartsPrimitive.ComposedChart;
 const CartesianGrid = RechartsPrimitive.CartesianGrid;
 const XAxis = RechartsPrimitive.XAxis;
 const YAxis = RechartsPrimitive.YAxis;
+const ReferenceArea = RechartsPrimitive.ReferenceArea;
 const ReferenceLine = RechartsPrimitive.ReferenceLine;
 const ResponsiveContainer = RechartsPrimitive.ResponsiveContainer;
 const ChartTooltip = RechartsPrimitive.Tooltip;
@@ -425,6 +426,7 @@ export {
   ChartTreemap,
   ComposedChart,
   LineChart,
+  ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
   XAxis,

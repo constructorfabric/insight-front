@@ -25,6 +25,8 @@ import type { MetricTimeseriesModel } from "@/components/widgets/metric-views/me
 import type { TimeseriesPresentation } from "@/components/widgets/metric-views/metric-timeseries-presentation";
 import { MetricTimeseriesTable } from "@/components/widgets/metric-views/metric-timeseries-table";
 import { downloadMetricTimeseriesXlsx } from "@/components/widgets/metric-views/metric-timeseries-xlsx";
+import type { MetricTimeseriesTableConfig } from "@/lib/metrics/timeseries-table";
+import type { MetricTimeseriesChartConfig } from "@/lib/metrics/timeseries-chart";
 
 export function TimeseriesPresentationToggle({
   presentation,
@@ -122,6 +124,8 @@ export function TimeseriesBody({
   presentation,
   model,
   selectedMetricKey,
+  multiMetric,
+  table,
 }: {
   isPending: boolean;
   isFetching: boolean;
@@ -131,6 +135,8 @@ export function TimeseriesBody({
   presentation: TimeseriesPresentation;
   model: MetricTimeseriesModel;
   selectedMetricKey: string;
+  multiMetric: MetricTimeseriesChartConfig["multiMetric"];
+  table?: MetricTimeseriesTableConfig;
 }) {
   return (
     <div className="relative min-h-0 flex-1">
@@ -154,9 +160,13 @@ export function TimeseriesBody({
       ) : empty ? (
         <ChartEmpty message="No data in this period" className="h-full" />
       ) : presentation === "table" ? (
-        <MetricTimeseriesTable model={model} />
+        <MetricTimeseriesTable model={model} config={table} />
       ) : (
-        <MetricTimeseriesChart model={model} selectedMetricKey={selectedMetricKey} />
+        <MetricTimeseriesChart
+          model={model}
+          selectedMetricKey={selectedMetricKey}
+          multiMetric={multiMetric}
+        />
       )}
     </div>
   );
