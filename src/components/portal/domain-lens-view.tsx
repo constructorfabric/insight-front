@@ -62,9 +62,20 @@ const EMPTY_COLLECTION: MetricCollectionConfig = { metrics: [] };
 export function DomainLensView({
   scopePerson,
   config,
+  gridKeys: gridKeysProp,
 }: {
   scopePerson: string;
   config: LensConfig;
+  /**
+   * Direction-wide metric key union (see `directionMetricKeys`). When
+   * provided, the fetched member grid requests this stable set instead of
+   * the lens's own keys, so switching lenses within a direction reuses the
+   * same query key instead of minting a new one on every switch (which would
+   * otherwise re-trip the full loading gate). The rule-6 observed-gate and
+   * every section below still read only the lens's OWN keys
+   * (`sectionMetricKeys(config)`) — widening is fetch-only.
+   */
+  gridKeys?: readonly string[];
 }) {
   const { period, dateRange } = usePeriod();
 
@@ -84,23 +95,29 @@ export function DomainLensView({
     [members],
   );
 
-  // One period+peer grid for every metric the sections reference.
-  const gridKeys = useMemo(() => sectionMetricKeys(config), [config]);
+  // Lens's own keys drive the rule-6 observed-gate and every section below.
+  const lensKeys = useMemo(() => sectionMetricKeys(config), [config]);
+  // The FETCH collection may widen to the whole direction's key union (see
+  // `gridKeys` prop) so switching lenses within a direction never mints a new
+  // grid query key — only the request widens, nothing downstream does.
+  const fetchKeys = useMemo(
+    () => (gridKeysProp ? [...gridKeysProp] : lensKeys),
+    [gridKeysProp, lensKeys],
+  );
   const gridCollection = useMemo<MetricCollectionConfig>(
     () => ({
-      metrics: gridKeys.map((key) => ({
+      metrics: fetchKeys.map((key) => ({
         key,
         views: [{ view: "period" as const }, { view: "peer" as const }],
       })),
     }),
-    [gridKeys],
+    [fetchKeys],
   );
   const grid = useMemberGridData(
     gridCollection.metrics.length ? gridCollection : EMPTY_COLLECTION,
     { type: "person", ids: memberIds },
     dateRange,
     period,
-    { keepPrevious: true },
   );
 
   // Trend: bucket coarsened to the roster so org scope never trips the row limit.
@@ -184,7 +201,7 @@ export function DomainLensView({
   if (gate) return gate;
 
   // Rule 6: nothing in this family was ever observed → the source isn't wired.
-  if (!familyObserved(grid.byKey, gridKeys, memberIds)) {
+  if (!familyObserved(grid.byKey, lensKeys, memberIds)) {
     return (
       <Pending
         label={config.notIngested ?? `${config.title} — source isn't ingested for this org yet.`}

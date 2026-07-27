@@ -349,3 +349,15 @@ export const DIRECTION_LENSES: Record<string, Record<string, LensEntry>> = {
   sales: SALES,
   support: SUPPORT,
 };
+
+/** Union of metric keys across every configured lens of a direction — one
+ * stable grid collection per direction so switching lenses never changes the
+ * query key (no spinner). ComingSoon entries contribute nothing. */
+export function directionMetricKeys(dir: string): string[] {
+  const keys = new Set<string>();
+  for (const entry of Object.values(DIRECTION_LENSES[dir] ?? {})) {
+    if ("comingSoon" in entry) continue;
+    for (const k of sectionMetricKeys(entry)) keys.add(k);
+  }
+  return [...keys];
+}

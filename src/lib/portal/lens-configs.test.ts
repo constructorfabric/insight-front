@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { metricGroups } from "@/lib/insight/groups";
 import { DIRECTIONS } from "@/lib/portal/nav-model";
-import { DIRECTION_LENSES, lensEntry, sectionMetricKeys, type SectionSpec } from "./lens-configs";
+import {
+  DIRECTION_LENSES,
+  directionMetricKeys,
+  lensEntry,
+  sectionMetricKeys,
+  type SectionSpec,
+} from "./lens-configs";
 
 const KNOWN_KEYS = new Set(
   metricGroups().flatMap((g) => g.collection.metrics.map((m) => m.key)),
@@ -68,5 +74,19 @@ describe("DIRECTION_LENSES registry", () => {
         expect(new Set(compMetrics).size, `${dir}/${lens}`).toBe(compMetrics.length);
       }
     }
+  });
+});
+
+describe("directionMetricKeys", () => {
+  it("stays under the API metric cap per direction — the union must stay requestable in one grid", () => {
+    for (const dir of Object.keys(DIRECTION_LENSES)) {
+      expect(directionMetricKeys(dir).length, dir).toBeLessThanOrEqual(50);
+    }
+  });
+
+  it("spans every lens of the direction, not just one (dev has both git.* and tasks.*)", () => {
+    const keys = directionMetricKeys("dev");
+    expect(keys.some((k) => k.startsWith("git."))).toBe(true);
+    expect(keys.some((k) => k.startsWith("tasks."))).toBe(true);
   });
 });
