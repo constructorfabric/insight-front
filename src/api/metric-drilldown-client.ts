@@ -39,8 +39,19 @@ export interface MetricDrilldownRequest extends MetricEvidenceSelection {
   limit: number;
 }
 
+async function parseResponseJson<T>(
+  res: Response,
+  onInvalid: () => T
+): Promise<T> {
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return onInvalid();
+  }
+}
+
 async function errorFor(res: Response): Promise<AnalyticsApiError> {
-  const body = await res.json().catch(() => null);
+  const body = await parseResponseJson<unknown>(res, () => null);
   return new AnalyticsApiError(res.status, body);
 }
 
@@ -67,7 +78,9 @@ export async function queryMetricDrilldown(
     signal,
   });
   if (!res.ok) throw await errorFor(res);
-  return (await res.json()) as MetricDrilldownResponse;
+  return parseResponseJson<MetricDrilldownResponse>(res, () => {
+    throw new AnalyticsApiError(res.status, { error: "invalid_json" });
+  });
 }
 
 export async function downloadMetricDrilldown(

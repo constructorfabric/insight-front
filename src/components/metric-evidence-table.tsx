@@ -129,6 +129,7 @@ export function MetricEvidenceTable({
   return (
     <div className="relative min-h-0 flex-1">
       <Table
+        role="table"
         aria-rowcount={rows.length}
         containerRef={setViewport}
         containerClassName="h-full overflow-auto"
@@ -139,12 +140,19 @@ export function MetricEvidenceTable({
           gridTemplateRows: "2.5rem 1fr",
         }}
       >
-        <TableHeader className="sticky top-0 z-20 grid bg-card shadow-[inset_0_-1px_0_0_var(--border)] [&_tr]:border-b-0">
-          <TableRow className="flex w-full border-b-0 hover:bg-transparent">
+        <TableHeader
+          role="rowgroup"
+          className="sticky top-0 z-20 grid bg-card shadow-[inset_0_-1px_0_0_var(--border)] [&_tr]:border-b-0"
+        >
+          <TableRow
+            role="row"
+            className="flex w-full border-b-0 hover:bg-transparent"
+          >
             {columns.map((column) => {
               const layout = columnLayout(column);
               return (
                 <TableHead
+                  role="columnheader"
                   key={column.key}
                   className={cn(
                     "flex h-10 min-w-0 items-center px-3 py-0",
@@ -163,6 +171,7 @@ export function MetricEvidenceTable({
           </TableRow>
         </TableHeader>
         <TableBody
+          role="rowgroup"
           className="relative grid"
           style={{ height: virtualBodyHeight }}
         >
@@ -171,6 +180,7 @@ export function MetricEvidenceTable({
             if (!row) return null;
             return (
               <TableRow
+                role="row"
                 key={virtualRow.index}
                 aria-rowindex={virtualRow.index + 2}
                 className="absolute top-0 left-0 flex h-11 w-full hover:bg-transparent"
@@ -184,6 +194,7 @@ export function MetricEvidenceTable({
                   const text = cellText(value, column.type);
                   return (
                     <TableCell
+                      role="cell"
                       key={column.key}
                       className={cn(
                         "min-w-0 truncate px-3 py-3 tabular-nums",

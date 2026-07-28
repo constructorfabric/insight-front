@@ -544,7 +544,13 @@ function GridCell({
   const evidenceContext = useMetricEvidenceOptional();
   const { col, value, previous, delta, median, observed } = cell;
   const evidence = col.metric.drilldown
-    ? evidenceSelection(col.metric.selection, entityId)
+    ? evidenceSelection(
+        col.metric.selection,
+        entityId,
+        undefined,
+        undefined,
+        col.metric.breakdown?.dimensions
+      )
     : null;
   // Show the trend arrow only when the delta rounds to a real change (the
   // KPI-tile suppression rule); direction from the sign, favorability from

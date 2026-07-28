@@ -347,8 +347,9 @@ function OutlierChips({
 function FlatGridCard({ entry }: { entry: PeerStoryEntry }) {
   const unit = metricDisplayUnit(entry.format, entry.unit);
   return (
-    <Card className="p-4">
-      <div className="min-w-0">
+    <Card className="relative p-4">
+      <MetricCardActions evidence={entry.evidence} label={entry.label} />
+      <div className="min-w-0 pr-8">
         <div className="truncate text-sm font-semibold text-muted-foreground">
           {entry.label}
         </div>

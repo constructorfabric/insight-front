@@ -53,8 +53,9 @@ export function MetricBreakdown({ metric, entityId }: MetricBreakdownProps) {
 
   if (rows.length === 0) {
     return (
-      <Card className="shrink-0">
-        <CardHeader className="pb-2">
+      <Card className="relative shrink-0">
+        <MetricCardActions evidence={evidence} label={metric.label} />
+        <CardHeader className="pr-12 pb-2">
           <CardTitle className="text-sm font-semibold">
             {metric.label}
           </CardTitle>
