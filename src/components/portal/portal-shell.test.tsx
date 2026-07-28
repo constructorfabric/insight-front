@@ -152,6 +152,13 @@ describe("DirectionView", () => {
       /“Nope” isn't a metric family in Development yet/,
     );
   });
+
+  it("asks for a direction when the pane collapsed the selection", () => {
+    // Collapsing a direction clears `dir`; blaming the lens for missing from
+    // a direction the reader never picked reads like a bug.
+    render(<DirectionView dir="" lens="Delivery" />);
+    expect(screen.getByTestId("pending").textContent).toMatch(/Pick a direction/);
+  });
 });
 
 describe("OverviewView", () => {

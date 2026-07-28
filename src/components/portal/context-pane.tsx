@@ -2,6 +2,7 @@ import { ChevronRight, Layers, LayoutGrid } from "lucide-react";
 
 import { OrgTree } from "@/components/org-tree";
 import { metricGroups } from "@/lib/insight/groups";
+import { lensEntry } from "@/lib/portal/lens-configs";
 import {
   Sidebar,
   SidebarContent,
@@ -21,6 +22,8 @@ import {
   DIRECTIONS,
   MANAGE_ITEMS,
   PEOPLE_ITEMS,
+  PLANNED_GROUP_LABEL,
+  partitionByReadiness,
   ZONE_SECTIONS,
   zoneById,
   type Direction,
@@ -33,6 +36,7 @@ import {
   usePortalDir,
   usePortalItem,
   usePortalLens,
+  usePortalShowPlanned,
 } from "@/lib/portal/portal-store";
 import { useActiveZone } from "@/lib/portal/use-active-zone";
 import { cn } from "@/lib/utils";
@@ -94,20 +98,40 @@ export function ContextPane() {
 function ThemeNav({ zoneId }: { zoneId: string }) {
   const groups = ZONE_SECTIONS[zoneId] ?? [];
   const active = usePortalItem();
+  const showPlanned = usePortalShowPlanned();
+  // Everything not yet real is pulled out of its original group and collected
+  // under one demoted "Planned" group at the bottom, so the working menu reads
+  // clean and roadmap items stay honest instead of masquerading as features.
+  const split = groups.map((g) => partitionByReadiness(g.items, showPlanned));
+  const planned = split.flatMap((s) => s.planned);
   return (
     <>
-      {groups.map((g, i) => (
-        <SidebarGroup key={g.label ?? i}>
-          {g.label ? <SidebarGroupLabel>{g.label}</SidebarGroupLabel> : null}
+      {groups.map((g, i) =>
+        split[i]!.live.length ? (
+          <SidebarGroup key={g.label ?? i}>
+            {g.label ? <SidebarGroupLabel>{g.label}</SidebarGroupLabel> : null}
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {split[i]!.live.map((it) => (
+                  <ItemButton key={it.id} item={it} active={active === it.id} />
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : null,
+      )}
+      {planned.length ? (
+        <SidebarGroup>
+          <SidebarGroupLabel>{PLANNED_GROUP_LABEL}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {g.items.map((it) => (
-                <ItemButton key={it.id} item={it} active={active === it.id} />
+              {planned.map((it) => (
+                <ItemButton key={it.id} item={it} active={active === it.id} planned />
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-      ))}
+      ) : null}
     </>
   );
 }
@@ -120,27 +144,53 @@ function ItemsNav({
   groupLabel: string;
 }) {
   const active = usePortalItem();
+  const showPlanned = usePortalShowPlanned();
+  const { live, planned } = partitionByReadiness(items, showPlanned);
   return (
-    <SidebarGroup>
-      <SidebarGroupLabel>{groupLabel}</SidebarGroupLabel>
-      <SidebarGroupContent>
-        <SidebarMenu>
-          {items.map((it) => (
-            <ItemButton key={it.id} item={it} active={active === it.id} />
-          ))}
-        </SidebarMenu>
-      </SidebarGroupContent>
-    </SidebarGroup>
+    <>
+      <SidebarGroup>
+        <SidebarGroupLabel>{groupLabel}</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            {live.map((it) => (
+              <ItemButton key={it.id} item={it} active={active === it.id} />
+            ))}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+      {planned.length ? (
+        <SidebarGroup>
+          <SidebarGroupLabel>{PLANNED_GROUP_LABEL}</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {planned.map((it) => (
+                <ItemButton key={it.id} item={it} active={active === it.id} planned />
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      ) : null}
+    </>
   );
 }
 
-function ItemButton({ item, active }: { item: PaneItem; active: boolean }) {
+function ItemButton({
+  item,
+  active,
+  planned = false,
+}: {
+  item: PaneItem;
+  active: boolean;
+  /** Demoted rendering: same affordance, visibly lighter weight. */
+  planned?: boolean;
+}) {
   const Icon = item.icon;
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
         isActive={active}
         onClick={() => setPortalItem(item.id)}
+        className={planned ? "text-muted-foreground" : undefined}
       >
         <Icon />
         <span>{item.label}</span>
@@ -184,15 +234,24 @@ function DirectionsNav() {
 function DirectionItem({ direction }: { direction: Direction }) {
   const activeDir = usePortalDir();
   const activeLens = usePortalLens();
+  const showPlanned = usePortalShowPlanned();
   const expanded = activeDir === direction.id;
   const Icon = direction.icon;
+  // A lens we simply have not built yet is hidden unless the viewer asked for
+  // planned work; a lens waiting on the product stays listed (dimmed) because
+  // it tells the reader the domain exists in our model.
+  const lenses = direction.lenses.filter((lens) => {
+    const entry = lensEntry(direction.id, lens);
+    if (!entry || !("comingSoon" in entry)) return true;
+    return entry.readiness === "planned" || showPlanned;
+  });
 
   function toggle() {
     if (expanded) {
       setPortalDir("");
     } else {
       setPortalDir(direction.id);
-      setPortalLens(direction.lenses[0]!);
+      setPortalLens(lenses[0] ?? direction.lenses[0]!);
     }
   }
 
@@ -230,19 +289,24 @@ function DirectionItem({ direction }: { direction: Direction }) {
             ))}
           </div>
           <SidebarMenuSub>
-            {direction.lenses.map((lens) => (
-              <SidebarMenuSubItem key={lens}>
-                <SidebarMenuSubButton
-                  isActive={activeLens === lens}
-                  onClick={() => {
-                    setPortalLens(lens);
-                    setPortalItem(null);
-                  }}
-                >
-                  <span>{lens}</span>
-                </SidebarMenuSubButton>
-              </SidebarMenuSubItem>
-            ))}
+            {lenses.map((lens) => {
+              const entry = lensEntry(direction.id, lens);
+              const roadmap = !!entry && "comingSoon" in entry;
+              return (
+                <SidebarMenuSubItem key={lens}>
+                  <SidebarMenuSubButton
+                    isActive={activeLens === lens}
+                    className={roadmap ? "text-muted-foreground" : undefined}
+                    onClick={() => {
+                      setPortalLens(lens);
+                      setPortalItem(null);
+                    }}
+                  >
+                    <span>{lens}</span>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              );
+            })}
           </SidebarMenuSub>
         </>
       ) : null}

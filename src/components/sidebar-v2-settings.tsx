@@ -1,7 +1,12 @@
-import { HelpCircle, PanelsTopLeft, Sparkles } from "lucide-react";
+import { HelpCircle, PanelsTopLeft, Sparkles, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { setPortalEnabled, usePortalEnabled } from "@/lib/portal/portal-store";
+import {
+  setPortalEnabled,
+  setPortalShowPlanned,
+  usePortalEnabled,
+  usePortalShowPlanned,
+} from "@/lib/portal/portal-store";
 
 import {
   SidebarMenu,
@@ -28,6 +33,7 @@ export function SidebarV2Settings() {
   const { t } = useTranslation();
   const v2 = useMetricsV2Enabled();
   const portal = usePortalEnabled();
+  const showPlanned = usePortalShowPlanned();
   const { focusMode, showExplanations, setFocusMode, setShowExplanations } =
     useSettings();
 
@@ -51,6 +57,29 @@ export function SidebarV2Settings() {
           />
         </SidebarMenuButton>
       </SidebarMenuItem>
+      {/* Only meaningful inside the portal, so it hides with it. Shows the
+          screens we have not built yet — useful for us and for demos, noise
+          for anyone who just wants to read their numbers. */}
+      {portal ? (
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            onClick={() => setPortalShowPlanned(!showPlanned)}
+            aria-pressed={showPlanned}
+            className="justify-between"
+          >
+            <span className="flex items-center gap-2">
+              <Wrench className="size-4" />
+              <span>Show planned sections</span>
+            </span>
+            <Switch
+              checked={showPlanned}
+              onCheckedChange={setPortalShowPlanned}
+              size="sm"
+              tabIndex={-1}
+            />
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      ) : null}
       {v2 ? (
         <>
           <SidebarMenuItem className="flex flex-col items-stretch gap-1.5 p-1">

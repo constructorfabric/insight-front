@@ -1,4 +1,5 @@
 import { headlineMetricKeys } from "@/lib/insight/groups";
+import type { Readiness } from "@/lib/portal/nav-model";
 
 /**
  * The Directions registry: every direction × lens maps to either a LensConfig
@@ -37,7 +38,18 @@ export interface LensConfig {
   notIngested?: string;
 }
 
-export type LensEntry = LensConfig | { comingSoon: string };
+/**
+ * A lens that renders nothing yet, and WHY — the two causes must not look
+ * alike. `planned`: the product does not model this metric family yet (same
+ * for every tenant). `unbuilt`: the data path exists and the screen is ours to
+ * build. See `Readiness` in nav-model.
+ */
+export interface LensRoadmap {
+  comingSoon: string;
+  readiness: Readiness;
+}
+
+export type LensEntry = LensConfig | LensRoadmap;
 
 export function lensEntry(dir: string, lens: string): LensEntry | undefined {
   return DIRECTION_LENSES[dir]?.[lens];
@@ -85,8 +97,21 @@ export function sectionMetricKeys(config: LensConfig): string[] {
 
 /* ── Development ─────────────────────────────────────────────────────── */
 
-const DEV_BULLET_NOTE = (what: string) =>
-  `${what} — not in the semantic layer yet. This tab lights up when its metric family ships.`;
+/** Product-side gap: the metric family is not in the semantic layer yet. */
+const DEV_PLANNED = (what: string): LensRoadmap => ({
+  comingSoon: `${what} — not in the semantic layer yet. This tab lights up when its metric family ships.`,
+  readiness: "planned",
+});
+
+/**
+ * Our gap: the dimensions this needs already ride on the git observations
+ * (repository / project / file_extension / change_type), so this is frontend
+ * work we owe, not a data request. Worded so nobody schedules a metric task.
+ */
+const DEV_UNBUILT = (what: string): LensRoadmap => ({
+  comingSoon: `${what} — the data is there (git observations carry the dimensions); this view is still in development.`,
+  readiness: "unbuilt",
+});
 
 const DEV: Record<string, LensEntry> = {
   Overview: {
@@ -176,11 +201,11 @@ const DEV: Record<string, LensEntry> = {
       },
     ],
   },
-  Activity: { comingSoon: DEV_BULLET_NOTE("Per-person activity-day metrics") },
-  Quality: { comingSoon: DEV_BULLET_NOTE("Review / reopen quality metrics") },
-  Continuity: { comingSoon: DEV_BULLET_NOTE("Longitudinal continuity metrics") },
-  Repositories: { comingSoon: DEV_BULLET_NOTE("Repository-level rollups") },
-  Elements: { comingSoon: DEV_BULLET_NOTE("Element-level (file/module) analytics") },
+  Activity: DEV_PLANNED("Per-person activity-day metrics"),
+  Quality: DEV_PLANNED("Review / reopen quality metrics"),
+  Continuity: DEV_PLANNED("Longitudinal continuity metrics"),
+  Repositories: DEV_UNBUILT("Repository-level rollups"),
+  Elements: DEV_UNBUILT("Element-level (file/module) analytics"),
 };
 
 /* ── Collaboration (ported unchanged from ModalityView configs) ──────── */
@@ -367,19 +392,25 @@ const WIKI: Record<string, LensEntry> = {
 
 /* ── Sales / Support (bullet-only directions) ────────────────────────── */
 
-const SALES_NOTE = "HubSpot isn't in the semantic layer yet — bullet-only direction.";
-const SUPPORT_NOTE = "Zendesk isn't in the semantic layer yet — bullet-only direction.";
+const SALES_NOTE: LensRoadmap = {
+  comingSoon: "HubSpot isn't in the semantic layer yet — bullet-only direction.",
+  readiness: "planned",
+};
+const SUPPORT_NOTE: LensRoadmap = {
+  comingSoon: "Zendesk isn't in the semantic layer yet — bullet-only direction.",
+  readiness: "planned",
+};
 
 const SALES: Record<string, LensEntry> = Object.fromEntries(
   ["Pipeline", "Deal flow", "Activity", "Velocity & quality"].map((l) => [
     l,
-    { comingSoon: SALES_NOTE },
+    SALES_NOTE,
   ]),
 );
 const SUPPORT: Record<string, LensEntry> = Object.fromEntries(
   ["Tickets", "CSAT", "Knowledge base", "Comments & updates"].map((l) => [
     l,
-    { comingSoon: SUPPORT_NOTE },
+    SUPPORT_NOTE,
   ]),
 );
 

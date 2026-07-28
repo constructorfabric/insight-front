@@ -23,6 +23,7 @@ export interface OrgScope {
 }
 
 const ENABLED_KEY = "insight.portal";
+const SHOW_PLANNED_KEY = "insight.portal.showPlanned";
 
 interface PortalState {
   enabled: boolean;
@@ -39,6 +40,14 @@ interface PortalState {
    */
   slice: string;
   scope: OrgScope;
+  /**
+   * Whether navigation shows entries we have not built yet (`unbuilt` in the
+   * nav model). Default ON while the whole portal is itself a preview: for us
+   * and for demos the dead entries ARE the roadmap. Turn it off — or flip the
+   * default — the day the portal stops being opt-in, so a customer never has
+   * to tell our backlog apart from their own missing data.
+   */
+  showPlanned: boolean;
 }
 
 function readEnabled(): boolean {
@@ -46,8 +55,15 @@ function readEnabled(): boolean {
   return window.localStorage.getItem(ENABLED_KEY) === "true";
 }
 
+/** Absent key = default ON (see `showPlanned`); only an explicit "false" hides. */
+function readShowPlanned(): boolean {
+  if (typeof window === "undefined") return true;
+  return window.localStorage.getItem(SHOW_PLANNED_KEY) !== "false";
+}
+
 let state: PortalState = {
   enabled: readEnabled(),
+  showPlanned: readShowPlanned(),
   // `null` = follow the route (Person/People). The initial landing is pinned
   // once by PortalLayout based on whether the viewer manages anyone: a manager
   // lands on the Overview org rollup, an IC stays route-driven on their own
@@ -85,6 +101,12 @@ function persist(key: string, value: string): void {
 export function setPortalEnabled(enabled: boolean): void {
   state = { ...state, enabled };
   persist(ENABLED_KEY, enabled ? "true" : "false");
+  emit();
+}
+
+export function setPortalShowPlanned(show: boolean): void {
+  state = { ...state, showPlanned: show };
+  persist(SHOW_PLANNED_KEY, show ? "true" : "false");
   emit();
 }
 
@@ -140,6 +162,14 @@ export function usePortalEnabled(): boolean {
     subscribe,
     () => state.enabled,
     () => false,
+  );
+}
+
+export function usePortalShowPlanned(): boolean {
+  return useSyncExternalStore(
+    subscribe,
+    () => state.showPlanned,
+    () => true,
   );
 }
 

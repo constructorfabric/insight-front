@@ -12,10 +12,18 @@ import { DIRECTIONS } from "@/lib/portal/nav-model";
  */
 export function DirectionView({ dir, lens }: { dir: string; lens: string }) {
   const entry = lensEntry(dir, lens);
+  const direction = DIRECTIONS.find((d) => d.id === dir);
   const gridKeys = useMemo(() => directionMetricKeys(dir), [dir]);
+  // Collapsing a direction in the pane clears `dir`, so there is no direction
+  // to talk about — say "pick one" instead of blaming the lens for not
+  // existing in a direction the reader never named.
+  if (!direction) {
+    return <Pending label="Pick a direction to see its metrics." />;
+  }
   if (!entry) {
-    const name = DIRECTIONS.find((d) => d.id === dir)?.name ?? "Direction";
-    return <Pending label={`“${lens}” isn't a metric family in ${name} yet.`} />;
+    return (
+      <Pending label={`“${lens}” isn't a metric family in ${direction.name} yet.`} />
+    );
   }
   if ("comingSoon" in entry) return <Pending label={entry.comingSoon} />;
   return <DomainLensView config={entry} gridKeys={gridKeys} />;

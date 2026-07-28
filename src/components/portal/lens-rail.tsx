@@ -17,7 +17,11 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { ZONES, type Zone } from "@/lib/portal/nav-model";
-import { setPortalItem, setPortalZone } from "@/lib/portal/portal-store";
+import {
+  setPortalItem,
+  setPortalZone,
+  usePortalShowPlanned,
+} from "@/lib/portal/portal-store";
 import { useActiveZone } from "@/lib/portal/use-active-zone";
 import { useViewerIsManager } from "@/lib/portal/use-viewer-is-manager";
 
@@ -39,6 +43,9 @@ export function LensRail() {
   const navigate = useNavigate();
   const { activeZone, activePerson } = useActiveZone();
   const { isManager, isPending: mgrPending } = useViewerIsManager();
+  // Zones we have not built are hidden unless the viewer opted into seeing
+  // planned work — a rail of scaffolds makes the built zones look unreliable.
+  const showPlanned = usePortalShowPlanned();
   // An IC (no reports) has no subtree to roll up, so org zones are hidden — the
   // shell collapses to Person. While the viewer's identity is still resolving,
   // assume manager so the rail doesn't flash a collapsed state.
@@ -77,7 +84,11 @@ export function LensRail() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu className="items-center gap-1">
-          {ZONES.filter((z) => orgZonesVisible || IC_ZONES.has(z.id)).map((z) => (
+          {ZONES.filter(
+            (z) =>
+              (orgZonesVisible || IC_ZONES.has(z.id)) &&
+              (z.readiness !== "unbuilt" || showPlanned),
+          ).map((z) => (
             <ZoneItem
               key={z.id}
               zone={z}
