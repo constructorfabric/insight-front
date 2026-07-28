@@ -1,5 +1,4 @@
 import { format } from "date-fns";
-import type { DotItemDotProps } from "recharts";
 
 import {
   BarChart,
@@ -28,21 +27,6 @@ function dateLabel(value: string, pattern: string): string {
   const [year, month, day] = value.split("-").map(Number);
   if (!year || !month || !day) return value;
   return format(new Date(year, month - 1, day), pattern);
-}
-
-function IsolatedPoint({
-  cx,
-  cy,
-  index,
-  points,
-  stroke,
-  value,
-}: DotItemDotProps) {
-  if (value == null || cx == null || cy == null) return null;
-  if (points[index - 1]?.value != null || points[index + 1]?.value != null) {
-    return null;
-  }
-  return <circle cx={cx} cy={cy} r={3} fill={stroke} />;
 }
 
 export function MetricTimeseriesChart({
@@ -144,11 +128,9 @@ export function MetricTimeseriesChart({
             {model.columns.map((column) => (
               <ChartLine
                 key={column.key}
-                type="monotone"
                 dataKey={column.key}
                 stroke={`var(--color-${column.key})`}
                 strokeWidth={2}
-                dot={IsolatedPoint}
                 name={selectedMetric.label}
               />
             ))}

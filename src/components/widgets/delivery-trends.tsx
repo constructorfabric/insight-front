@@ -68,31 +68,22 @@ function DeliveryTrendsImpl({ data }: DeliveryTrendsProps) {
         <ChartTooltip />
         <ChartLegend wrapperStyle={{ fontSize: CHART_FONT_TICK, paddingTop: 8 }} />
         <ChartLine
-          type="monotone"
           dataKey="Commits"
           stroke={CHART_BLUE}
           strokeWidth={2}
-          dot={{ r: 3 }}
-          activeDot={{ r: 5 }}
         />
         {hasPrs ? (
           <ChartLine
-            type="monotone"
-            dataKey="PRs Merged"
+              dataKey="PRs Merged"
             stroke={CHART_PURPLE}
             strokeWidth={2}
-            dot={{ r: 3 }}
-            activeDot={{ r: 5 }}
-            connectNulls={false}
+                connectNulls={false}
           />
         ) : null}
         <ChartLine
-          type="monotone"
           dataKey="Tasks Done"
           stroke={CHART_GREEN}
           strokeWidth={2}
-          dot={{ r: 3 }}
-          activeDot={{ r: 5 }}
         />
       </LineChart>
     </ResponsiveContainer>

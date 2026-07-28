@@ -170,7 +170,6 @@ export function SectionTrend({
                   <ChartArea
                     key={s.key}
                     yAxisId={yAxisId}
-                    type="monotone"
                     dataKey={s.key}
                     name={s.label}
                     stackId={s.type === "stacked-area" ? "stack" : undefined}
@@ -185,12 +184,10 @@ export function SectionTrend({
                 <ChartLine
                   key={s.key}
                   yAxisId={yAxisId}
-                  type="monotone"
                   dataKey={s.key}
                   name={s.label}
                   stroke={color}
                   strokeWidth={2}
-                  dot={false}
                 />
               );
             })}

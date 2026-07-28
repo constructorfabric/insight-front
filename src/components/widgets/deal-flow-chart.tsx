@@ -62,9 +62,9 @@ function DealFlowChartImpl({ data }: DealFlowChartProps) {
         />
         <ChartTooltip />
         <ChartLegend wrapperStyle={{ fontSize: CHART_FONT_TICK, paddingTop: 8 }} />
-        <ChartLine type="monotone" dataKey="Opened" stroke={CHART_BLUE} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-        <ChartLine type="monotone" dataKey="Closed" stroke={CHART_PURPLE} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-        <ChartLine type="monotone" dataKey="Won" stroke={CHART_GREEN} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+        <ChartLine dataKey="Opened" stroke={CHART_BLUE} strokeWidth={2} />
+        <ChartLine dataKey="Closed" stroke={CHART_PURPLE} strokeWidth={2} />
+        <ChartLine dataKey="Won" stroke={CHART_GREEN} strokeWidth={2} />
       </LineChart>
     </ResponsiveContainer>
   );
