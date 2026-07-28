@@ -4,6 +4,7 @@ import type {
   MetricCanonicalSelection,
   MetricDimensionFilter,
 } from "@/api/metric-results-client";
+import { downloadBlob } from "@/lib/download";
 
 const BASE =
   (import.meta.env.VITE_API_BASE as string | undefined) ?? "/api/analytics/v1";
@@ -43,6 +44,18 @@ async function errorFor(res: Response): Promise<AnalyticsApiError> {
   return new AnalyticsApiError(res.status, body);
 }
 
+function exportFilename(disposition: string | null, fallback: string): string {
+  const encoded = disposition?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded);
+    } catch {
+      return disposition?.match(/filename="?([^";]+)"?/i)?.[1] ?? fallback;
+    }
+  }
+  return disposition?.match(/filename="?([^";]+)"?/i)?.[1] ?? fallback;
+}
+
 export async function queryMetricDrilldown(
   request: MetricDrilldownRequest,
   signal?: AbortSignal
@@ -70,18 +83,13 @@ export async function downloadMetricDrilldown(
   });
   if (!res.ok) throw await errorFor(res);
   const blob = await res.blob();
-  const disposition = res.headers.get("content-disposition");
-  const encoded = disposition?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
-  const plain = disposition?.match(/filename="?([^";]+)"?/i)?.[1];
-  const filename = encoded
-    ? decodeURIComponent(encoded)
-    : (plain ?? `${selection.metric_key}.${format}`);
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  URL.revokeObjectURL(url);
+  downloadBlob(
+    blob,
+    exportFilename(
+      res.headers.get("content-disposition"),
+      `${selection.metric_key}.${format}`
+    )
+  );
 }
 
 export function evidenceSelection(

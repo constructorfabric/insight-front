@@ -7,6 +7,7 @@ import {
   queryMetricDrilldown,
 } from "@/api/metric-drilldown-client";
 import { AnalyticsApiError } from "@/api/analytics-client";
+import { sessionAuthorizationScope } from "@/auth/session-scope";
 import { useAuth } from "@/auth/use-auth";
 import type { EvidenceDialogState } from "@/components/metric-evidence-context";
 import { MetricEvidenceTable } from "@/components/metric-evidence-table";
@@ -42,7 +43,7 @@ export function MetricEvidenceDialog({
   onClose: () => void;
 }) {
   const { session } = useAuth();
-  const tenantId = session?.tenantId ?? null;
+  const sessionScope = sessionAuthorizationScope(session);
   const exportController = useRef<AbortController | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportFailure, setExportFailure] = useState<string | null>(null);
@@ -51,7 +52,7 @@ export function MetricEvidenceDialog({
       (target) => target.selection.metric_key === state.activeMetricKey
     ) ?? state.targets[0];
   const query = useInfiniteQuery({
-    queryKey: ["metric-drilldown", tenantId, activeTarget.selection],
+    queryKey: ["metric-drilldown", sessionScope, activeTarget.selection],
     queryFn: ({ pageParam, signal }) =>
       queryMetricDrilldown(
         {
@@ -63,7 +64,7 @@ export function MetricEvidenceDialog({
       ),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page) => page.next_cursor ?? undefined,
-    enabled: tenantId != null,
+    enabled: sessionScope != null,
     retry: (failureCount, error) =>
       failureCount < 1 &&
       (!(error instanceof AnalyticsApiError) || error.status >= 500),
@@ -166,7 +167,9 @@ export function MetricEvidenceDialog({
             )}
             <DropdownMenu>
               <DropdownMenuTrigger
-                disabled={exporting || query.isPending || query.isError}
+                disabled={
+                  exporting || query.isPending || (query.isError && !query.data)
+                }
                 render={
                   <Button variant="outline" size="sm">
                     {exporting ? <Spinner /> : <Download />}

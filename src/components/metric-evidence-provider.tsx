@@ -10,6 +10,7 @@ import {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { sessionAuthorizationScope } from "@/auth/session-scope";
 import { useAuth } from "@/auth/use-auth";
 import {
   EvidenceDialogContext,
@@ -31,18 +32,18 @@ const MetricEvidenceDialog = lazy(() =>
 
 export function MetricEvidenceProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth();
-  const tenantId = session?.tenantId ?? null;
+  const sessionScope = sessionAuthorizationScope(session);
   const queryClient = useQueryClient();
-  const previousTenant = useRef(tenantId);
+  const previousSessionScope = useRef(sessionScope);
   const [state, setState] = useState<EvidenceDialogState | null>(null);
   useEffect(() => {
-    if (previousTenant.current !== tenantId) {
+    if (previousSessionScope.current !== sessionScope) {
       void queryClient.cancelQueries({ queryKey: ["metric-drilldown"] });
       queryClient.removeQueries({ queryKey: ["metric-drilldown"] });
       setState(null);
     }
-    previousTenant.current = tenantId;
-  }, [queryClient, tenantId]);
+    previousSessionScope.current = sessionScope;
+  }, [queryClient, sessionScope]);
   const openEvidenceTargets = useCallback(
     (
       targets: readonly EvidenceDialogState["targets"][number][],

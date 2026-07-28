@@ -109,10 +109,22 @@ export function MetricEvidenceTable({
   }, 0);
 
   useEffect(() => {
-    if (last >= rows.length - 10 && hasNextPage && !isFetchingNextPage) {
+    if (
+      last >= rows.length - 10 &&
+      hasNextPage &&
+      !isFetchingNextPage &&
+      !nextPageError
+    ) {
       void fetchNextPage();
     }
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage, last, rows.length]);
+  }, [
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    last,
+    nextPageError,
+    rows.length,
+  ]);
 
   return (
     <div className="relative min-h-0 flex-1">
