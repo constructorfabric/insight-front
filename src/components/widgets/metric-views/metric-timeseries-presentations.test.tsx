@@ -2,10 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { MetricTimeseriesChart } from "@/components/widgets/metric-views/metric-timeseries-chart";
-import {
-  buildMetricTimeseriesChartModel,
-  commonNullRuns,
-} from "@/components/widgets/metric-views/metric-timeseries-chart-model";
+import { buildMetricTimeseriesChartModel } from "@/components/widgets/metric-views/metric-timeseries-chart-model";
 import { MetricTimeseriesTable } from "@/components/widgets/metric-views/metric-timeseries-table";
 import { resolveMetricTimeseriesTableColumns } from "@/components/widgets/metric-views/metric-timeseries-table-model";
 import { groupedTimeseriesModel } from "@/components/widgets/metric-views/metric-timeseries.test-fixtures";
@@ -42,7 +39,7 @@ describe("metric timeseries presentations", () => {
     expect(screen.getByText("Grand total").closest("tr")).toHaveTextContent(
       "Commits: 6"
     );
-    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("0").length).toBeGreaterThan(0);
   });
 
   it("renders a grouped single-metric table with a single header row", () => {
@@ -60,14 +57,16 @@ describe("metric timeseries presentations", () => {
     expect(screen.getByText("Grand total")).toBeInTheDocument();
   });
 
-  it("hides the grand-total row when every total is missing", () => {
+  it("zero-fills the grand-total row when every total is missing", () => {
     const grouped = groupedTimeseriesModel();
     const model = {
       ...grouped,
       grandTotals: grouped.grandTotals.map(() => null),
     };
     render(<MetricTimeseriesTable model={model} />);
-    expect(screen.queryByText("Grand total")).not.toBeInTheDocument();
+    const grandTotalRow = screen.getByText("Grand total").closest("tr");
+    expect(grandTotalRow).toHaveTextContent("Commits: 0");
+    expect(grandTotalRow).toHaveTextContent("Lines added: 0");
   });
 
   it("renders an ungrouped single-metric table", () => {
@@ -126,7 +125,7 @@ describe("metric timeseries presentations", () => {
     expect(columns[0]?.label).toBe("Commits");
   });
 
-  it("distinguishes missing values from observed zeroes in templates", () => {
+  it("zero-fills missing values in templates", () => {
     const model = groupedTimeseriesModel();
     const firstColumn = model.columns[0]!;
     const linePoints = new Map(firstColumn.points.get("git.lines_added"));
@@ -142,7 +141,7 @@ describe("metric timeseries presentations", () => {
     );
     const rows = screen.getAllByRole("row");
     expect(within(rows[2]!).getAllByRole("cell")[2]).toHaveTextContent(
-      "— / −3"
+      "+0 / −3"
     );
     expect(within(rows[3]!).getAllByRole("cell")[2]).toHaveTextContent(
       "+0 / −0"
@@ -218,62 +217,5 @@ describe("metric timeseries presentations", () => {
     expect(chartModel?.series[1]?.points).toBe(
       sourceColumn.points.get("git.lines_added")
     );
-  });
-
-  it("finds only contiguous buckets missing from every displayed series", () => {
-    const buckets = ["a", "b", "c", "d", "e"];
-    const series = [
-      new Map<string, number | null>([
-        ["a", 1],
-        ["b", null],
-        ["c", null],
-        ["d", 2],
-        ["e", null],
-      ]),
-      new Map<string, number | null>([
-        ["a", 1],
-        ["b", null],
-        ["c", null],
-        ["d", null],
-        ["e", null],
-      ]),
-    ];
-
-    expect(commonNullRuns(buckets, series)).toEqual([
-      { startIndex: 1, endIndex: 2 },
-      { startIndex: 4, endIndex: 4 },
-    ]);
-  });
-
-  it("labels multi-bucket gaps without connecting the line", () => {
-    const grouped = groupedTimeseriesModel();
-    const metric = grouped.metrics[0]!;
-    const sourceColumn = grouped.columns[0]!;
-    const points = new Map(sourceColumn.points);
-    points.set(
-      metric.metric_key,
-      new Map([
-        ["2026-04-20", 3],
-        ["2026-04-27", null],
-        ["2026-05-04", null],
-      ])
-    );
-
-    render(
-      <MetricTimeseriesChart
-        model={{
-          ...grouped,
-          dimensions: [],
-          metrics: [metric],
-          columns: [{ ...sourceColumn, points }],
-        }}
-        selectedMetricKey={metric.metric_key}
-      />
-    );
-
-    expect(
-      document.querySelector(".recharts-reference-area-rect")
-    ).toBeInTheDocument();
-    expect(screen.getByText("No data")).toBeInTheDocument();
   });
 });

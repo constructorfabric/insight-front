@@ -19,34 +19,6 @@ export interface MetricTimeseriesChartModel {
   series: MetricTimeseriesChartSeries[];
 }
 
-export interface TimeseriesNullRun {
-  startIndex: number;
-  endIndex: number;
-}
-
-export function commonNullRuns(
-  buckets: string[],
-  series: Array<Map<string, number | null>>
-): TimeseriesNullRun[] {
-  if (series.length === 0) return [];
-
-  const runs: TimeseriesNullRun[] = [];
-  let startIndex: number | null = null;
-  for (let index = 0; index <= buckets.length; index += 1) {
-    const bucket = buckets[index];
-    const isMissing =
-      bucket !== undefined &&
-      series.every((points) => points.get(bucket) == null);
-    if (isMissing && startIndex == null) {
-      startIndex = index;
-    } else if (!isMissing && startIndex != null) {
-      runs.push({ startIndex, endIndex: index - 1 });
-      startIndex = null;
-    }
-  }
-  return runs;
-}
-
 export function shouldCombineTimeseriesMetrics(
   model: MetricTimeseriesModel,
   multiMetric: MetricTimeseriesChartConfig["multiMetric"]
