@@ -248,6 +248,21 @@ describe("MetricTimeseriesView", () => {
     expect(screen.getByLabelText("Metric")).toHaveTextContent("Lines added");
   });
 
+  it("shows a combined title instead of a metric selector", () => {
+    render(
+      <MetricTimeseriesView
+        id="combined"
+        entityId={ENTITY_ID}
+        range={RANGE}
+        metricKeys={["git.commits", "git.lines_added"]}
+        chart={{ multiMetric: "combined" }}
+      />
+    );
+
+    expect(screen.queryByLabelText("Metric")).not.toBeInTheDocument();
+    expect(screen.getByText("Commits & Lines added")).toBeInTheDocument();
+  });
+
   it("uses visible group controls and supports selecting multiple filters", async () => {
     const user = userEvent.setup();
     const options = timeseriesByKey();

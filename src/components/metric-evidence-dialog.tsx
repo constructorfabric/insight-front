@@ -5,7 +5,6 @@ import { Download, FileSpreadsheet, FileText } from "lucide-react";
 import {
   downloadMetricDrilldown,
   queryMetricDrilldown,
-  type MetricEvidenceSelection,
 } from "@/api/metric-drilldown-client";
 import { AnalyticsApiError } from "@/api/analytics-client";
 import { useAuth } from "@/auth/use-auth";
@@ -24,13 +23,22 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 
 export function MetricEvidenceDialog({
   state,
+  onMetricChange,
   onClose,
 }: {
-  state: EvidenceDialogState | null;
+  state: EvidenceDialogState;
+  onMetricChange: (metricKey: string) => void;
   onClose: () => void;
 }) {
   const { session } = useAuth();
@@ -38,12 +46,16 @@ export function MetricEvidenceDialog({
   const exportController = useRef<AbortController | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportFailure, setExportFailure] = useState<string | null>(null);
+  const activeTarget =
+    state.targets.find(
+      (target) => target.selection.metric_key === state.activeMetricKey
+    ) ?? state.targets[0];
   const query = useInfiniteQuery({
-    queryKey: ["metric-drilldown", tenantId, state?.selection],
+    queryKey: ["metric-drilldown", tenantId, activeTarget.selection],
     queryFn: ({ pageParam, signal }) =>
       queryMetricDrilldown(
         {
-          ...(state?.selection as MetricEvidenceSelection),
+          ...activeTarget.selection,
           cursor: pageParam,
           limit: 100,
         },
@@ -51,7 +63,7 @@ export function MetricEvidenceDialog({
       ),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page) => page.next_cursor ?? undefined,
-    enabled: state != null && tenantId != null,
+    enabled: tenantId != null,
     retry: (failureCount, error) =>
       failureCount < 1 &&
       (!(error instanceof AnalyticsApiError) || error.status >= 500),
@@ -86,14 +98,17 @@ export function MetricEvidenceDialog({
   );
 
   async function exportRows(format: "csv" | "xlsx") {
-    if (!state) return;
     exportController.current?.abort();
     const controller = new AbortController();
     exportController.current = controller;
     setExporting(true);
     setExportFailure(null);
     try {
-      await downloadMetricDrilldown(state.selection, format, controller.signal);
+      await downloadMetricDrilldown(
+        activeTarget.selection,
+        format,
+        controller.signal
+      );
     } catch (error) {
       if (!controller.signal.aborted) {
         setExportFailure(
@@ -109,11 +124,46 @@ export function MetricEvidenceDialog({
   }
 
   return (
-    <Dialog open={state != null} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="flex h-[calc(100dvh-2rem)] max-h-[52rem] w-[calc(100vw-2rem)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:h-[calc(100dvh-4rem)] sm:w-[calc(100vw-4rem)] sm:max-w-[90rem] [&_[data-slot=dialog-close]]:top-5">
         <DialogHeader className="shrink-0 border-b p-5 pr-14">
           <div className="flex items-center justify-between gap-4">
-            <DialogTitle>{state?.label ?? "Metric evidence"}</DialogTitle>
+            {state.targets.length > 1 ? (
+              <>
+                <DialogTitle className="sr-only">
+                  {state.title ?? "Metric evidence"}
+                </DialogTitle>
+                <Select
+                  value={activeTarget.selection.metric_key}
+                  onValueChange={(metricKey) => {
+                    if (!metricKey) return;
+                    exportController.current?.abort();
+                    setExportFailure(null);
+                    onMetricChange(metricKey);
+                  }}
+                >
+                  <SelectTrigger
+                    size="sm"
+                    aria-label="Metric"
+                    className="border-transparent bg-transparent px-0 text-base font-semibold shadow-none hover:bg-transparent focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
+                  >
+                    <SelectValue>{activeTarget.label}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent align="start">
+                    {state.targets.map((target) => (
+                      <SelectItem
+                        key={target.selection.metric_key}
+                        value={target.selection.metric_key}
+                      >
+                        {target.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            ) : (
+              <DialogTitle>{activeTarget.label}</DialogTitle>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger
                 disabled={exporting || query.isPending || query.isError}

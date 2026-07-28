@@ -1,7 +1,12 @@
 import { useMemo, useState } from "react";
 import { Database, ListFilter, X } from "lucide-react";
 
+import { evidenceSelection } from "@/api/metric-drilldown-client";
 import type { DateRange } from "@/api/period-to-date-range";
+import {
+  useMetricEvidenceOptional,
+  type EvidenceDialogTarget,
+} from "@/components/metric-evidence-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -25,6 +30,7 @@ import {
   TimeseriesExportMenu,
   TimeseriesPresentationToggle,
 } from "@/components/widgets/metric-views/metric-timeseries-chrome";
+import { shouldCombineTimeseriesMetrics } from "@/components/widgets/metric-views/metric-timeseries-chart-model";
 import {
   parseTimeseriesPresentation,
   serializeTimeseriesPresentation,
@@ -37,13 +43,10 @@ import {
   type MetricCollectionConfig,
   type MetricTimeseriesGroupLimitConfig,
 } from "@/lib/metrics/collection";
+import type { MetricTimeseriesTableConfig } from "@/lib/metrics/timeseries-table";
+import type { MetricTimeseriesChartConfig } from "@/lib/metrics/timeseries-chart";
 import { cn } from "@/lib/utils";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
-import {
-  evidenceSelection,
-  type MetricEvidenceSelection,
-} from "@/api/metric-drilldown-client";
-import { useMetricEvidenceOptional } from "@/components/metric-evidence-context";
 import {
   useMetricCollection,
   useMetricCollectionSet,
@@ -78,7 +81,9 @@ export interface MetricTimeseriesViewProps {
   range: DateRange;
   metricKeys: string[];
   defaultPresentation?: Presentation;
+  chart?: MetricTimeseriesChartConfig;
   groupBy?: MetricTimeseriesGroupBy;
+  table?: MetricTimeseriesTableConfig;
 }
 
 type Presentation = TimeseriesPresentation;
@@ -221,7 +226,9 @@ export function MetricTimeseriesView({
   range,
   metricKeys,
   defaultPresentation = "chart",
+  chart,
   groupBy,
+  table,
 }: MetricTimeseriesViewProps) {
   const evidenceContext = useMetricEvidenceOptional();
   const [presentation, setPresentation] = useLocalStorageState<Presentation>({
@@ -325,19 +332,30 @@ export function MetricTimeseriesView({
   const selectedMetric =
     model.metrics.find((metric) => metric.metric_key === selectedMetricKey) ??
     model.metrics[0];
-  const selectedDisplayDimensions =
-    selectedMetric?.computation !== "ratio" && selectedGroupBy
-      ? [selectedGroupBy]
-      : [];
-  const selectedEvidence = selectedMetric?.drilldown
-    ? evidenceSelection(
-        selectedMetric.selection,
+  const shouldCombineMetrics =
+    presentation === "chart" &&
+    shouldCombineTimeseriesMetrics(model, chart?.multiMetric ?? "selectable");
+  const evidenceMetrics =
+    presentation === "table" || shouldCombineMetrics
+      ? model.metrics
+      : selectedMetric
+        ? [selectedMetric]
+        : [];
+  const evidenceTargets = evidenceMetrics.flatMap<EvidenceDialogTarget>(
+    (metric) => {
+      if (!metric.drilldown) return [];
+      const selection = evidenceSelection(
+        metric.selection,
         entityId,
         range,
         filters,
-        selectedDisplayDimensions
-      )
-    : null;
+        metric.computation !== "ratio" && selectedGroupBy
+          ? [selectedGroupBy]
+          : []
+      );
+      return selection ? [{ selection, label: metric.label }] : [];
+    }
+  );
   const filterModels = dimensionOptions
     .filter((dimension) => dimension !== selectedGroupBy)
     .map((dimension) => {
@@ -435,11 +453,11 @@ export function MetricTimeseriesView({
       metric.selection,
       entityId,
       period,
-      [...exactFilters.values()].sort((a, b) =>
-        a.dimension.localeCompare(b.dimension)
+      [...exactFilters.values()].sort((left, right) =>
+        left.dimension.localeCompare(right.dimension)
       ),
       metric.computation !== "ratio" && selectedGroupBy ? [selectedGroupBy] : []
-    ) as MetricEvidenceSelection | null;
+    );
     if (selection) evidenceContext?.openEvidence(selection, metric.label);
   }
 
@@ -453,7 +471,11 @@ export function MetricTimeseriesView({
       <div className="flex items-center justify-between gap-2 border-b p-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           {selectedMetric ? (
-            model.metrics.length > 1 && presentation === "chart" ? (
+            shouldCombineMetrics ? (
+              <h3 className="px-2 text-sm font-semibold">
+                {model.metrics.map((metric) => metric.label).join(" & ")}
+              </h3>
+            ) : model.metrics.length > 1 && presentation === "chart" ? (
               <Select
                 value={selectedMetric.metric_key}
                 onValueChange={(value) => {
@@ -495,7 +517,7 @@ export function MetricTimeseriesView({
               onFilterChange={changeFilter}
             />
           ) : null}
-          {selectedEvidence ? (
+          {evidenceContext && evidenceTargets.length > 0 ? (
             <Button
               type="button"
               variant="outline"
@@ -504,9 +526,9 @@ export function MetricTimeseriesView({
               aria-label="View supporting data"
               title="View supporting data"
               onClick={() =>
-                evidenceContext?.openEvidence(
-                  selectedEvidence,
-                  selectedMetric.label
+                evidenceContext?.openEvidenceTargets(
+                  evidenceTargets,
+                  evidenceTargets.map((target) => target.label).join(" & ")
                 )
               }
             >
@@ -545,6 +567,8 @@ export function MetricTimeseriesView({
           presentation={presentation}
           model={model}
           selectedMetricKey={selectedMetric?.metric_key ?? ""}
+          multiMetric={shouldCombineMetrics ? "combined" : "selectable"}
+          table={table}
           onEvidence={openTimeseriesEvidence}
         />
       </CardContent>

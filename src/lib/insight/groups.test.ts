@@ -38,7 +38,18 @@ describe("groups registry", () => {
     }
   });
 
-  it("caps repository timeseries with a shared ranking metric", () => {
+  it("combines compatible task throughput metrics in one chart", () => {
+    const taskDelivery = groupById("task_delivery");
+    if (taskDelivery.kind !== "metrics") {
+      throw new Error("task_delivery must be metrics");
+    }
+    const throughput = taskDelivery.drilldown.find(
+      (block) => block.view === "timeseries" && block.id === "task-throughput"
+    );
+    expect(throughput?.chart).toEqual({ multiMetric: "combined" });
+  });
+
+  it("caps repository activity and keeps line composition grouped by category", () => {
     const git = groupById("git_output");
     if (git.kind !== "metrics") throw new Error("git_output must be metrics");
     const timeseries = git.drilldown.filter(
@@ -49,11 +60,38 @@ describe("groups registry", () => {
       rankBy: "git.commits",
       includeRemainder: true,
     });
-    expect(timeseries[1]?.groupBy?.limits?.repository).toEqual({
-      count: 10,
-      rankBy: "git.lines_added",
-      includeRemainder: true,
+    expect(timeseries[0]?.table?.columns).toEqual([
+      { metric: "git.commits" },
+      { metric: "git.prs_merged", labelSource: "short" },
+      {
+        label: "Lines",
+        template: [
+          { metric: "git.lines_added", prefix: "+", tone: "success" },
+          { text: " / " },
+          {
+            metric: "git.lines_removed",
+            prefix: "−",
+            tone: "destructive",
+          },
+        ],
+      },
+    ]);
+    expect(timeseries[1]?.groupBy).toEqual({
+      default: "category",
     });
-    expect(timeseries[1]?.groupBy?.limits?.category).toBeUndefined();
+    expect(timeseries[1]?.table?.columns).toEqual([
+      {
+        label: "Lines",
+        template: [
+          { metric: "git.lines_added", prefix: "+", tone: "success" },
+          { text: " / " },
+          {
+            metric: "git.lines_removed",
+            prefix: "−",
+            tone: "destructive",
+          },
+        ],
+      },
+    ]);
   });
 });

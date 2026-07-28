@@ -2,13 +2,23 @@ import { createContext, useContext } from "react";
 
 import type { MetricEvidenceSelection } from "@/api/metric-drilldown-client";
 
-export interface EvidenceDialogState {
+export interface EvidenceDialogTarget {
   selection: MetricEvidenceSelection;
   label: string;
 }
 
+export interface EvidenceDialogState {
+  targets: readonly [EvidenceDialogTarget, ...EvidenceDialogTarget[]];
+  activeMetricKey: string;
+  title?: string;
+}
+
 export interface EvidenceDialogContextValue {
   openEvidence: (selection: MetricEvidenceSelection, label: string) => void;
+  openEvidenceTargets: (
+    targets: readonly EvidenceDialogTarget[],
+    title?: string
+  ) => void;
 }
 
 export const EvidenceDialogContext = createContext<

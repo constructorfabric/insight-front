@@ -43,12 +43,49 @@ export function MetricEvidenceProvider({ children }: { children: ReactNode }) {
     }
     previousTenant.current = tenantId;
   }, [queryClient, tenantId]);
-  const openEvidence = useCallback(
-    (selection: EvidenceDialogState["selection"], label: string) =>
-      setState({ selection, label }),
+  const openEvidenceTargets = useCallback(
+    (
+      targets: readonly EvidenceDialogState["targets"][number][],
+      title?: EvidenceDialogState["title"]
+    ) => {
+      const uniqueTargets = [
+        ...new Map(
+          targets.map((target) => [target.selection.metric_key, target])
+        ).values(),
+      ];
+      const first = uniqueTargets[0];
+      if (!first) return;
+      setState({
+        targets: [first, ...uniqueTargets.slice(1)],
+        activeMetricKey: first.selection.metric_key,
+        title,
+      });
+    },
     []
   );
-  const value = useMemo(() => ({ openEvidence }), [openEvidence]);
+  const openEvidence = useCallback(
+    (
+      selection: EvidenceDialogState["targets"][number]["selection"],
+      label: string
+    ) => openEvidenceTargets([{ selection, label }]),
+    [openEvidenceTargets]
+  );
+  const selectEvidenceMetric = useCallback((metricKey: string) => {
+    setState((current) =>
+      current?.targets.some(
+        (target) => target.selection.metric_key === metricKey
+      )
+        ? { ...current, activeMetricKey: metricKey }
+        : current
+    );
+  }, []);
+  const value = useMemo(
+    () => ({ openEvidence, openEvidenceTargets }),
+    [openEvidence, openEvidenceTargets]
+  );
+  const activeTarget = state?.targets.find(
+    (target) => target.selection.metric_key === state.activeMetricKey
+  );
   return (
     <EvidenceDialogContext.Provider value={value}>
       {children}
@@ -58,7 +95,9 @@ export function MetricEvidenceProvider({ children }: { children: ReactNode }) {
             <Dialog open onOpenChange={(open) => !open && setState(null)}>
               <DialogContent className="flex h-[calc(100dvh-2rem)] max-h-[52rem] w-[calc(100vw-2rem)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:h-[calc(100dvh-4rem)] sm:w-[calc(100vw-4rem)] sm:max-w-[90rem]">
                 <DialogHeader className="shrink-0 border-b p-5 pr-14">
-                  <DialogTitle>{state.label}</DialogTitle>
+                  <DialogTitle>
+                    {state.title ?? activeTarget?.label ?? "Metric evidence"}
+                  </DialogTitle>
                 </DialogHeader>
                 <div className="flex flex-1 items-center justify-center">
                   <Spinner className="size-10" />
@@ -67,7 +106,11 @@ export function MetricEvidenceProvider({ children }: { children: ReactNode }) {
             </Dialog>
           }
         >
-          <MetricEvidenceDialog state={state} onClose={() => setState(null)} />
+          <MetricEvidenceDialog
+            state={state}
+            onMetricChange={selectEvidenceMetric}
+            onClose={() => setState(null)}
+          />
         </Suspense>
       ) : null}
     </EvidenceDialogContext.Provider>
