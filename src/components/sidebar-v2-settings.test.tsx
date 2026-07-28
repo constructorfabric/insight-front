@@ -62,7 +62,8 @@ describe("SidebarV2Settings", () => {
     await user.click(v2Row);
 
     expect(v2Row).toHaveAttribute("aria-pressed", "true");
-    expect(localStorage.getItem("insight.metrics-v2")).toBe("true");
+    // The flag is in-memory only — nothing is persisted across reloads.
+    expect(localStorage.getItem("insight.metrics-v2")).toBeNull();
     expect(screen.getByText("Focus")).toBeInTheDocument();
     expect(screen.getByText("Explanations")).toBeInTheDocument();
     // All four focus modes are offered.
