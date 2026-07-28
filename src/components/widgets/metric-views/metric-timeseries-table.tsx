@@ -41,18 +41,17 @@ function MetricTableValue({
   column: MetricTimeseriesTableColumn;
   valueFor: (metricKey: string) => number | null | undefined;
 }) {
-  const hasValue = column.parts.some(
-    (part) => part.kind === "metric" && valueFor(part.metricKey) != null
+  const hasMetric = column.parts.some(
+    (part) => part.kind === "metric" && part.metric != null
   );
-  if (!hasValue) return <>—</>;
+  if (!hasMetric) return <>—</>;
 
   return (
     <span>
       {column.parts.map((part, index) => {
         if (part.kind === "text") return <span key={index}>{part.text}</span>;
-        const value = valueFor(part.metricKey);
         const metric = part.metric;
-        if (value == null || !metric) {
+        if (!metric) {
           return (
             <span
               key={`${part.metricKey}-${index}`}
@@ -68,7 +67,7 @@ function MetricTableValue({
             className={TONE_CLASS[part.tone]}
           >
             {part.prefix}
-            {formatMetricNumber(value, metric.format)}
+            {formatMetricNumber(valueFor(part.metricKey) ?? 0, metric.format)}
           </span>
         );
       })}
@@ -87,12 +86,7 @@ export function MetricTimeseriesTable({
       model.grandTotals[index],
     ])
   );
-  const hasGrandTotal = tableColumns.some((column) =>
-    column.parts.some(
-      (part) =>
-        part.kind === "metric" && grandTotals.get(part.metricKey) != null
-    )
-  );
+  const hasGrandTotal = tableColumns.length > 0;
 
   return (
     <Table
