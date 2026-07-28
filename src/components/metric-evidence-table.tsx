@@ -31,7 +31,7 @@ function cellText(value: unknown, type: MetricEvidenceColumn["type"]): string {
 }
 
 function columnLayout(column: MetricEvidenceColumn) {
-  if (column.key === "ref") return { basisRem: 7, grow: 0 };
+  if (column.key === "ref") return { basisRem: 9, grow: 0 };
   if (column.key === "title") return { basisRem: 24, grow: 2 };
   if (column.key === "repository") return { basisRem: 16, grow: 1.25 };
   if (column.key === "author") return { basisRem: 12, grow: 1 };
