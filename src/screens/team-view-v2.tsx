@@ -76,6 +76,11 @@ export function TeamViewV2Screen({
 }: TeamViewV2ScreenProps) {
   const { period, dateRange, setPeriod } = usePeriod();
   const [openGroup, setOpenGroup] = useState<GroupId | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const openDetails = (group: GroupId) => {
+    setOpenGroup(group);
+    setDetailsOpen(true);
+  };
   const [directReportsOnly, setDirectReportsOnly] = useState(true);
 
   // Close any open drilldown when the viewed team changes. Render-phase
@@ -84,6 +89,7 @@ export function TeamViewV2Screen({
   if (teamId !== prevTeamId) {
     setPrevTeamId(teamId);
     setOpenGroup(null);
+    setDetailsOpen(false);
   }
 
   const viewerQ = useIcPerson(viewerEmail);
@@ -284,7 +290,7 @@ export function TeamViewV2Screen({
                       def={def}
                       data={result}
                       memberIds={memberEntityIds}
-                      onOpen={() => setOpenGroup(def.id)}
+                      onOpen={() => openDetails(def.id)}
                       subtitle="vs department peers"
                     />
                   );
@@ -298,8 +304,11 @@ export function TeamViewV2Screen({
       {GROUPS.map((def) => (
         <GroupDetailsSheet
           key={def.id}
-          open={openGroup === def.id}
-          onOpenChange={(o) => setOpenGroup(o ? def.id : null)}
+          open={detailsOpen && openGroup === def.id}
+          onOpenChange={setDetailsOpen}
+          onOpenChangeComplete={(open) => {
+            if (!open && openGroup === def.id) setOpenGroup(null);
+          }}
           def={def}
           rows={legacyRowsByGroup[def.id] ?? []}
           metricTarget={

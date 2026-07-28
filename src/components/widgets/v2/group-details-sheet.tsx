@@ -43,6 +43,7 @@ export type MetricDrilldownTarget =
 export interface GroupDetailsSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onOpenChangeComplete?: (open: boolean) => void;
   def: GroupDef;
   /** Legacy group rows; unused for `def.kind === "metrics"`. */
   rows: BulletMetric[];
@@ -57,6 +58,7 @@ export interface GroupDetailsSheetProps {
 export function GroupDetailsSheet({
   open,
   onOpenChange,
+  onOpenChangeComplete,
   def,
   rows,
   metricTarget,
@@ -66,7 +68,11 @@ export function GroupDetailsSheet({
   cohortLabel = "department",
 }: GroupDetailsSheetProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      onOpenChangeComplete={onOpenChangeComplete}
+    >
       <DialogContent
         showCloseButton={false}
         className="flex w-fit max-w-none! flex-col gap-0 overflow-hidden p-0"

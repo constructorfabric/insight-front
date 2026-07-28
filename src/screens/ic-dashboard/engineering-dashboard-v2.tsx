@@ -73,6 +73,11 @@ export function EngineeringDashboardV2({
   );
 
   const [openGroup, setOpenGroup] = useState<GroupId | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const openDetails = (group: GroupId) => {
+    setOpenGroup(group);
+    setDetailsOpen(true);
+  };
 
   // Full collection for the open metrics group only (drives the drilldown's
   // chart blocks + peer story). Disabled while nothing is open — empty ids
@@ -122,6 +127,7 @@ export function EngineeringDashboardV2({
   if (personId !== prevPersonId) {
     setPrevPersonId(personId);
     setOpenGroup(null);
+    setDetailsOpen(false);
   }
 
   return (
@@ -151,7 +157,7 @@ export function EngineeringDashboardV2({
                       <KpiTile
                         key={key}
                         tile={tile}
-                        onOpenGroup={setOpenGroup}
+                        onOpenGroup={openDetails}
                       />
                     );
                   }
@@ -172,7 +178,7 @@ export function EngineeringDashboardV2({
 
             <IcNeedsAttention
               items={attentionItems}
-              onOpenGroup={setOpenGroup}
+              onOpenGroup={openDetails}
             />
 
             <section className="flex flex-col gap-3">
@@ -189,7 +195,7 @@ export function EngineeringDashboardV2({
                       def={def}
                       data={result}
                       entityId={entityId}
-                      onOpen={() => setOpenGroup(def.id)}
+                      onOpen={() => openDetails(def.id)}
                     />
                   );
                 })}
@@ -202,8 +208,11 @@ export function EngineeringDashboardV2({
       {metricGroups().map((def) => (
         <GroupDetailsSheet
           key={def.id}
-          open={openGroup === def.id}
-          onOpenChange={(o) => setOpenGroup(o ? def.id : null)}
+          open={detailsOpen && openGroup === def.id}
+          onOpenChange={setDetailsOpen}
+          onOpenChangeComplete={(open) => {
+            if (!open && openGroup === def.id) setOpenGroup(null);
+          }}
           def={def}
           rows={[]}
           metricTarget={{
