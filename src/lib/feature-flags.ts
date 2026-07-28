@@ -1,13 +1,8 @@
 import { useSyncExternalStore } from "react";
 
-const STORAGE_KEY = "insight.metrics-v2";
-
-function readStorage(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.localStorage.getItem(STORAGE_KEY) === "true";
-}
-
-let state = readStorage();
+// In-memory only by design: the toggle defaults to the new design on
+// every page load and must not persist across reloads.
+let state = true;
 const listeners = new Set<() => void>();
 
 function subscribe(fn: () => void): () => void {
@@ -27,13 +22,6 @@ export function isMetricsV2Enabled(): boolean {
 
 export function setMetricsV2Enabled(enabled: boolean): void {
   state = enabled;
-  if (typeof window !== "undefined") {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, enabled ? "true" : "false");
-    } catch {
-      // localStorage unavailable — in-memory still updated.
-    }
-  }
   for (const fn of listeners) fn();
 }
 
