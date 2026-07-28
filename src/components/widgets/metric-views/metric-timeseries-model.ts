@@ -28,6 +28,7 @@ export interface MetricTimeseriesColumn {
   label: string;
   rank?: number;
   remainder: boolean;
+  dimensions?: MetricDimension[];
   points: Map<string, Map<string, number | null>>;
   totals: Map<string, number | null>;
 }
@@ -54,10 +55,7 @@ function parseDate(value: string): Date | null {
     : null;
 }
 
-export function bucketStarts(
-  range: DateRange,
-  bucket: MetricBucket
-): string[] {
+export function bucketStarts(range: DateRange, bucket: MetricBucket): string[] {
   const from = parseDate(range.from);
   const to = parseDate(range.to);
   if (!from || !to || from > to) return [];
@@ -96,6 +94,7 @@ function columnFor(
     label: label ?? dimensionLabel(dimensions),
     rank,
     remainder,
+    dimensions,
     points: new Map(),
     totals: new Map(),
   };

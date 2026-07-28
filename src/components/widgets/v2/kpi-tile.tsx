@@ -29,21 +29,20 @@ const CARD_SURFACE = "@container/card";
  */
 export function KpiTile({ tile, onOpenGroup }: KpiTileProps) {
   const { showExplanations } = useSettings();
-  const interactive = Boolean(onOpenGroup && tile.groupId);
+  const primaryGroup = onOpenGroup ? tile.groupId : null;
+  const interactive = primaryGroup != null;
 
   return (
     <Card
       className={cn(
         CARD_SURFACE,
-        interactive && "text-left transition-colors hover:bg-accent/50",
+        interactive && "text-left transition-colors hover:bg-accent/50"
       )}
       render={
-        interactive ? (
+        primaryGroup ? (
           <button
             type="button"
-            onClick={() => {
-              if (tile.groupId) onOpenGroup?.(tile.groupId);
-            }}
+            onClick={() => onOpenGroup?.(primaryGroup)}
             aria-label={`Open ${tile.label} details`}
           />
         ) : undefined
@@ -73,7 +72,7 @@ export function KpiTile({ tile, onOpenGroup }: KpiTileProps) {
           className={cn(
             "text-2xl font-semibold tabular-nums @[250px]/card:text-3xl",
             tile.valueStatus !== "neutral" &&
-              STATUS_TEXT_CLASS[tile.valueStatus],
+              STATUS_TEXT_CLASS[tile.valueStatus]
           )}
         >
           {tile.value}

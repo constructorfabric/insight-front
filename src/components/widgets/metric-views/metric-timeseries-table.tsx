@@ -13,6 +13,11 @@ import type { MetricTimeseriesModel } from "@/components/widgets/metric-views/me
 
 export interface MetricTimeseriesTableProps {
   model: MetricTimeseriesModel;
+  onEvidence?: (
+    metricKey: string,
+    columnKey: string,
+    bucketStart: string | null
+  ) => void;
 }
 
 const BUCKET_LABEL = {
@@ -51,7 +56,10 @@ function MetricValues({
   );
 }
 
-export function MetricTimeseriesTable({ model }: MetricTimeseriesTableProps) {
+export function MetricTimeseriesTable({
+  model,
+  onEvidence,
+}: MetricTimeseriesTableProps) {
   return (
     <Table
       className="min-w-max text-xs"
@@ -156,9 +164,24 @@ export function MetricTimeseriesTable({ model }: MetricTimeseriesTableProps) {
                       (columnIndex > 0 || metricIndex > 0) && "border-l"
                     )}
                   >
-                    {value == null
-                      ? "—"
-                      : formatMetricNumber(value, metric.format)}
+                    {value == null ? (
+                      "—"
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={column.remainder || !onEvidence}
+                        className="hover:underline disabled:no-underline"
+                        onClick={() =>
+                          onEvidence?.(
+                            metric.metric_key,
+                            column.key,
+                            bucketStart
+                          )
+                        }
+                      >
+                        {formatMetricNumber(value, metric.format)}
+                      </button>
+                    )}
                   </TableCell>
                 );
               })
@@ -182,9 +205,20 @@ export function MetricTimeseriesTable({ model }: MetricTimeseriesTableProps) {
                     (columnIndex > 0 || metricIndex > 0) && "border-l"
                   )}
                 >
-                  {value == null
-                    ? "—"
-                    : formatMetricNumber(value, metric.format)}
+                  {value == null ? (
+                    "—"
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={column.remainder || !onEvidence}
+                      className="hover:underline disabled:no-underline"
+                      onClick={() =>
+                        onEvidence?.(metric.metric_key, column.key, null)
+                      }
+                    >
+                      {formatMetricNumber(value, metric.format)}
+                    </button>
+                  )}
                 </TableCell>
               );
             })

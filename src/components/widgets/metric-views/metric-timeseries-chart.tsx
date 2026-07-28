@@ -22,6 +22,11 @@ import { seriesColors } from "@/lib/series-colors";
 export interface MetricTimeseriesChartProps {
   model: MetricTimeseriesModel;
   selectedMetricKey: string;
+  onEvidence?: (
+    metricKey: string,
+    columnKey: string,
+    bucketStart: string | null
+  ) => void;
 }
 
 function dateLabel(value: string, pattern: string): string {
@@ -48,6 +53,7 @@ function IsolatedPoint({
 export function MetricTimeseriesChart({
   model,
   selectedMetricKey,
+  onEvidence,
 }: MetricTimeseriesChartProps) {
   const selectedMetric =
     model.metrics.find((metric) => metric.metric_key === selectedMetricKey) ??
@@ -111,6 +117,18 @@ export function MetricTimeseriesChart({
       />
     </>
   );
+  const openPoint = (columnKey: string, state: unknown) => {
+    const point = state as {
+      payload?: { bucketStart?: string };
+    };
+    const bucketStart = point.payload?.bucketStart;
+    const column = model.columns.find(
+      (candidate) => candidate.key === columnKey
+    );
+    if (bucketStart && column && !column.remainder) {
+      onEvidence?.(selectedMetric.metric_key, column.key, bucketStart);
+    }
+  };
 
   return (
     <div className="flex h-full flex-col px-4 pb-3 sm:px-6">
@@ -132,6 +150,7 @@ export function MetricTimeseriesChart({
                 fill={`var(--color-${column.key})`}
                 name={column.label}
                 radius={[2, 2, 0, 0]}
+                onClick={(point) => openPoint(column.key, point)}
               />
             ))}
           </BarChart>
@@ -148,6 +167,7 @@ export function MetricTimeseriesChart({
                 dataKey={column.key}
                 stroke={`var(--color-${column.key})`}
                 strokeWidth={2}
+                onClick={(point) => openPoint(column.key, point)}
                 dot={IsolatedPoint}
                 name={selectedMetric.label}
               />

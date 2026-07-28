@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { ComingSoon } from "@/components/widgets/coming-soon";
 import { DashboardEmptyState } from "@/components/widgets/v2/dashboard-empty-state";
 import { DashboardHeader } from "@/components/widgets/v2/dashboard-header";
-import { GroupDrilldownSheet } from "@/components/widgets/v2/group-drilldown-sheet";
+import { GroupDrilldownSheet as GroupDetailsSheet } from "@/components/widgets/v2/group-drilldown-sheet";
 import { MembersOverview } from "@/components/widgets/v2/members-overview";
 import { TeamMembersAttention } from "@/components/widgets/v2/team-members-attention";
 import { TeamMetricGroupCard } from "@/components/widgets/metric-views/team-metric-group-card";
@@ -53,7 +53,7 @@ import type { BulletMetric } from "@/types/insight";
 const LEGACY_GROUP_IDS = legacyGroups()
   .map((def) => def.id)
   .filter((id): id is Extract<GroupId, TeamBulletSectionId> =>
-    isTeamBulletSectionId(id),
+    isTeamBulletSectionId(id)
   );
 /* v8 ignore stop */
 
@@ -70,7 +70,10 @@ export interface TeamViewV2ScreenProps {
   viewerEmail: string;
 }
 
-export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps) {
+export function TeamViewV2Screen({
+  teamId,
+  viewerEmail,
+}: TeamViewV2ScreenProps) {
   const { period, dateRange, setPeriod } = usePeriod();
   const [openGroup, setOpenGroup] = useState<GroupId | null>(null);
   const [directReportsOnly, setDirectReportsOnly] = useState(true);
@@ -94,7 +97,7 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
 
   const fullRoster = useMemo(
     () => (pivot ? flattenSubordinates(pivot) : null),
-    [pivot],
+    [pivot]
   );
   // With no indirect reports, direct reports == the whole team, so the
   // toggle could never change the roster — hide it (#1756).
@@ -105,9 +108,9 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
     () =>
       scopeRosterToDirectReports(
         fullRoster,
-        canScopeToDirectReports && directReportsOnly,
+        canScopeToDirectReports && directReportsOnly
       ),
-    [fullRoster, canScopeToDirectReports, directReportsOnly],
+    [fullRoster, canScopeToDirectReports, directReportsOnly]
   );
   // Never fall back to the raw id (an email) — the shell prefetches the
   // viewer tree, so the pivot resolves synchronously in practice.
@@ -128,7 +131,7 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
     HEATMAP_COLLECTION,
     { type: "person", ids: memberEntityIds },
     dateRange,
-    period,
+    period
   );
 
   const sectionsQ = useTeamBulletSections(
@@ -137,23 +140,22 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
     teamSize,
     period,
     dateRange,
-    { keepPrevious: true, roster },
+    { keepPrevious: true, roster }
   );
 
   const metricGroupData = useMetricCollectionSet(
     TEAM_METRIC_COLLECTIONS,
     { type: "person", ids: memberEntityIds },
-    dateRange,
+    dateRange
   );
 
   const sectionData = sectionsQ.data;
-  const legacyRowsByGroup: Record<string, BulletMetric[]> =
-    Object.fromEntries(
-      LEGACY_GROUP_IDS.map((id) => [
-        id,
-        orderRowsForSection(id, sectionData?.bySection[id] ?? []),
-      ]),
-    );
+  const legacyRowsByGroup: Record<string, BulletMetric[]> = Object.fromEntries(
+    LEGACY_GROUP_IDS.map((id) => [
+      id,
+      orderRowsForSection(id, sectionData?.bySection[id] ?? []),
+    ])
+  );
 
   const metricBelowByMember = new Map<string, number>();
   for (const def of metricGroups()) {
@@ -162,11 +164,11 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
     for (const [memberId, count] of metricBelowCounts(
       def,
       byKey,
-      memberEntityIds,
+      memberEntityIds
     )) {
       metricBelowByMember.set(
         memberId,
-        (metricBelowByMember.get(memberId) ?? 0) + count,
+        (metricBelowByMember.get(memberId) ?? 0) + count
       );
     }
   }
@@ -177,7 +179,7 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
   const metricEntriesByPerson = memberMetricEntries(
     metricGroups(),
     (id) => metricGroupData.get(id)?.byKey,
-    memberEntityIds,
+    memberEntityIds
   );
 
   // With no legacy groups the bullet query is disabled and never leaves
@@ -199,7 +201,7 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
     collectionSetPending(metricGroupData) ||
     sectionsPending;
   const hasGroupData = Object.values(legacyRowsByGroup).some((rows) =>
-    rows.some(hasBulletValue),
+    rows.some(hasBulletValue)
   );
   const hasMembers = members.length > 0;
   const isAllEmpty = !isLoading && !hasGroupData && !hasMembers;
@@ -222,13 +224,13 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
         hasReports
         actions={
           canScopeToDirectReports && fullRoster ? (
-            <label className="text-foreground flex cursor-pointer items-center gap-2 text-sm select-none">
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground select-none">
               <Switch
                 checked={directReportsOnly}
                 onCheckedChange={setDirectReportsOnly}
               />
               <span>Direct reports only</span>
-              <span className="text-muted-foreground text-xs">
+              <span className="text-xs text-muted-foreground">
                 ({roster?.length ?? 0}/{fullRoster.length})
               </span>
             </label>
@@ -268,7 +270,7 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
             )}
 
             <section className="flex flex-col gap-3">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
                 Sections
               </p>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
@@ -294,7 +296,7 @@ export function TeamViewV2Screen({ teamId, viewerEmail }: TeamViewV2ScreenProps)
       </main>
 
       {GROUPS.map((def) => (
-        <GroupDrilldownSheet
+        <GroupDetailsSheet
           key={def.id}
           open={openGroup === def.id}
           onOpenChange={(o) => setOpenGroup(o ? def.id : null)}

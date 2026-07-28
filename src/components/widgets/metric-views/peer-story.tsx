@@ -13,6 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { PeerComparison } from "@/components/widgets/metric-views/peer-comparison";
+import { MetricCardActions } from "@/components/widgets/metric-views/metric-card-actions";
 import { useSettings } from "@/hooks/use-settings";
 import {
   formatMetricNumber,
@@ -64,17 +65,18 @@ function HeroCard({
   return (
     <Card
       className={cn(
-        "flex h-full min-h-72 flex-col gap-0 p-0",
-        STATUS_STRIPE_TOP[isBad ? "bad" : "good"],
+        "relative flex h-full min-h-72 flex-col gap-0 p-0",
+        STATUS_STRIPE_TOP[isBad ? "bad" : "good"]
       )}
     >
+      <MetricCardActions evidence={entry.evidence} label={entry.label} />
       <div className="flex flex-1 flex-col gap-3 p-5 sm:p-6">
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 pr-8">
           <span className={cn("size-1.5 rounded-full", PEER_FILL[color])} />
           <span
             className={cn(
-              "text-[10px] font-semibold uppercase tracking-widest",
-              PEER_TEXT[color],
+              "text-[10px] font-semibold tracking-widest uppercase",
+              PEER_TEXT[color]
             )}
           >
             {isBad ? "Top issue" : "Top win"}
@@ -85,15 +87,17 @@ function HeroCard({
             {entry.label}
           </h3>
           {entry.sublabel ? (
-            <p className="mt-1 text-sm text-muted-foreground">{entry.sublabel}</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {entry.sublabel}
+            </p>
           ) : null}
         </div>
         <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1.5">
           <span className="flex items-baseline gap-1">
             <span
               className={cn(
-                "text-4xl font-semibold tabular-nums tracking-tight sm:text-[2.75rem]",
-                PEER_TEXT[color],
+                "text-4xl font-semibold tracking-tight tabular-nums sm:text-[2.75rem]",
+                PEER_TEXT[color]
               )}
             >
               {entry.format === "percent"
@@ -109,7 +113,7 @@ function HeroCard({
               <span aria-hidden className="text-sm text-muted-foreground">
                 ·
               </span>
-              <span className="text-sm tabular-nums text-muted-foreground">
+              <span className="text-sm text-muted-foreground tabular-nums">
                 {formatGap(entry) == null ? (
                   <>at the {cohortLabel} median </>
                 ) : (
@@ -161,7 +165,7 @@ function SideCards({
         "grid gap-3",
         stretchCards ? "h-full" : "content-start",
         entries.length === 2 && "grid-rows-2",
-        entries.length === 3 && "grid-rows-3",
+        entries.length === 3 && "grid-rows-3"
       )}
     >
       {entries.map((entry) => (
@@ -189,19 +193,20 @@ function SideCard({
   return (
     <Card
       className={cn(
-        "min-h-28 p-0",
+        "relative min-h-28 p-0",
         stretch && "h-full",
         "border-current/20",
         PEER_TEXT[entry.status],
         entry.status === "top" && "bg-success/5",
         entry.status === "bottom" && "bg-destructive/5",
         entry.status === "top" && STATUS_STRIPE_LEFT.good,
-        entry.status === "bottom" && STATUS_STRIPE_LEFT.bad,
+        entry.status === "bottom" && STATUS_STRIPE_LEFT.bad
       )}
     >
+      <MetricCardActions evidence={entry.evidence} label={entry.label} />
       <div className="flex h-full">
         <div className="flex min-w-0 flex-1 flex-col justify-between gap-3 p-4">
-          <div className="min-w-0">
+          <div className="min-w-0 pr-8">
             <div className="truncate text-sm font-semibold text-muted-foreground">
               {entry.label}
             </div>
@@ -232,7 +237,7 @@ function SideCard({
                   <span aria-hidden className="text-xs text-muted-foreground">
                     ·
                   </span>
-                  <span className="text-xs tabular-nums text-muted-foreground">
+                  <span className="text-xs text-muted-foreground tabular-nums">
                     {formatGap(entry) == null ? (
                       <>at the {cohortLabel} median </>
                     ) : (
@@ -247,7 +252,11 @@ function SideCard({
                       </>
                     )}
                     <span className="text-foreground">
-                      {formatMetricValue(entry.stats.p50, entry.format, entry.unit)}
+                      {formatMetricValue(
+                        entry.stats.p50,
+                        entry.format,
+                        entry.unit
+                      )}
                     </span>
                   </span>
                 </>
@@ -310,11 +319,14 @@ function OutlierChips({
                 type="button"
                 className={cn(
                   "inline-flex cursor-help items-center gap-1 rounded-full border bg-transparent px-2.5 py-1 text-xs focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
-                  PEER_TEXT[entry.status],
+                  PEER_TEXT[entry.status]
                 )}
               >
                 <span
-                  className={cn("size-1.5 rounded-full", PEER_FILL[entry.status])}
+                  className={cn(
+                    "size-1.5 rounded-full",
+                    PEER_FILL[entry.status]
+                  )}
                 />
                 {entry.label}
                 <span className="font-mono tabular-nums">
@@ -371,8 +383,8 @@ function FlatGrid({
   return (
     <div
       className={cn(
-        "grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))]",
-        className,
+        "grid [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] gap-3",
+        className
       )}
     >
       {entries.map((entry) => (
@@ -396,7 +408,7 @@ function SupportingFold({
   const [open, setOpen] = useState(false);
   if (entries.length === 0) return null;
   const neutralCount = entries.filter(
-    (entry) => entry.status === "neutral",
+    (entry) => entry.status === "neutral"
   ).length;
   const trueOnParCount = entries.length - neutralCount;
   const summaryLabel =
@@ -504,7 +516,7 @@ export function PeerStory({
   const { focusMode } = useSettings();
   const { hero, sideCards, chips, folded } = partitionPeerStory(
     entries,
-    focusMode,
+    focusMode
   );
 
   if (entries.length === 0) {

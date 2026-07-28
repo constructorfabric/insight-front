@@ -9,6 +9,7 @@ import { CenteredSpinner } from "@/components/widgets/centered-spinner";
 import { MockBanner } from "@/components/mock-banner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { queryClient } from "@/query-client";
+import { MetricEvidenceProvider } from "@/components/metric-evidence-provider";
 
 async function prefetchViewerIdentity(): Promise<void> {
   const email = getViewerEmail();
@@ -48,15 +49,17 @@ function RootPending() {
 function RootLayout() {
   return (
     <TooltipProvider>
-      <AuthGate>
-        <SidebarProvider>
-          <AppSidebar />
-          <SidebarInset className="min-w-0 overflow-x-clip">
-            <MockBanner />
-            <Outlet />
-          </SidebarInset>
-        </SidebarProvider>
-      </AuthGate>
+      <MetricEvidenceProvider>
+        <AuthGate>
+          <SidebarProvider>
+            <AppSidebar />
+            <SidebarInset className="min-w-0 overflow-x-clip">
+              <MockBanner />
+              <Outlet />
+            </SidebarInset>
+          </SidebarProvider>
+        </AuthGate>
+      </MetricEvidenceProvider>
     </TooltipProvider>
   );
 }

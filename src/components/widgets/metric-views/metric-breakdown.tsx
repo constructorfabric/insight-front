@@ -6,15 +6,20 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ChartEmpty } from "@/components/widgets/metric-views/chart-empty";
+import { MetricCardActions } from "@/components/widgets/metric-views/metric-card-actions";
 import {
   dimensionColorSeed,
   dimensionLabel,
   dimensionSeriesKey,
 } from "@/components/widgets/metric-views/dimension-series";
 import { formatMetricValue } from "@/lib/format";
-import { forEntity, type NormalizedMetricResult } from "@/lib/metrics/collection";
+import {
+  forEntity,
+  type NormalizedMetricResult,
+} from "@/lib/metrics/collection";
 import { percentShareLabels } from "@/lib/metrics/shares";
 import { seriesColors } from "@/lib/series-colors";
+import { evidenceSelection } from "@/api/metric-drilldown-client";
 
 export interface MetricBreakdownProps {
   metric: NormalizedMetricResult;
@@ -27,6 +32,15 @@ function num(value: number | null | undefined): number {
 
 /** Proportional composition strip over the breakdown view's dimension groups. */
 export function MetricBreakdown({ metric, entityId }: MetricBreakdownProps) {
+  const evidence = metric.drilldown
+    ? evidenceSelection(
+        metric.selection,
+        entityId,
+        undefined,
+        undefined,
+        metric.breakdown?.dimensions
+      )
+    : null;
   const rows = forEntity(metric, entityId)
     .breakdown.filter((row) => num(row.value) > 0)
     .map((row) => ({
@@ -41,7 +55,9 @@ export function MetricBreakdown({ metric, entityId }: MetricBreakdownProps) {
     return (
       <Card className="shrink-0">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold">{metric.label}</CardTitle>
+          <CardTitle className="text-sm font-semibold">
+            {metric.label}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <ChartEmpty message="No composition data yet" className="min-h-32" />
@@ -66,8 +82,9 @@ export function MetricBreakdown({ metric, entityId }: MetricBreakdownProps) {
   }));
 
   return (
-    <Card className="shrink-0">
-      <CardHeader className="pb-2">
+    <Card className="relative shrink-0">
+      <MetricCardActions evidence={evidence} label={metric.label} />
+      <CardHeader className="pr-12 pb-2">
         <CardTitle className="text-sm font-semibold">{metric.label}</CardTitle>
         <CardDescription className="text-xs">
           {dimensions.length > 0
@@ -99,10 +116,10 @@ export function MetricBreakdown({ metric, entityId }: MetricBreakdownProps) {
               <span className="min-w-0 flex-1 truncate font-medium">
                 {item.label}
               </span>
-              <span className="shrink-0 tabular-nums text-muted-foreground">
+              <span className="shrink-0 text-muted-foreground tabular-nums">
                 {item.formatted}
               </span>
-              <span className="w-8 shrink-0 text-right tabular-nums text-muted-foreground">
+              <span className="w-8 shrink-0 text-right text-muted-foreground tabular-nums">
                 {item.share}%
               </span>
             </li>

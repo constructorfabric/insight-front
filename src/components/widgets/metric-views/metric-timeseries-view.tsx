@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ListFilter, X } from "lucide-react";
+import { Database, ListFilter, X } from "lucide-react";
 
 import type { DateRange } from "@/api/period-to-date-range";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,11 @@ import {
 } from "@/lib/metrics/collection";
 import { cn } from "@/lib/utils";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
+import {
+  evidenceSelection,
+  type MetricEvidenceSelection,
+} from "@/api/metric-drilldown-client";
+import { useMetricEvidenceOptional } from "@/components/metric-evidence-context";
 import {
   useMetricCollection,
   useMetricCollectionSet,
@@ -218,6 +223,7 @@ export function MetricTimeseriesView({
   defaultPresentation = "chart",
   groupBy,
 }: MetricTimeseriesViewProps) {
+  const evidenceContext = useMetricEvidenceOptional();
   const [presentation, setPresentation] = useLocalStorageState<Presentation>({
     key: `insight.timeseries.${id}.presentation`,
     defaultValue: defaultPresentation,
@@ -319,6 +325,19 @@ export function MetricTimeseriesView({
   const selectedMetric =
     model.metrics.find((metric) => metric.metric_key === selectedMetricKey) ??
     model.metrics[0];
+  const selectedDisplayDimensions =
+    selectedMetric?.computation !== "ratio" && selectedGroupBy
+      ? [selectedGroupBy]
+      : [];
+  const selectedEvidence = selectedMetric?.drilldown
+    ? evidenceSelection(
+        selectedMetric.selection,
+        entityId,
+        range,
+        filters,
+        selectedDisplayDimensions
+      )
+    : null;
   const filterModels = dimensionOptions
     .filter((dimension) => dimension !== selectedGroupBy)
     .map((dimension) => {
@@ -376,6 +395,54 @@ export function MetricTimeseriesView({
     });
   }
 
+  function openTimeseriesEvidence(
+    metricKey: string,
+    columnKey: string,
+    bucketStart: string | null
+  ): void {
+    const metric = model.metrics.find(
+      (candidate) => candidate.metric_key === metricKey
+    );
+    const column = model.columns.find(
+      (candidate) => candidate.key === columnKey
+    );
+    if (!metric?.drilldown || !column || column.remainder) return;
+    const exactFilters = new Map(
+      filters.map((filter) => [filter.dimension, filter])
+    );
+    for (const dimension of column.dimensions ?? []) {
+      exactFilters.set(dimension.key, {
+        dimension: dimension.key,
+        values: [dimension.value],
+      });
+    }
+    let period = range;
+    if (bucketStart) {
+      const index = model.buckets.indexOf(bucketStart);
+      const next = model.buckets[index + 1];
+      const to = next ? new Date(`${next}T00:00:00Z`) : null;
+      if (to) to.setUTCDate(to.getUTCDate() - 1);
+      period = {
+        from: bucketStart < range.from ? range.from : bucketStart,
+        to: to
+          ? to.toISOString().slice(0, 10) > range.to
+            ? range.to
+            : to.toISOString().slice(0, 10)
+          : range.to,
+      };
+    }
+    const selection = evidenceSelection(
+      metric.selection,
+      entityId,
+      period,
+      [...exactFilters.values()].sort((a, b) =>
+        a.dimension.localeCompare(b.dimension)
+      ),
+      metric.computation !== "ratio" && selectedGroupBy ? [selectedGroupBy] : []
+    ) as MetricEvidenceSelection | null;
+    if (selection) evidenceContext?.openEvidence(selection, metric.label);
+  }
+
   return (
     <Card
       className={cn(
@@ -428,6 +495,24 @@ export function MetricTimeseriesView({
               onFilterChange={changeFilter}
             />
           ) : null}
+          {selectedEvidence ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              disabled={data.isFetching}
+              aria-label="View supporting data"
+              title="View supporting data"
+              onClick={() =>
+                evidenceContext?.openEvidence(
+                  selectedEvidence,
+                  selectedMetric.label
+                )
+              }
+            >
+              <Database className="size-4" />
+            </Button>
+          ) : null}
           <TimeseriesExportMenu
             id={id}
             model={model}
@@ -460,6 +545,7 @@ export function MetricTimeseriesView({
           presentation={presentation}
           model={model}
           selectedMetricKey={selectedMetric?.metric_key ?? ""}
+          onEvidence={openTimeseriesEvidence}
         />
       </CardContent>
     </Card>

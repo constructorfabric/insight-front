@@ -54,6 +54,8 @@ import {
 } from "@/lib/peers";
 import { applyFocusStatus, STATUS_TEXT_CLASS } from "@/lib/status";
 import { cn } from "@/lib/utils";
+import { evidenceSelection } from "@/api/metric-drilldown-client";
+import { useMetricEvidenceOptional } from "@/components/metric-evidence-context";
 
 export interface MembersGridMember {
   /** Metric entity id (normalized person id) — keys every lookup. */
@@ -103,6 +105,7 @@ interface Column {
   unit: string | null;
   format: MetricFormat;
   direction: MetricDirection;
+  metric: NormalizedMetricResult;
 }
 
 function columnFor(metric: NormalizedMetricResult): Column {
@@ -113,6 +116,7 @@ function columnFor(metric: NormalizedMetricResult): Column {
     unit: metric.unit,
     format: metric.format,
     direction: metric.direction,
+    metric,
   };
 }
 
@@ -178,9 +182,7 @@ function fullDisplay(value: number | null, col: Column): string {
 
 /** True when the cell has nothing rankable — always sorts last, both ways. */
 function cellMissing(cell: CellShape | undefined): boolean {
-  return (
-    !cell?.observed || cell.value == null || !Number.isFinite(cell.value)
-  );
+  return !cell?.observed || cell.value == null || !Number.isFinite(cell.value);
 }
 
 /**
@@ -243,7 +245,12 @@ export function MembersGrid({
         // (percentage points for percent ratios, relative % otherwise) — the
         // same helper the KPI tiles use. Only meaningful for observed members.
         const delta = standing.observed
-          ? computeDelta(data.value, previous, metric.computation, metric.format)
+          ? computeDelta(
+              data.value,
+              previous,
+              metric.computation,
+              metric.format
+            )
           : null;
         return {
           col,
@@ -378,7 +385,7 @@ export function MembersGrid({
                         <button
                           type="button"
                           className={cn(
-                            "flex cursor-pointer items-center gap-1 text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground",
+                            "flex cursor-pointer items-center gap-1 text-xs font-medium tracking-wider text-muted-foreground uppercase transition-colors hover:text-foreground",
                             memberSortActive && "text-foreground"
                           )}
                         >
@@ -402,7 +409,7 @@ export function MembersGrid({
                     type="button"
                     onClick={() => toggleSort("name")}
                     className={cn(
-                      "flex cursor-pointer items-center gap-1 text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground",
+                      "flex cursor-pointer items-center gap-1 text-xs font-medium tracking-wider text-muted-foreground uppercase transition-colors hover:text-foreground",
                       sort.key === "name" && "text-foreground"
                     )}
                   >
@@ -483,7 +490,7 @@ function MemberRow({
             <Link
               to="/ic/$person/personal"
               params={{ person: member.personId ?? member.entityId }}
-              className="min-w-0 truncate text-sm font-medium leading-tight hover:underline"
+              className="min-w-0 truncate text-sm leading-tight font-medium hover:underline"
             >
               {member.displayName}
             </Link>
@@ -509,6 +516,7 @@ function MemberRow({
         <td key={cell.col.key} className="p-0 align-middle">
           <GridCell
             cell={cell}
+            entityId={member.entityId}
             memberName={member.displayName}
             cohortLabel={cohortLabel}
             focusMode={focusMode}
@@ -521,17 +529,23 @@ function MemberRow({
 
 function GridCell({
   cell,
+  entityId,
   memberName,
   cohortLabel,
   focusMode,
 }: {
   cell: CellShape;
+  entityId: string;
   memberName: string;
   cohortLabel: PeerCohortLabel;
   focusMode: FocusMode;
 }) {
   const focused = applyFocus(cell.status, focusMode);
+  const evidenceContext = useMetricEvidenceOptional();
   const { col, value, previous, delta, median, observed } = cell;
+  const evidence = col.metric.drilldown
+    ? evidenceSelection(col.metric.selection, entityId)
+    : null;
   // Show the trend arrow only when the delta rounds to a real change (the
   // KPI-tile suppression rule); direction from the sign, favorability from
   // the shared deltaStatus (neutral metric → muted, no good/bad).
@@ -578,13 +592,16 @@ function GridCell({
         render={
           <button
             type="button"
+            onClick={() => {
+              if (evidence) evidenceContext?.openEvidence(evidence, col.label);
+            }}
             aria-label={
               observed
                 ? `${memberName} — ${col.label}: ${displayWithUnit} — ${PEER_LABEL[focused]}`
                 : `${memberName} — ${col.label}: not recorded`
             }
             className={cn(
-              "flex h-12 w-full items-center justify-center px-3 rounded-sm text-sm font-medium tabular-nums transition hover:brightness-95",
+              "flex h-12 w-full items-center justify-center rounded-sm px-3 text-sm font-medium tabular-nums transition hover:brightness-95",
               PEER_CELL[focused]
             )}
           >
@@ -595,10 +612,7 @@ function GridCell({
               {display}
               {showTrend && value != null ? (
                 <TrendIcon
-                  className={cn(
-                    "absolute left-full ml-0.5 size-3",
-                    trendTint
-                  )}
+                  className={cn("absolute left-full ml-0.5 size-3", trendTint)}
                   aria-hidden
                 />
               ) : null}
@@ -622,9 +636,11 @@ function GridCell({
             {!observed ? (
               // No value for this member — can't be "at the median". Show the
               // cohort median as context only.
-              median != null
-                ? `Not recorded · ${cohortLabel} median ${formatMetricValue(median, col.format, col.unit)}`
-                : "Not recorded"
+              median != null ? (
+                `Not recorded · ${cohortLabel} median ${formatMetricValue(median, col.format, col.unit)}`
+              ) : (
+                "Not recorded"
+              )
             ) : median == null ? (
               "No peer data"
             ) : gapText != null ? (
@@ -692,7 +708,7 @@ function ColumnHeader({
             type="button"
             onClick={onClick}
             className={cn(
-              "flex h-9 w-full cursor-pointer items-center justify-center px-4 text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground",
+              "flex h-9 w-full cursor-pointer items-center justify-center px-4 text-xs font-medium tracking-wider text-muted-foreground uppercase transition-colors hover:text-foreground",
               active && "text-foreground"
             )}
             aria-label={`${col.label} — sort by this column`}
@@ -701,7 +717,10 @@ function ColumnHeader({
                 like the value cell, rather than pinning to the column edge. */}
             <span className="relative inline-flex max-w-full items-center">
               <span className="truncate">{col.heading}</span>
-              <SortArrow direction={direction} className="absolute left-full ml-0.5" />
+              <SortArrow
+                direction={direction}
+                className="absolute left-full ml-0.5"
+              />
             </span>
           </button>
         }

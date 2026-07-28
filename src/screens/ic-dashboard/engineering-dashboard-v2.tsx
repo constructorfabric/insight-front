@@ -4,12 +4,9 @@ import { CenteredSpinner } from "@/components/widgets/centered-spinner";
 import { ComingSoon } from "@/components/widgets/coming-soon";
 import { DashboardHeader } from "@/components/widgets/v2/dashboard-header";
 import { IcNeedsAttention } from "@/components/widgets/v2/ic-needs-attention";
-import {
-  KpiTile,
-  KpiTilePlaceholder,
-} from "@/components/widgets/v2/kpi-tile";
+import { KpiTile, KpiTilePlaceholder } from "@/components/widgets/v2/kpi-tile";
 import { MetricGroupCard } from "@/components/widgets/metric-views/metric-group-card";
-import { GroupDrilldownSheet } from "@/components/widgets/v2/group-drilldown-sheet";
+import { GroupDrilldownSheet as GroupDetailsSheet } from "@/components/widgets/v2/group-drilldown-sheet";
 import { usePeriod } from "@/hooks/use-period";
 import { useSettings } from "@/hooks/use-settings";
 import { metricAttentionItems } from "@/lib/insight/attention";
@@ -203,7 +200,7 @@ export function EngineeringDashboardV2({
       </main>
 
       {metricGroups().map((def) => (
-        <GroupDrilldownSheet
+        <GroupDetailsSheet
           key={def.id}
           open={openGroup === def.id}
           onOpenChange={(o) => setOpenGroup(o ? def.id : null)}

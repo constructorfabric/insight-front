@@ -76,7 +76,10 @@ export function IcNeedsAttention({
                         {item.gapText ? (
                           <>
                             <span
-                              className={cn("font-medium", PEER_TEXT[badStatus])}
+                              className={cn(
+                                "font-medium",
+                                PEER_TEXT[badStatus]
+                              )}
                             >
                               {item.gapText}
                             </span>{" "}
