@@ -4,23 +4,22 @@ import { downloadBlob } from "@/components/widgets/metric-views/metric-timeserie
 
 describe("downloadBlob", () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
   it("downloads and revokes an object URL", () => {
+    vi.useFakeTimers();
     const createObjectURL = vi.fn(() => "blob:timeseries");
     const revokeObjectURL = vi.fn();
     const click = vi
       .spyOn(HTMLAnchorElement.prototype, "click")
       .mockImplementation(() => undefined);
     vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
-    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
-      callback(0);
-      return 1;
-    });
 
     downloadBlob(new Blob(["data"]), "output.csv");
+    vi.runAllTimers();
 
     expect(createObjectURL).toHaveBeenCalledOnce();
     expect(click).toHaveBeenCalledOnce();

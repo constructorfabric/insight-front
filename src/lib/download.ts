@@ -8,7 +8,9 @@ export function downloadBlob(blob: Blob, filename: string): void {
     document.body.append(anchor);
     anchor.click();
   } finally {
-    anchor.remove();
-    window.requestAnimationFrame(() => URL.revokeObjectURL(url));
+    window.setTimeout(() => {
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    }, 1_000);
   }
 }
