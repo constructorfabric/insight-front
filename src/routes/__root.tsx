@@ -10,7 +10,7 @@ import { MockBanner } from "@/components/mock-banner";
 import { ViewAsBanner } from "@/components/view-as-banner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { queryClient } from "@/query-client";
-import { MetricEvidenceProvider } from "@/components/metric-evidence-provider";
+import { MetricEvidenceDialogProvider } from "@/components/metric-evidence-dialog-provider";
 
 async function prefetchViewerIdentity(): Promise<void> {
   const email = getViewerEmail();
@@ -50,7 +50,7 @@ function RootPending() {
 function RootLayout() {
   return (
     <TooltipProvider>
-      <MetricEvidenceProvider>
+      <MetricEvidenceDialogProvider>
         <AuthGate>
           <SidebarProvider>
             <AppSidebar />
@@ -61,7 +61,7 @@ function RootLayout() {
             </SidebarInset>
           </SidebarProvider>
         </AuthGate>
-      </MetricEvidenceProvider>
+      </MetricEvidenceDialogProvider>
     </TooltipProvider>
   );
 }

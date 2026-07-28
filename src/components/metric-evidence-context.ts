@@ -29,7 +29,7 @@ export function useMetricEvidence(): EvidenceDialogContextValue {
   const context = useContext(EvidenceDialogContext);
   if (!context) {
     throw new Error(
-      "useMetricEvidence must be used within MetricEvidenceProvider"
+      "useMetricEvidence must be used within MetricEvidenceDialogProvider"
     );
   }
   return context;

@@ -38,7 +38,7 @@ export function MetricEvidenceDialog({
   onMetricChange,
   onClose,
 }: {
-  state: EvidenceDialogState;
+  state: EvidenceDialogState | null;
   onMetricChange: (metricKey: string) => void;
   onClose: () => void;
 }) {
@@ -48,23 +48,24 @@ export function MetricEvidenceDialog({
   const [exporting, setExporting] = useState(false);
   const [exportFailure, setExportFailure] = useState<string | null>(null);
   const activeTarget =
-    state.targets.find(
+    state?.targets.find(
       (target) => target.selection.metric_key === state.activeMetricKey
-    ) ?? state.targets[0];
+    ) ??
+    state?.targets[0] ??
+    null;
+  const selection = activeTarget?.selection ?? null;
   const query = useInfiniteQuery({
-    queryKey: ["metric-drilldown", sessionScope, activeTarget.selection],
-    queryFn: ({ pageParam, signal }) =>
-      queryMetricDrilldown(
-        {
-          ...activeTarget.selection,
-          cursor: pageParam,
-          limit: 100,
-        },
+    queryKey: ["metric-drilldown", sessionScope, selection],
+    queryFn: ({ pageParam, signal }) => {
+      if (!selection) throw new Error("Metric evidence selection is missing");
+      return queryMetricDrilldown(
+        { ...selection, cursor: pageParam, limit: 100 },
         signal
-      ),
+      );
+    },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page) => page.next_cursor ?? undefined,
-    enabled: sessionScope != null,
+    enabled: sessionScope != null && selection != null,
     retry: (failureCount, error) =>
       failureCount < 1 &&
       (!(error instanceof AnalyticsApiError) || error.status >= 500),
@@ -98,18 +99,23 @@ export function MetricEvidenceDialog({
     []
   );
 
+  function closeDialog(): void {
+    exportController.current?.abort();
+    exportController.current = null;
+    setExporting(false);
+    setExportFailure(null);
+    onClose();
+  }
+
   async function exportRows(format: "csv" | "xlsx") {
+    if (!selection) return;
     exportController.current?.abort();
     const controller = new AbortController();
     exportController.current = controller;
     setExporting(true);
     setExportFailure(null);
     try {
-      await downloadMetricDrilldown(
-        activeTarget.selection,
-        format,
-        controller.signal
-      );
+      await downloadMetricDrilldown(selection, format, controller.signal);
     } catch (error) {
       if (!controller.signal.aborted) {
         setExportFailure(
@@ -125,105 +131,112 @@ export function MetricEvidenceDialog({
   }
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="flex h-[calc(100dvh-2rem)] max-h-[52rem] w-[calc(100vw-2rem)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:h-[calc(100dvh-4rem)] sm:w-[calc(100vw-4rem)] sm:max-w-[90rem] [&_[data-slot=dialog-close]]:top-5">
-        <DialogHeader className="shrink-0 border-b p-5 pr-14">
-          <div className="flex items-center justify-between gap-4">
-            {state.targets.length > 1 ? (
-              <>
-                <DialogTitle className="sr-only">
-                  {state.title ?? "Metric evidence"}
-                </DialogTitle>
-                <Select
-                  value={activeTarget.selection.metric_key}
-                  onValueChange={(metricKey) => {
-                    if (!metricKey) return;
-                    exportController.current?.abort();
-                    setExportFailure(null);
-                    onMetricChange(metricKey);
-                  }}
-                >
-                  <SelectTrigger
-                    size="sm"
-                    aria-label="Metric"
-                    className="border-transparent bg-transparent px-0 text-base font-semibold shadow-none hover:bg-transparent focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
+    <Dialog
+      open={state != null}
+      onOpenChange={(open) => !open && closeDialog()}
+    >
+      {state && activeTarget ? (
+        <DialogContent className="flex h-[calc(100dvh-2rem)] max-h-[52rem] w-[calc(100vw-2rem)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:h-[calc(100dvh-4rem)] sm:w-[calc(100vw-4rem)] sm:max-w-[90rem] [&_[data-slot=dialog-close]]:top-5">
+          <DialogHeader className="shrink-0 border-b p-5 pr-14">
+            <div className="flex items-center justify-between gap-4">
+              {state.targets.length > 1 ? (
+                <>
+                  <DialogTitle className="sr-only">
+                    {state.title ?? "Metric evidence"}
+                  </DialogTitle>
+                  <Select
+                    value={activeTarget.selection.metric_key}
+                    onValueChange={(metricKey) => {
+                      if (!metricKey) return;
+                      exportController.current?.abort();
+                      setExportFailure(null);
+                      onMetricChange(metricKey);
+                    }}
                   >
-                    <SelectValue>{activeTarget.label}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent align="start">
-                    {state.targets.map((target) => (
-                      <SelectItem
-                        key={target.selection.metric_key}
-                        value={target.selection.metric_key}
-                      >
-                        {target.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </>
-            ) : (
-              <DialogTitle>{activeTarget.label}</DialogTitle>
-            )}
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                disabled={
-                  exporting || query.isPending || (query.isError && !query.data)
-                }
-                render={
-                  <Button variant="outline" size="sm">
-                    {exporting ? <Spinner /> : <Download />}
-                    Export
-                  </Button>
-                }
-              />
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => void exportRows("csv")}>
-                  <FileText />
-                  CSV
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => void exportRows("xlsx")}>
-                  <FileSpreadsheet />
-                  Excel
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          {exportFailure ? (
-            <p role="alert" className="text-sm text-destructive">
-              {exportFailure}
-            </p>
-          ) : null}
-        </DialogHeader>
-        {query.isPending ? (
-          <div className="flex flex-1 items-center justify-center">
-            <Spinner className="size-10" />
-          </div>
-        ) : query.isError && !query.data ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3">
-            <p role="alert" className="text-sm text-muted-foreground">
-              {errorMessage(query.error, "Unable to load metric evidence")}
-            </p>
-            <Button variant="outline" onClick={() => void query.refetch()}>
-              Retry
-            </Button>
-          </div>
-        ) : rows.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-            No supporting data for this selection
-          </div>
-        ) : (
-          <MetricEvidenceTable
-            rows={rows}
-            columns={columns}
-            fetchNextPage={fetchNextPage}
-            hasNextPage={hasNextPage && !pageLimitReached}
-            isFetchingNextPage={isFetchingNextPage}
-            nextPageError={query.isFetchNextPageError}
-            pageLimitReached={pageLimitReached}
-          />
-        )}
-      </DialogContent>
+                    <SelectTrigger
+                      size="sm"
+                      aria-label="Metric"
+                      className="border-transparent bg-transparent px-0 text-base font-semibold shadow-none hover:bg-transparent focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
+                    >
+                      <SelectValue>{activeTarget.label}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent align="start">
+                      {state.targets.map((target) => (
+                        <SelectItem
+                          key={target.selection.metric_key}
+                          value={target.selection.metric_key}
+                        >
+                          {target.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              ) : (
+                <DialogTitle>{activeTarget.label}</DialogTitle>
+              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  disabled={
+                    exporting ||
+                    query.isPending ||
+                    (query.isError && !query.data)
+                  }
+                  render={
+                    <Button variant="outline" size="sm">
+                      {exporting ? <Spinner /> : <Download />}
+                      Export
+                    </Button>
+                  }
+                />
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => void exportRows("csv")}>
+                    <FileText />
+                    CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => void exportRows("xlsx")}>
+                    <FileSpreadsheet />
+                    Excel
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            {exportFailure ? (
+              <p role="alert" className="text-sm text-destructive">
+                {exportFailure}
+              </p>
+            ) : null}
+          </DialogHeader>
+          {query.isPending ? (
+            <div className="flex flex-1 items-center justify-center">
+              <Spinner className="size-10" />
+            </div>
+          ) : query.isError && !query.data ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3">
+              <p role="alert" className="text-sm text-muted-foreground">
+                {errorMessage(query.error, "Unable to load metric evidence")}
+              </p>
+              <Button variant="outline" onClick={() => void query.refetch()}>
+                Retry
+              </Button>
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+              No supporting data for this selection
+            </div>
+          ) : (
+            <MetricEvidenceTable
+              rows={rows}
+              columns={columns}
+              fetchNextPage={fetchNextPage}
+              hasNextPage={hasNextPage && !pageLimitReached}
+              isFetchingNextPage={isFetchingNextPage}
+              nextPageError={query.isFetchNextPageError}
+              pageLimitReached={pageLimitReached}
+            />
+          )}
+        </DialogContent>
+      ) : null}
     </Dialog>
   );
 }

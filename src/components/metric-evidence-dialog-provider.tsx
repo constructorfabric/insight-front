@@ -1,6 +1,4 @@
 import {
-  lazy,
-  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -16,26 +14,22 @@ import {
   EvidenceDialogContext,
   type EvidenceDialogState,
 } from "@/components/metric-evidence-context";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Spinner } from "@/components/ui/spinner";
+import { MetricEvidenceDialog } from "@/components/metric-evidence-dialog";
 
-const MetricEvidenceDialog = lazy(() =>
-  import("@/components/metric-evidence-dialog").then((module) => ({
-    default: module.MetricEvidenceDialog,
-  }))
-);
+type ScopedEvidenceDialogState = EvidenceDialogState & {
+  sessionScope: string | null;
+};
 
-export function MetricEvidenceProvider({ children }: { children: ReactNode }) {
+export function MetricEvidenceDialogProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const { session } = useAuth();
   const sessionScope = sessionAuthorizationScope(session);
   const queryClient = useQueryClient();
   const previousSessionScope = useRef(sessionScope);
-  const [state, setState] = useState<EvidenceDialogState | null>(null);
+  const [state, setState] = useState<ScopedEvidenceDialogState | null>(null);
   useEffect(() => {
     if (previousSessionScope.current !== sessionScope) {
       void queryClient.cancelQueries({ queryKey: ["metric-drilldown"] });
@@ -60,9 +54,10 @@ export function MetricEvidenceProvider({ children }: { children: ReactNode }) {
         targets: [first, ...uniqueTargets.slice(1)],
         activeMetricKey: first.selection.metric_key,
         title,
+        sessionScope,
       });
     },
-    []
+    [sessionScope]
   );
   const openEvidence = useCallback(
     (
@@ -84,36 +79,16 @@ export function MetricEvidenceProvider({ children }: { children: ReactNode }) {
     () => ({ openEvidence, openEvidenceTargets }),
     [openEvidence, openEvidenceTargets]
   );
-  const activeTarget = state?.targets.find(
-    (target) => target.selection.metric_key === state.activeMetricKey
-  );
+  const visibleState = state?.sessionScope === sessionScope ? state : null;
   return (
     <EvidenceDialogContext.Provider value={value}>
       {children}
-      {state ? (
-        <Suspense
-          fallback={
-            <Dialog open onOpenChange={(open) => !open && setState(null)}>
-              <DialogContent className="flex h-[calc(100dvh-2rem)] max-h-[52rem] w-[calc(100vw-2rem)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:h-[calc(100dvh-4rem)] sm:w-[calc(100vw-4rem)] sm:max-w-[90rem]">
-                <DialogHeader className="shrink-0 border-b p-5 pr-14">
-                  <DialogTitle>
-                    {state.title ?? activeTarget?.label ?? "Metric evidence"}
-                  </DialogTitle>
-                </DialogHeader>
-                <div className="flex flex-1 items-center justify-center">
-                  <Spinner className="size-10" />
-                </div>
-              </DialogContent>
-            </Dialog>
-          }
-        >
-          <MetricEvidenceDialog
-            state={state}
-            onMetricChange={selectEvidenceMetric}
-            onClose={() => setState(null)}
-          />
-        </Suspense>
-      ) : null}
+      <MetricEvidenceDialog
+        key={sessionScope ?? "no-session"}
+        state={visibleState}
+        onMetricChange={selectEvidenceMetric}
+        onClose={() => setState(null)}
+      />
     </EvidenceDialogContext.Provider>
   );
 }
