@@ -1,5 +1,4 @@
 import { format } from "date-fns";
-import type { DotItemDotProps } from "recharts";
 
 import {
   BarChart,
@@ -10,15 +9,11 @@ import {
   ChartTooltip,
   ChartTooltipContent,
   LineChart,
-  ReferenceArea,
   XAxis,
   YAxis,
   type ChartConfig,
 } from "@/components/ui/chart";
-import {
-  buildMetricTimeseriesChartModel,
-  commonNullRuns,
-} from "@/components/widgets/metric-views/metric-timeseries-chart-model";
+import { buildMetricTimeseriesChartModel } from "@/components/widgets/metric-views/metric-timeseries-chart-model";
 import type { MetricTimeseriesModel } from "@/components/widgets/metric-views/metric-timeseries-model";
 import { formatMetricNumber } from "@/lib/format";
 import { percentShareLabels } from "@/lib/metrics/shares";
@@ -35,48 +30,6 @@ function dateLabel(value: string, pattern: string): string {
   const [year, month, day] = value.split("-").map(Number);
   if (!year || !month || !day) return value;
   return format(new Date(year, month - 1, day), pattern);
-}
-
-function IsolatedPoint({
-  cx,
-  cy,
-  index,
-  points,
-  stroke,
-  value,
-}: DotItemDotProps) {
-  if (value == null || cx == null || cy == null) return null;
-  if (points[index - 1]?.value != null || points[index + 1]?.value != null) {
-    return null;
-  }
-  return <circle cx={cx} cy={cy} r={3} fill={stroke} />;
-}
-
-function TimeseriesXAxis({
-  data,
-  numeric = false,
-}: {
-  data: Array<{ bucketIndex: number; label: string }>;
-  numeric?: boolean;
-}) {
-  return (
-    <XAxis
-      dataKey={numeric ? "bucketIndex" : "label"}
-      type={numeric ? "number" : "category"}
-      domain={numeric ? [-0.5, data.length - 0.5] : undefined}
-      ticks={numeric ? data.map((item) => item.bucketIndex) : undefined}
-      tickFormatter={
-        numeric
-          ? (value) => data[Number(value)]?.label ?? ""
-          : (value) => String(value)
-      }
-      tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
-      tickLine={false}
-      axisLine={false}
-      height={24}
-      interval="preserveStartEnd"
-    />
-  );
 }
 
 export function MetricTimeseriesChart({
@@ -100,9 +53,8 @@ export function MetricTimeseriesChart({
       { label: series.label, color: colors[series.colorSeed] },
     ])
   );
-  const data = model.buckets.map((bucketStart, bucketIndex) => ({
+  const data = model.buckets.map((bucketStart) => ({
     bucketStart,
-    bucketIndex,
     label: dateLabel(
       bucketStart,
       model.bucket === "month" ? "MMM yyyy" : "MMM d"
@@ -111,21 +63,23 @@ export function MetricTimeseriesChart({
     ...Object.fromEntries(
       chartModel.series.map((series) => [
         series.key,
-        series.points.get(bucketStart) ?? null,
+        series.points.get(bucketStart) ?? 0,
       ])
     ),
   }));
-  const totals = chartModel.series.map((series) => series.total);
-  const shares = percentShareLabels(totals.map((value) => value ?? 0));
-  const nullRuns = chartModel.grouped
-    ? []
-    : commonNullRuns(
-        model.buckets,
-        chartModel.series.map((series) => series.points)
-      );
+  const totals = chartModel.series.map((series) => series.total ?? 0);
+  const shares = percentShareLabels(totals);
   const chartContent = (
     <>
       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+      <XAxis
+        dataKey="label"
+        tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+        tickLine={false}
+        axisLine={false}
+        height={24}
+        interval="preserveStartEnd"
+      />
       <YAxis
         tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
         tickFormatter={(value) =>
@@ -160,7 +114,6 @@ export function MetricTimeseriesChart({
             margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
           >
             {chartContent}
-            <TimeseriesXAxis data={data} />
             {chartModel.series.map((series) => (
               <ChartBar
                 key={series.key}
@@ -178,29 +131,6 @@ export function MetricTimeseriesChart({
             margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
           >
             {chartContent}
-            <TimeseriesXAxis data={data} numeric />
-            {nullRuns.map((run) => (
-              <ReferenceArea
-                key={`${run.startIndex}-${run.endIndex}`}
-                x1={run.startIndex - 0.5}
-                x2={run.endIndex + 0.5}
-                ifOverflow="hidden"
-                fill="var(--muted)"
-                fillOpacity={0.65}
-                stroke="var(--border)"
-                strokeOpacity={0.5}
-                label={
-                  run.endIndex > run.startIndex
-                    ? {
-                        value: "No data",
-                        position: "insideTop",
-                        fill: "var(--muted-foreground)",
-                        fontSize: 10,
-                      }
-                    : undefined
-                }
-              />
-            ))}
             {chartModel.series.map((series) => (
               <ChartLine
                 key={series.key}
@@ -208,8 +138,7 @@ export function MetricTimeseriesChart({
                 dataKey={series.key}
                 stroke={`var(--color-${series.key})`}
                 strokeWidth={2}
-                dot={IsolatedPoint}
-                connectNulls={false}
+                dot={false}
                 name={series.label}
               />
             ))}
@@ -228,9 +157,7 @@ export function MetricTimeseriesChart({
               <span className="font-medium">{series.label}</span>
               {chartModel.grouped ? (
                 <span className="text-muted-foreground tabular-nums">
-                  {totals[index] == null
-                    ? "—"
-                    : `${formatMetricNumber(totals[index], chartModel.valueMetric.format)}${chartModel.valueMetric.unit ? ` ${chartModel.valueMetric.unit}` : ""}${shares[index] ? ` · ${shares[index]}%` : ""}`}
+                  {`${formatMetricNumber(totals[index] ?? 0, chartModel.valueMetric.format)}${chartModel.valueMetric.unit ? ` ${chartModel.valueMetric.unit}` : ""}${shares[index] ? ` · ${shares[index]}%` : ""}`}
                 </span>
               ) : null}
             </li>
