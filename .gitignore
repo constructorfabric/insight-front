@@ -38,6 +38,14 @@ lerna-debug.log*
 .eslintcache
 coverage/
 
+# Security scanner output (CI writes these into the workspace; trufflehog's
+# report holds raw secret values, so it must never be committed)
+semgrep.sarif
+trivy-fs.json
+trivy-fs.sarif
+trivy-image.sarif
+trufflehog-findings.jsonl
+
 # Editor
 .vscode/*
 !.vscode/extensions.json
