@@ -18,6 +18,11 @@ name: Semgrep SAST
 on:
   pull_request:
     branches: [main]
+  push:
+    # A main-branch baseline the moment something lands, rather than only at 03:27 the next
+    # morning: without this, `branch:main` in Code Scanning carries no SAST data between a merge
+    # and the nightly run, and a merge that introduces a finding is invisible until then.
+    branches: [main]
   schedule:
     # Nightly full-tree baseline (independent of what any PR touched), 03:27 UTC.
     - cron: "27 3 * * *"

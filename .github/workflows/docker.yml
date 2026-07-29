@@ -228,30 +228,29 @@ jobs:
         # `--ignore-unfixed` keeps the output to what a base-image bump can actually fix.
         # A multi-arch manifest resolves to the runner's platform (linux/amd64); the arm64
         # leg shares the same base image and package set, so one pass is representative.
+        #
+        # CRITICAL/HIGH only. Widening to MEDIUM/LOW was tried and reverted on review
+        # (constructorfabric/insight#2016): every finding here comes from the base layer and the
+        # remedy is the same either way — refresh the base image — while the wider filter triples
+        # the alert count and buries the CRITICALs that drive action.
         env:
           TRIVY_IMAGE: aquasec/trivy:0.72.0@sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f
           IMAGE_REF: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.merge.outputs.build_tag }}
           TRIVY_USERNAME: ${{ github.actor }}
           TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        # One pull and one analysis: `trivy convert` renders both the log table and the SARIF
+        # from a single JSON report instead of scanning twice. `-w /work` so a repo-root
+        # `.trivyignore` is resolved — Trivy reads the default ignore file relative to the
+        # working directory, and without this the file is looked for in the image's own cwd
+        # and silently ignored. `--ignorefile` is not used instead: Trivy exits FATAL when the
+        # named file is absent, which would break every run until someone adds a waiver.
         run: |
           set -euo pipefail
           echo "Scanning ${IMAGE_REF}"
-          # Two passes over the same warm DB cache: a readable table in the log, SARIF for
-          # Code Scanning.
-          docker run --rm \
-            -v /tmp/trivy-cache:/root/.cache \
-            -e TRIVY_USERNAME -e TRIVY_PASSWORD \
-            "$TRIVY_IMAGE" image \
-              --severity CRITICAL,HIGH \
-              --pkg-types os,library \
-              --ignore-unfixed \
-              --exit-code 0 \
-              --no-progress \
-              --format table \
-              "$IMAGE_REF"
           docker run --rm \
             -v "${{ github.workspace }}:/work" \
             -v /tmp/trivy-cache:/root/.cache \
+            -w /work \
             -e TRIVY_USERNAME -e TRIVY_PASSWORD \
             "$TRIVY_IMAGE" image \
               --severity CRITICAL,HIGH \
@@ -259,11 +258,17 @@ jobs:
               --ignore-unfixed \
               --exit-code 0 \
               --no-progress \
-              --format sarif --output /work/trivy-image.sarif \
+              --format json --output /work/trivy-image.json \
               "$IMAGE_REF"
+          docker run --rm -v "${{ github.workspace }}:/work" \
+            "$TRIVY_IMAGE" convert --format table /work/trivy-image.json
+          docker run --rm -v "${{ github.workspace }}:/work" \
+            "$TRIVY_IMAGE" convert --format sarif --output /work/trivy-image.sarif /work/trivy-image.json
 
       - name: Upload SARIF to GitHub Code Scanning
-        if: always()
+        # The guard keeps a failed registry pull from reporting twice — once for the pull, once
+        # for a SARIF file that was never written.
+        if: ${{ always() && hashFiles('trivy-image.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@fb0994ef1c058010acf1efccff928b0a83b1ed54 # v4.32.6
         with:
           sarif_file: trivy-image.sarif
