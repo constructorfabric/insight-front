@@ -2,28 +2,6 @@ import type { FocusMode } from "./peers"
 
 export type Status = "good" | "warn" | "bad" | "neutral"
 
-export type StatusDef = {
-  good: number
-  warn: number
-  higher_is_better: boolean
-}
-
-export function statusForValue(
-  value: number | null | undefined,
-  def: StatusDef
-): Status {
-  if (value == null || Number.isNaN(value)) return "neutral"
-  const { good, warn, higher_is_better } = def
-  if (higher_is_better) {
-    if (value >= good) return "good"
-    if (value >= warn) return "warn"
-    return "bad"
-  }
-  if (value <= good) return "good"
-  if (value <= warn) return "warn"
-  return "bad"
-}
-
 export function applyFocusStatus(status: Status, mode: FocusMode): Status {
   if (mode === "all") return status
   if (mode === "critical") return status === "bad" ? status : "neutral"

@@ -11,7 +11,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useViewer } from "@/auth";
-import { SidebarV2Settings } from "@/components/sidebar-v2-settings";
+import { SidebarSettings } from "@/components/sidebar-settings";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -25,7 +25,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { useMetricsV2Enabled } from "@/lib/feature-flags";
 import { getInitials } from "@/lib/insight/get-initials";
 import { useIcPerson } from "@/queries/ic-dashboard";
 import type { IdentityPerson } from "@/types/insight";
@@ -98,7 +97,6 @@ export function AppSidebar() {
   const viewerQ = useIcPerson(viewerEmail ?? "");
   const viewer = viewerQ.data ?? null;
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const metricsV2 = useMetricsV2Enabled();
   const activeEmail = useMemo(() => {
     const m = /^\/ic\/([^/]+)/.exec(pathname);
     if (m) return decodeURIComponent(m[1]!);
@@ -131,17 +129,15 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
-          {metricsV2 ? (
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                isActive={pathname === "/metrics"}
-                render={<Link to="/metrics" />}
-              >
-                <BookOpenText />
-                <span>{t("metric_definitions.nav_label")}</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ) : null}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              isActive={pathname === "/metrics"}
+              render={<Link to="/metrics" />}
+            >
+              <BookOpenText />
+              <span>{t("metric_definitions.nav_label")}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               isActive={pathname === "/whats-new"}
@@ -152,7 +148,7 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        <SidebarV2Settings />
+        <SidebarSettings />
         <ThemeSwitcher />
         {viewerEmail
           ? (() => {

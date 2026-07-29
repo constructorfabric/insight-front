@@ -21,7 +21,7 @@ the constructorfabric/* namespace flip (2026-06-09). -->
 | Language | TypeScript 6 (strict) |
 | Styling | Tailwind CSS 4 + shadcn/ui (`base-vega` style, CSS variables) |
 | Charts | Recharts 3 |
-| Auth | OIDC via `oidc-client-ts` (Authorization Code + PKCE) |
+| Auth | Server-side session (cookie/BFF through the gateway) |
 | i18n | `i18next` + `react-i18next` (English only today) |
 | Mocks | MSW (Mock Service Worker) |
 | Linting | ESLint (flat config) |
@@ -53,7 +53,6 @@ To enable synthetic data for an offline / demo session, copy `.env.example` to `
 
 ```
 VITE_ENABLE_MOCKS=true
-VITE_DEV_USER_EMAIL=bob.park@example.com
 ```
 
 A yellow warning strip renders at the top of the page whenever mocks are active so synthetic values cannot be mistaken for real ones. Set `VITE_HIDE_MOCK_BANNER=true` to hide the strip during screenshots — mocks remain active. Prod builds (`pnpm build`) drop the mock subtree entirely.
@@ -75,15 +74,15 @@ Seeded mock people: `bob.park@example.com`, `carol.chen@example.com`, `alice.kim
 
 ```
 src/
-  auth/                  # OIDC manager singleton, useAuth hook, start-url capture
-  api/                   # Fetch clients (analytics, identity, accounts) + fetchWithAuth wrapper
-  queries/               # React Query hooks per screen (ic-dashboard, team-view, executive-view)
+  auth/                  # Session probe + refresh driver, useAuth / useViewer hooks
+  api/                   # Fetch clients (analytics, identity) + fetchWithAuth wrapper
+  queries/               # React Query hooks (metric-results, member-grid, metric-definitions)
   routes/                # TanStack Router file-based routes (auto-discovered)
   routeTree.gen.ts       #   ← auto-generated, do not edit
   screens/               # Page components composed by routes
   components/
     ui/                  #   shadcn/ui primitives (button, card, dialog, alert, …)
-    widgets/             #   Feature widgets (metric-card, bullet-chart, drill-modal, …)
+    widgets/             #   Feature widgets (dashboard/, metric-views/, …)
     app-sidebar.tsx      #   Org-tree sidebar (recursive nav)
     theme-provider.tsx   #   Light/dark/system theme (localStorage-backed)
     mock-banner.tsx      #   Warning strip when mocks are on
@@ -96,35 +95,19 @@ src/
   i18n/                  # i18next setup
   types/                 # Shared TypeScript types
   index.css              # Tailwind v4 inline config + theme tokens (light + dark)
-  main.tsx               # Entry: storeStartUrl → enableMocking → OidcManager.init → render
+  main.tsx               # Entry: consumeOverrideParam → enableMocking → loadSession → render
   router.ts              # createRouter(routeTree)
 ```
 
-## Authentication (OIDC)
+## Authentication
 
-Authorization Code + PKCE via [`oidc-client-ts`](https://github.com/authts/oidc-client-ts). The OIDC issuer/client are not baked into the build — they're injected at container start.
+Server-side cookie/BFF flow — the SPA holds no tokens.
 
-### Flow
-
-1. [src/main.tsx](src/main.tsx) calls `storeStartUrl()` (captures the full URL with any `?code=…&state=…` before the router strips it), then `OidcManager.init()` reads `window.__OIDC_CONFIG__` and restores a session from `sessionStorage` if one exists.
-2. Root route's `beforeLoad` ([src/routes/__root.tsx](src/routes/__root.tsx)) inspects `authStore`. `authenticated` → render; `idle` / `expired` → `OidcManager.signIn()` (redirects to the IdP). `/callback` is whitelisted.
-3. [src/routes/callback.tsx](src/routes/callback.tsx) calls `OidcManager.handleCallback(startUrl)` to exchange the code for tokens, then `window.location.replace(state.returnUrl)`.
-4. [src/api/fetch-with-auth.ts](src/api/fetch-with-auth.ts) injects `Authorization: Bearer <token>` on every request. `X-Tenant-ID` is reserved for future use (current backend doesn't require it); when `authStore.tenantId` is populated by something downstream, the header fires automatically. On 401, it calls `OidcManager.refresh()` once and retries — concurrent in-flight refreshes are deduplicated inside `OidcManager.refresh()`.
-5. Viewer identity is sourced directly from JWT claims via `oidc-client-ts` (`user.profile.email` / `user.profile.sub`) — no extra `/api/accounts/user/current` round-trip. The auth module's `useViewer()` hook is the single source of truth: it prefers the OIDC-authenticated user's email and falls back to `VITE_DEV_USER_EMAIL` in dev.
-
-### Dev bypass
-
-When `window.__OIDC_CONFIG__` is absent (typical for local dev) **and** `import.meta.env.DEV` is true, `OidcManager.init()` sets status to `authenticated` and resolves with no user. Combine with `VITE_DEV_USER_EMAIL` to impersonate a person from the identity service.
-
-### Runtime config (Docker)
-
-The container's `docker-entrypoint.sh` writes `/oidc-config.js` from env vars and injects a `<script src="/oidc-config.js">` tag into `index.html`. The script sets `window.__OIDC_CONFIG__ = { issuer_url, client_id, scopes }`.
-
-| Variable | Description | Example |
-|---|---|---|
-| `OIDC_ISSUER` | OIDC issuer URL | `https://auth.example.com/application/o/insight/` |
-| `OIDC_CLIENT_ID` | OAuth2 public client ID | `C6YjC67CCDBUMygEeoBIlSX3mhRkNpCPxQxa2zaT` |
-| `OIDC_SCOPES` | Space-separated scopes | `openid profile email api://insight/Access.Default` |
+1. The browser hits `/auth/login`; the gateway and authenticator run the provider handshake and set a `__Host-sid` session cookie.
+2. [src/main.tsx](src/main.tsx) probes `/auth/me` via `loadSession()` before the router mounts, so the root route reads a resolved auth store.
+3. [src/api/fetch-with-auth.ts](src/api/fetch-with-auth.ts) sends `credentials: "include"` on every request — no `Authorization` header, no tenant header. The gateway injects the downstream JWT.
+4. A 401 bounces the whole page into `/auth/login?return_to=…` ([src/auth/use-auth.ts](src/auth/use-auth.ts)); there is no client-side token to refresh.
+5. The session is non-sliding: [src/auth/refresh.ts](src/auth/refresh.ts) drives `POST /auth/refresh` on the server-supplied `refresh_at`.
 
 ## Environment Variables
 
@@ -134,24 +117,20 @@ Build-time (Vite, `.env.local`):
 |---|---|
 | `VITE_ENABLE_MOCKS` | `"true"` to enable MSW (dev only; stripped from prod). |
 | `VITE_HIDE_MOCK_BANNER` | `"true"` to hide the warning strip while mocks are on (for screenshots). |
-| `VITE_DEV_USER_EMAIL` | Impersonate a person by email when no OIDC session is present. |
 | `VITE_API_PROXY_TARGET` | Dev-only `/api` proxy target (e.g. `http://localhost:8080`). |
 | `VITE_API_BASE` | Override analytics API base URL (default `/api/analytics/v1`). |
 | `VITE_IDENTITY_BASE` | Override identity API base URL (default `/api/identity/v1`). |
-| `VITE_ACCOUNTS_BASE` | Override accounts API base URL (default `/api/accounts`). |
-
-Runtime (container only, **no** `VITE_` prefix): `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_SCOPES`.
 
 ## Routes
 
 | Path | Screen | Notes |
 |---|---|---|
-| `/` | IC dashboard (or impersonation prompt) | Resolves viewer via OIDC user or `VITE_DEV_USER_EMAIL`. |
+| `/` | Dashboard for the signed-in viewer | Resolves the viewer from the session. |
 | `/ic/$person` | (redirects to `/ic/$person/personal`) | |
-| `/ic/$person/personal` | IC dashboard | Branches on viewer department (engineering vs sales). |
-| `/ic/$person/team` | Team view | Members table, bullet sections, drill modals. |
-| `/ic/$person/exec` | Executive view | Org KPIs, health radar, teams table. |
-| `/callback` | OIDC callback handler | Exchanges code for tokens, redirects to original URL. |
+| `/ic/$person/personal` | Dashboard | KPI row, attention list, metric group cards + drilldowns. |
+| `/ic/$person/team` | Team view | Members heatmap, attention list, metric group drilldowns. |
+| `/metrics` | Metric catalog | Metric definitions browser. |
+| `/whats-new` | Release notes | |
 
 ## Theming
 
@@ -169,16 +148,6 @@ Runtime (container only, **no** `VITE_` prefix): `OIDC_ISSUER`, `OIDC_CLIENT_ID`
 docker build -t insight-frontend:local .
 ```
 
-### Run with OIDC
-
-```bash
-docker run -d -p 8080:80 \
-  -e OIDC_ISSUER=https://auth.example.com/application/o/insight/ \
-  -e OIDC_CLIENT_ID=your-client-id \
-  -e OIDC_SCOPES="openid profile email" \
-  insight-frontend:local
-```
-
 ### Run without a backend (mock mode)
 
 ```bash
@@ -192,8 +161,6 @@ All screens render synthetic data and the warning strip stays visible.
 
 ```bash
 cp docker-compose.yml docker-compose.override.yml
-# Edit OIDC_ISSUER / OIDC_CLIENT_ID / OIDC_SCOPES in the override
-
 docker compose up -d --build
 ```
 
@@ -206,8 +173,6 @@ From the [insight monorepo](https://github.com/constructorfabric/insight):
 ./up.sh app         # backend + frontend together
 ./up.sh             # full stack (ingestion + backend + frontend)
 ```
-
-Helm chart supports OIDC config via `--set oidc.issuer=… --set oidc.clientId=… --set oidc.scopes=…`.
 
 ## License
 

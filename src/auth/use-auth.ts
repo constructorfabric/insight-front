@@ -26,8 +26,8 @@ function safeReturnTo(path: string): string {
 
 /**
  * Redirect the whole page into the login flow. The gateway + authenticator own
- * the OIDC dance; we only hand them a `return_to`. Guarded so multiple 401s in
- * flight don't stack redirects.
+ * the provider handshake; we only hand them a `return_to`. Guarded so multiple
+ * 401s in flight don't stack redirects.
  */
 export function signIn(returnTo?: string): void {
   if (redirecting) return;

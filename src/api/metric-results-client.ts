@@ -95,7 +95,7 @@ export interface MedianMetricResult extends MetricResultBase {
   computation: "median";
 }
 
-export interface DistinctCountMetricResult extends MetricResultBase {
+interface DistinctCountMetricResult extends MetricResultBase {
   computation: "distinct_count";
 }
 
@@ -149,7 +149,7 @@ export interface BreakdownView {
   }>;
 }
 
-export interface HistogramBin {
+interface HistogramBin {
   lo: number;
   hi: number;
   count: number;

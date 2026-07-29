@@ -7,14 +7,14 @@ import {
   dimensionLabel,
   dimensionSeriesKey,
 } from "@/components/widgets/metric-views/dimension-series";
-import { MetricSublabel } from "@/components/widgets/v2/metric-sublabel";
+import { MetricSublabel } from "@/components/widgets/dashboard/metric-sublabel";
 import { useSettings } from "@/hooks/use-settings";
 import {
   formatMetricNumber,
   formatMetricValue,
   metricDisplayUnit,
 } from "@/lib/format";
-import { peerStatusToStatus } from "@/lib/insight/v2/peer-status";
+import { peerStatusToStatus } from "@/lib/insight/peer-status";
 import { forEntity, type NormalizedMetricResult } from "@/lib/metrics/collection";
 import { derivePeerStanding } from "@/lib/metrics/peer-standing";
 import { seriesColors } from "@/lib/series-colors";

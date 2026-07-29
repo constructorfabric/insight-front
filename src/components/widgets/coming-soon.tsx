@@ -3,8 +3,8 @@ import { memo } from "react";
 
 import { cn } from "@/lib/utils";
 
-export type ComingSoonVariant = "card" | "chip" | "row";
-export type ComingSoonState = "empty" | "error" | "loading";
+type ComingSoonVariant = "card" | "chip" | "row";
+type ComingSoonState = "empty" | "error" | "loading";
 
 export interface ComingSoonProps {
   variant?: ComingSoonVariant;

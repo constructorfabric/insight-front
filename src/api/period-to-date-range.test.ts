@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  odataDateFilter,
-  odataEscapeValue,
-  periodScale,
   periodToDateRange,
   previousPeriodRange,
   resolveDateRange,
@@ -126,24 +123,3 @@ describe("previousPeriodRange", () => {
   });
 });
 
-describe("periodScale", () => {
-  it("maps each period to its day count", () => {
-    expect(periodScale("week")).toBe(7);
-    expect(periodScale("month")).toBe(30);
-    expect(periodScale("quarter")).toBe(90);
-    expect(periodScale("year")).toBe(365);
-  });
-});
-
-describe("odata helpers", () => {
-  it("builds the inclusive metric_date filter", () => {
-    expect(odataDateFilter({ from: "2026-01-01", to: "2026-01-07" })).toBe(
-      "metric_date ge '2026-01-01' and metric_date le '2026-01-07'",
-    );
-  });
-
-  it("doubles single quotes in filter values", () => {
-    expect(odataEscapeValue("O'Brien's")).toBe("O''Brien''s");
-    expect(odataEscapeValue("plain")).toBe("plain");
-  });
-});
