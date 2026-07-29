@@ -1,0 +1,126 @@
+name: TruffleHog Secrets
+
+# Blocking secret-detection gate (constructorfabric/insight#1478).
+#
+# Unlike the Semgrep and Trivy gates this one is BLOCKING from day one: the baseline is
+# provably empty (full-history scan over every ref: 0 findings, 0 detector hits), so there
+# is nothing to triage and no reason to run in observation mode. Zero-leak policy — a
+# committed credential must be revoked and rotated, and rewriting history is not enough.
+#
+# `--results` is the load-bearing flag. TruffleHog's default (`verified,unknown`) HIDES
+# findings whose live verification failed, so an already-revoked or inactive key in the
+# history produces a green run — for a public repository that is still a leak. All four
+# result kinds are requested so the gate sees what the default would drop.
+#
+# Raw secret values are never printed to the log or the job summary, and no report artifact
+# is uploaded: Actions artifacts and logs on a public repository are world-readable, so
+# echoing a hit would publish the very value the gate exists to protect. The summary carries
+# detector name, commit and path — enough to locate and rotate.
+#
+# Scope note: this scans commits reachable from refs. Objects left unreachable by a force
+# push or a deleted branch still live on the remote and are NOT covered here; auditing those
+# needs a GitHub-source scan (`trufflehog github --repo`) against the API.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # Nightly sweep over every branch, 03:13 UTC (ahead of the Semgrep baseline at 03:27).
+    - cron: "13 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    name: secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          # Full history, not the tip: a secret deleted in a later commit is still a leak.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch every branch (nightly / manual sweep)
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        # PR and push runs scan the history behind the ref under test — that is the merge
+        # gate. The sweep additionally pulls every other live branch so a secret parked on a
+        # long-lived feature branch is caught before it reaches main. Explicit authenticated
+        # URL because `persist-credentials: false` leaves no credential on `origin`; the
+        # token is masked in logs by Actions.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --prune \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            '+refs/heads/*:refs/remotes/origin/*'
+
+      - name: TruffleHog scan (git history)
+        # Digest-pinned image via `docker run`, matching semgrep.yml. stdout (JSON findings,
+        # one object per line, containing raw secret values) is redirected to a file that
+        # stays on the runner; stderr (progress + the scan summary) is the only thing that
+        # reaches the log. `--fail` is deliberately NOT used: the summary step below decides
+        # the exit code, so a failing run still renders a readable report first.
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/src:ro" \
+            trufflesecurity/trufflehog:3.96.0@sha256:aa821cf4ace8861c7d096d83818cdf7bb9719028a52d37a52eaad44086a52577 \
+            git file:///src \
+              --json \
+              --no-update \
+              --results=verified,unknown,unverified,filtered_unverified \
+            > trufflehog-findings.jsonl
+
+      - name: Summarize (redacted) and fail on any finding
+        if: always()
+        # Null-guarded append (repo convention, cf. ci.yml). Prints detector / commit / path
+        # only — never `Raw`, `RawV2` or the surrounding line.
+        run: |
+          [ -f trufflehog-findings.jsonl ] || exit 0
+          python3 - trufflehog-findings.jsonl "${GITHUB_STEP_SUMMARY:-/dev/null}" <<'PY'
+          import json, sys, collections
+          rows = []
+          with open(sys.argv[1], encoding="utf-8") as fh:
+              for line in fh:
+                  line = line.strip()
+                  if not line:
+                      continue
+                  d = json.loads(line)
+                  git = (d.get("SourceMetadata") or {}).get("Data", {}).get("Git", {})
+                  rows.append({
+                      "detector": d.get("DetectorName", "?"),
+                      "verified": bool(d.get("Verified")),
+                      "commit": (git.get("commit") or "")[:8],
+                      "file": git.get("file") or "?",
+                      "line": git.get("line") or "",
+                  })
+          out = open(sys.argv[2], "a", encoding="utf-8")
+          w = out.write
+          w("## TruffleHog secret scan\n\n")
+          if not rows:
+              w("No secrets detected in the scanned history (all result kinds enabled).\n")
+              sys.exit(0)
+          ver = sum(1 for r in rows if r["verified"])
+          w(f"**{len(rows)}** finding(s) — {ver} live-verified, {len(rows) - ver} unverified. "
+            "Values are redacted here on purpose; read them from the source commit.\n\n")
+          w("| Detector | Verified | Commit | Path |\n|---|---|---|---|\n")
+          for r in sorted(rows, key=lambda r: (not r["verified"], r["detector"])):
+              w(f"| `{r['detector']}` | {'yes' if r['verified'] else 'no'} | `{r['commit']}` | `{r['file']}`{':' + str(r['line']) if r['line'] else ''} |\n")
+          by_det = collections.Counter(r["detector"] for r in rows)
+          w(f"\nBy detector: {', '.join(f'{k} x{v}' for k, v in by_det.most_common())}\n")
+          w("\n**Revoke and rotate every credential listed above.** Removing the commit is not "
+            "remediation — assume the value is compromised the moment it was pushed.\n")
+          out.close()
+          sys.exit(1)
+          PY

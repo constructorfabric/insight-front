@@ -179,6 +179,83 @@ jobs:
         run: |
           echo '- `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.prepare.outputs.build_tag }}`' >> "$GITHUB_STEP_SUMMARY"
 
+  # ─── Image CVE scan ────────────────────────────────────────────────────────
+  # Scans the manifest that was just pushed — the only place where base-image
+  # (nginx:1.27-alpine) and OS-package CVEs are visible. The repo-level pass
+  # (trivy.yml) sees the lock file and Dockerfile, never the shipped layers.
+  #
+  # Report-only for now (`--exit-code 0`): findings go to "Security -> Code
+  # scanning" and the job log, and promotion proceeds. To bar a vulnerable
+  # image from promotion — the policy target — set `--exit-code 1` here and add
+  # `trivy-image` to `dispatch-umbrella`'s `needs`.
+  #
+  # Scoped to main: the promotion path this gate is meant to guard. Branch
+  # dispatches now push a tagged `.<branch>` image too (insight#1994) but never
+  # reach the umbrella, so they are left unscanned to keep dispatch cheap —
+  # drop the `github.ref` half of the condition below to cover them as well.
+  trivy-image:
+    name: Trivy image scan (report-only)
+    needs: merge
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read # checkout (.trivyignore waivers)
+      packages: read # pull the image under scan from GHCR
+      security-events: write # upload SARIF to Code Scanning
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+
+      - name: Trivy image scan (CRITICAL/HIGH)
+        # Trivy pulls straight from the registry (TRIVY_USERNAME/TRIVY_PASSWORD) rather than
+        # via a mounted docker socket, so no daemon and no local `docker pull` is needed.
+        # `--ignore-unfixed` keeps the output to what a base-image bump can actually fix.
+        # A multi-arch manifest resolves to the runner's platform (linux/amd64); the arm64
+        # leg shares the same base image and package set, so one pass is representative.
+        env:
+          TRIVY_IMAGE: aquasec/trivy:0.72.0@sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f
+          IMAGE_REF: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.merge.outputs.build_tag }}
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "Scanning ${IMAGE_REF}"
+          # Two passes over the same warm DB cache: a readable table in the log, SARIF for
+          # Code Scanning.
+          docker run --rm \
+            -v /tmp/trivy-cache:/root/.cache \
+            -e TRIVY_USERNAME -e TRIVY_PASSWORD \
+            "$TRIVY_IMAGE" image \
+              --severity CRITICAL,HIGH \
+              --pkg-types os,library \
+              --ignore-unfixed \
+              --exit-code 0 \
+              --no-progress \
+              --format table \
+              "$IMAGE_REF"
+          docker run --rm \
+            -v "${{ github.workspace }}:/work" \
+            -v /tmp/trivy-cache:/root/.cache \
+            -e TRIVY_USERNAME -e TRIVY_PASSWORD \
+            "$TRIVY_IMAGE" image \
+              --severity CRITICAL,HIGH \
+              --pkg-types os,library \
+              --ignore-unfixed \
+              --exit-code 0 \
+              --no-progress \
+              --format sarif --output /work/trivy-image.sarif \
+              "$IMAGE_REF"
+
+      - name: Upload SARIF to GitHub Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@fb0994ef1c058010acf1efccff928b0a83b1ed54 # v4.32.6
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image
+
   # ─── Umbrella chart dispatch ───────────────────────────────────────────────
   # After a successful main-branch image build, trigger the umbrella chart
   # workflow in constructorfabric/insight so it bumps the frontend subchart
