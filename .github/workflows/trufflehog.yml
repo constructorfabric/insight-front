@@ -92,13 +92,24 @@ jobs:
           [ -f trufflehog-findings.jsonl ] || exit 0
           python3 - trufflehog-findings.jsonl "${GITHUB_STEP_SUMMARY:-/dev/null}" <<'PY'
           import json, sys, collections
-          rows = []
+          rows, unparsable, skipped = [], 0, 0
           with open(sys.argv[1], encoding="utf-8") as fh:
               for line in fh:
                   line = line.strip()
                   if not line:
                       continue
-                  d = json.loads(line)
+                  try:
+                      d = json.loads(line)
+                  except json.JSONDecodeError:
+                      # A truncated or non-JSON line must not take the whole summary down with
+                      # it; it is counted and reported instead.
+                      unparsable += 1
+                      continue
+                  if "DetectorName" not in d:
+                      # Only findings carry a detector. Anything else on stdout is not a finding
+                      # and must not inflate the count.
+                      skipped += 1
+                      continue
                   git = (d.get("SourceMetadata") or {}).get("Data", {}).get("Git", {})
                   rows.append({
                       "detector": d.get("DetectorName", "?"),
@@ -110,6 +121,8 @@ jobs:
           out = open(sys.argv[2], "a", encoding="utf-8")
           w = out.write
           w("## TruffleHog secret scan\n\n")
+          if unparsable or skipped:
+              w(f"_{unparsable} unparsable line(s), {skipped} non-finding record(s) skipped._\n\n")
           if not rows:
               w("No secrets detected in the scanned history (all result kinds enabled).\n")
               sys.exit(0)
@@ -129,8 +142,7 @@ jobs:
   # The git scan above only reaches commits that some ref still points at. Two classes of leak
   # sit outside it, and only the GitHub API can see them: objects orphaned by a force push or a
   # deleted branch, which remain fetchable by SHA, and secrets pasted into pull request or issue
-  # comments, where they arrive more often than in code. On this repository the API source reads
-  # ~8600 chunks against the git scan's ~6900, and takes about ten seconds.
+  # comments, where they arrive more often than in code.
   #
   # Off pull requests because it depends on API availability and rate limits, and a transient
   # outage should not colour a pull request at all.
@@ -141,13 +153,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: TruffleHog scan (GitHub API — comments, wikis, unreachable objects)
-        env:
-          # The auto-injected token is enough for a public repository's commits and comments.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Deliberately unauthenticated, and it must stay that way: TruffleHog's GitHub source
+        # calls `GET /user`, which an installation token cannot read — passing `GITHUB_TOKEN`
+        # fails the job with 403. The repository is public, so no token is needed.
         run: |
           set -euo pipefail
           docker run --rm \
-            -e GITHUB_TOKEN \
             trufflesecurity/trufflehog:3.96.0@sha256:aa821cf4ace8861c7d096d83818cdf7bb9719028a52d37a52eaad44086a52577 \
             github \
               --repo "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
@@ -165,13 +176,24 @@ jobs:
           [ -f trufflehog-api-findings.jsonl ] || exit 0
           python3 - trufflehog-api-findings.jsonl "${GITHUB_STEP_SUMMARY:-/dev/null}" <<'PY'
           import json, sys, collections
-          rows = []
+          rows, unparsable, skipped = [], 0, 0
           with open(sys.argv[1], encoding="utf-8") as fh:
               for line in fh:
                   line = line.strip()
                   if not line:
                       continue
-                  d = json.loads(line)
+                  try:
+                      d = json.loads(line)
+                  except json.JSONDecodeError:
+                      # A truncated or non-JSON line must not take the whole summary down with
+                      # it; it is counted and reported instead.
+                      unparsable += 1
+                      continue
+                  if "DetectorName" not in d:
+                      # Only findings carry a detector. Anything else on stdout is not a finding
+                      # and must not inflate the count.
+                      skipped += 1
+                      continue
                   meta = (d.get("SourceMetadata") or {}).get("Data", {})
                   # The GitHub source reports under Github for commits and comments alike.
                   loc = meta.get("Github") or meta.get("Git") or {}
@@ -184,6 +206,8 @@ jobs:
           out = open(sys.argv[2], "a", encoding="utf-8")
           w = out.write
           w("## TruffleHog — GitHub API source (report-only)\n\n")
+          if unparsable or skipped:
+              w(f"_{unparsable} unparsable line(s), {skipped} non-finding record(s) skipped._\n\n")
           if not rows:
               w("No secrets detected in commits, pull request and issue comments, or wikis "
                 "(all result kinds enabled).\n")

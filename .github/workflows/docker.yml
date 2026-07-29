@@ -229,10 +229,8 @@ jobs:
         # A multi-arch manifest resolves to the runner's platform (linux/amd64); the arm64
         # leg shares the same base image and package set, so one pass is representative.
         #
-        # CRITICAL/HIGH only. Widening to MEDIUM/LOW was tried and reverted on review
-        # (constructorfabric/insight#2016): every finding here comes from the base layer and the
-        # remedy is the same either way — refresh the base image — while the wider filter triples
-        # the alert count and buries the CRITICALs that drive action.
+        # CRITICAL/HIGH only: everything here comes from the base layer, and the remedy is the
+        # same at any severity — refresh the base image.
         env:
           TRIVY_IMAGE: aquasec/trivy:0.72.0@sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f
           IMAGE_REF: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.merge.outputs.build_tag }}

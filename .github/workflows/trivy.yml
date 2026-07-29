@@ -63,11 +63,9 @@ jobs:
         # date-scoped — they matter again the moment this pass becomes blocking:
         #   CVE-2026-12345   exp:2026-12-31   # tracked in <issue>, fix queued
         #
-        # `-w /src` is load-bearing for that: Trivy resolves the default ignore file relative to
-        # the working directory, so without it a repo-root `.trivyignore` is read from the
-        # image's own cwd and silently ignored. `--ignorefile` is not used instead because Trivy
-        # exits FATAL when the named file does not exist, which would break every run until
-        # someone adds a waiver.
+        # `-w /src` is required for that: Trivy resolves the default ignore file relative to the
+        # working directory. Do not switch to `--ignorefile` — it exits FATAL when the file is
+        # absent, breaking every run until someone adds a waiver.
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/src:ro" \
@@ -100,9 +98,8 @@ jobs:
         # CRITICAL is in the severity list even though the `critical` pass covers it: that pass
         # only prints a table, so without this a CRITICAL would never appear as an alert.
         #
-        # `--include-dev-deps` because a compromised build-time dependency executes on the
-        # runner and can alter the bundle. Trivy's pnpm default hides them, which understates
-        # the supply-chain surface — on this repository it hides 8 of 37 findings.
+        # `--include-dev-deps` because a compromised build-time dependency executes on the runner
+        # and can alter the bundle; Trivy's pnpm default hides them.
         run: |
           set -euo pipefail
           docker run --rm \
