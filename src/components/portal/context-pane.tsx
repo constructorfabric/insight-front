@@ -1,11 +1,21 @@
-import { ChevronRight, Layers, LayoutGrid } from "lucide-react";
+import { ChevronRight, Layers, LayoutGrid, Settings2 } from "lucide-react";
+import { useState } from "react";
 
+import { AppSidebarFooter } from "@/components/app-sidebar-footer";
 import { OrgTree } from "@/components/org-tree";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { metricGroups } from "@/lib/insight/groups";
 import { lensEntry } from "@/lib/portal/lens-configs";
+import { useZoneNav } from "@/lib/portal/use-zone-nav";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -16,6 +26,7 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   CONNECTOR_COLOR,
@@ -58,25 +69,39 @@ const BADGE_TONE: Record<string, string> = {
   error: "bg-destructive/15 text-destructive",
 };
 
-/** Zone-contextual secondary navigation, driven by the active rail zone. */
+/**
+ * Zone-contextual secondary navigation, driven by the active rail zone.
+ *
+ * On a phone this is the ONLY navigation surface: the icon rail hides itself
+ * (two fixed sidebars left ~60px for content), so the pane becomes an
+ * off-canvas drawer — opened by the topbar trigger — and carries the zone list
+ * and the settings menu that normally live in the rail. Desktop is unchanged:
+ * `collapsible="none"`, in normal flow, zones in the rail beside it.
+ */
 export function ContextPane() {
+  const isMobile = useIsMobile();
   const { activeZone } = useActiveZone();
   const zone = zoneById(activeZone);
   const title = zone?.label ?? "Insight";
 
   return (
-    <Sidebar collapsible="none" className="border-e">
-      <SidebarHeader>
-        <div className="flex flex-col px-2 py-1.5">
-          <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">
-            {title}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {ZONE_SUB[activeZone] ?? ""}
-          </span>
-        </div>
-      </SidebarHeader>
+    <Sidebar collapsible={isMobile ? "offcanvas" : "none"} className="border-e">
+      {/* The drawer's zone row already names the zone, so repeating it in a
+          header would cost two of the ~14 rows a phone has. */}
+      {isMobile ? null : (
+        <SidebarHeader>
+          <div className="flex flex-col px-2 py-1.5">
+            <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">
+              {title}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {ZONE_SUB[activeZone] ?? ""}
+            </span>
+          </div>
+        </SidebarHeader>
+      )}
       <SidebarContent>
+        {isMobile ? <MobileZoneNav /> : null}
         {activeZone === "directions" ? (
           <DirectionsNav />
         ) : activeZone === "people" ? (
@@ -89,7 +114,104 @@ export function ContextPane() {
           <ThemeNav zoneId={activeZone} />
         )}
       </SidebarContent>
+      {isMobile ? (
+        <SidebarFooter>
+          {/* One row, not six: inline the settings menu and it takes a third of
+              the drawer, crowding out the sections that are the point of it.
+              Same affordance the rail gives desktop — an icon that opens the
+              menu on demand. */}
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <Popover>
+                <PopoverTrigger
+                  render={
+                    <SidebarMenuButton>
+                      <Settings2 aria-hidden />
+                      <span>Settings</span>
+                    </SidebarMenuButton>
+                  }
+                />
+                <PopoverContent side="top" align="start" className="w-60 gap-0 p-1">
+                  <AppSidebarFooter />
+                </PopoverContent>
+              </Popover>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
+      ) : null}
     </Sidebar>
+  );
+}
+
+/**
+ * Dismiss the mobile drawer after a LEAF pick (a section / lens / group): on a
+ * phone the pane is the drawer, so leaving it open would hide the very view the
+ * reader just chose. Zone picks deliberately keep it open — the zone's items
+ * render right below, so zone-then-item is one pass. No-op on desktop, where
+ * the pane is always-visible chrome.
+ */
+function useDismissDrawer(): () => void {
+  const { isMobile, setOpenMobile } = useSidebar();
+  return () => {
+    if (isMobile) setOpenMobile(false);
+  };
+}
+
+/**
+ * Zone switcher for the mobile drawer, standing in for the hidden icon rail.
+ *
+ * Collapsed to a SINGLE row by default — the full list is eight zones tall, and
+ * expanded it pushed the zone's own sections below the fold, so picking a zone
+ * looked like it did nothing. Collapsed, the sections start right under this row:
+ * changing section (the common move) costs no scrolling, and switching zone
+ * costs one extra tap that also re-collapses the list.
+ */
+function MobileZoneNav() {
+  const { zones, activeZone, selectZone } = useZoneNav();
+  const [expanded, setExpanded] = useState(false);
+  const current = zones.find((z) => z.id === activeZone);
+  const CurrentIcon = current?.icon;
+
+  return (
+    <SidebarGroup>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={() => setExpanded((v) => !v)}
+              aria-expanded={expanded}
+            >
+              {CurrentIcon ? <CurrentIcon aria-hidden /> : null}
+              <span className="font-medium">{current?.label ?? "Zones"}</span>
+              <ChevronRight
+                className={cn(
+                  "ms-auto transition-transform",
+                  expanded && "rotate-90",
+                )}
+                aria-hidden
+              />
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          {expanded
+            ? zones.map((z) => (
+                <SidebarMenuItem key={z.id}>
+                  <SidebarMenuButton
+                    isActive={activeZone === z.id}
+                    onClick={() => {
+                      selectZone(z);
+                      setExpanded(false);
+                    }}
+                    className="ps-4"
+                  >
+                    <z.icon aria-hidden />
+                    <span>{z.label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))
+            : null}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
   );
 }
 
@@ -185,11 +307,15 @@ function ItemButton({
   planned?: boolean;
 }) {
   const Icon = item.icon;
+  const dismiss = useDismissDrawer();
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
         isActive={active}
-        onClick={() => setPortalItem(item.id)}
+        onClick={() => {
+          setPortalItem(item.id);
+          dismiss();
+        }}
         className={planned ? "text-muted-foreground" : undefined}
       >
         <Icon />
@@ -232,6 +358,7 @@ function DirectionsNav() {
 }
 
 function DirectionItem({ direction }: { direction: Direction }) {
+  const dismiss = useDismissDrawer();
   const activeDir = usePortalDir();
   const activeLens = usePortalLens();
   const showPlanned = usePortalShowPlanned();
@@ -300,6 +427,7 @@ function DirectionItem({ direction }: { direction: Direction }) {
                     onClick={() => {
                       setPortalLens(lens);
                       setPortalItem(null);
+                      dismiss();
                     }}
                   >
                     <span>{lens}</span>
@@ -349,6 +477,7 @@ function WorkChart() {
 /* ── Person zone: one person, section switcher (no WorkChart, no modal) ─── */
 
 function PersonSectionsNav() {
+  const dismiss = useDismissDrawer();
   const active = usePortalItem();
   const groups = metricGroups();
   const groupIds = groups.map((g) => g.id) as string[];
@@ -359,7 +488,13 @@ function PersonSectionsNav() {
       <SidebarGroupContent>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton isActive={glance} onClick={() => setPortalItem(null)}>
+            <SidebarMenuButton
+              isActive={glance}
+              onClick={() => {
+                setPortalItem(null);
+                dismiss();
+              }}
+            >
               <LayoutGrid />
               <span>At a glance</span>
             </SidebarMenuButton>
@@ -368,7 +503,10 @@ function PersonSectionsNav() {
             <SidebarMenuItem key={g.id}>
               <SidebarMenuButton
                 isActive={active === g.id}
-                onClick={() => setPortalItem(g.id)}
+                onClick={() => {
+                  setPortalItem(g.id);
+                  dismiss();
+                }}
               >
                 <Layers />
                 <span>{g.title}</span>

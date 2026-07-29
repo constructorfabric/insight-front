@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { useViewer } from "@/auth";
 import { ScopeSelect } from "@/components/portal/scope-select";
 import { SliceSelect } from "@/components/portal/slice-select";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { PeriodSelectorBar } from "@/components/widgets/period-selector-bar";
 import { usePeriod } from "@/hooks/use-period";
 import { availableSlices } from "@/lib/insight/slices";
@@ -28,6 +29,9 @@ export function PortalTopBar() {
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-2 border-b px-4 py-2 md:px-6">
+      {/* The only way to reach navigation on a phone: the rail is hidden and the
+          context pane is an off-canvas drawer, both below `md`. */}
+      <SidebarTrigger className="me-auto md:hidden" />
       <ScopeSelect />
       <SliceSelect dims={dims} />
       <PeriodSelectorBar

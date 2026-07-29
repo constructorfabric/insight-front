@@ -1,4 +1,3 @@
-import { useNavigate } from "@tanstack/react-router";
 import { Settings2 } from "lucide-react";
 
 import { AppSidebarFooter } from "@/components/app-sidebar-footer";
@@ -16,20 +15,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { ZONES, type Zone } from "@/lib/portal/nav-model";
-import {
-  setPortalItem,
-  setPortalZone,
-  usePortalShowPlanned,
-} from "@/lib/portal/portal-store";
-import { useActiveZone } from "@/lib/portal/use-active-zone";
-import { useViewerIsManager } from "@/lib/portal/use-viewer-is-manager";
-
-/**
- * Zones that still make sense when the viewer manages no one — everything else
- * rolls up a (non-existent) subtree. An IC's portal collapses to these.
- */
-const IC_ZONES = new Set(["person"]);
+import { useIsMobile } from "@/hooks/use-mobile";
+import { type Zone } from "@/lib/portal/nav-model";
+import { useZoneNav } from "@/lib/portal/use-zone-nav";
 
 /**
  * Portal primary rail: a bounded set of zone icons. Entity zones (Person /
@@ -38,42 +26,16 @@ const IC_ZONES = new Set(["person"]);
  * Zones the active role can't see are filtered out (permission layer — FE
  * stub over the future role_section_visibility entity). Rendered as a
  * `collapsible="none"` sidebar so it sits in normal flow beside the pane.
+ *
+ * Below the mobile breakpoint the rail renders nothing: 56px of icons plus a
+ * 256px pane left a phone with ~60px of content. The same zones (labelled, not
+ * icon-only) live in the context pane's drawer instead — see `ContextPane`.
  */
 export function LensRail() {
-  const navigate = useNavigate();
-  const { activeZone, activePerson } = useActiveZone();
-  const { isManager, isPending: mgrPending } = useViewerIsManager();
-  // Zones we have not built are hidden unless the viewer opted into seeing
-  // planned work — a rail of scaffolds makes the built zones look unreliable.
-  const showPlanned = usePortalShowPlanned();
-  // An IC (no reports) has no subtree to roll up, so org zones are hidden — the
-  // shell collapses to Person. While the viewer's identity is still resolving,
-  // assume manager so the rail doesn't flash a collapsed state.
-  const orgZonesVisible = isManager || mgrPending;
+  const isMobile = useIsMobile();
+  const { zones, activeZone, selectZone } = useZoneNav();
 
-  // Person / People are route-driven: clicking them navigates to the person's
-  // route and clears the pinned zone so `useActiveZone` follows the path
-  // (/personal → person, /team → people). This is what lets a person-name
-  // click inside a roster or the WorkChart drill straight into Person, and the
-  // Person header's "team" affordance climb back to People — no pinned zone
-  // gets in the way. Theme / directions / manage zones aren't route-backed, so
-  // they still pin the zone.
-  function selectZone(zone: Zone) {
-    // `portal.item` is a per-zone selection; carrying it across zones makes
-    // the target view render a fallback while the pane highlights nothing.
-    if (activeZone !== zone.id) setPortalItem(null);
-    if (zone.kind === "person") {
-      setPortalZone(null);
-      if (activePerson)
-        void navigate({ to: "/ic/$person/personal", params: { person: activePerson } });
-    } else if (zone.kind === "people") {
-      setPortalZone(null);
-      if (activePerson)
-        void navigate({ to: "/ic/$person/team", params: { person: activePerson } });
-    } else {
-      setPortalZone(zone.id);
-    }
-  }
+  if (isMobile) return null;
 
   return (
     <Sidebar collapsible="none" className="w-14! border-e">
@@ -84,11 +46,7 @@ export function LensRail() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu className="items-center gap-1">
-          {ZONES.filter(
-            (z) =>
-              (orgZonesVisible || IC_ZONES.has(z.id)) &&
-              (z.readiness !== "unbuilt" || showPlanned),
-          ).map((z) => (
+          {zones.map((z) => (
             <ZoneItem
               key={z.id}
               zone={z}

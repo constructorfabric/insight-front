@@ -1,0 +1,178 @@
+// @vitest-environment jsdom
+/**
+ * Mobile shell semantics. Two fixed sidebars (56px rail + 256px pane) left a
+ * 375px phone ~60px of content, so below the breakpoint the rail hides and the
+ * pane becomes the single off-canvas drawer. These tests pin the parts that
+ * make that usable: the rail really disappears, the drawer carries the zones
+ * (collapsed, so the zone's own sections stay above the fold) and the settings
+ * menu, a zone pick keeps the drawer open while a section pick closes it, and
+ * NOTHING of this leaks into the desktop layout.
+ */
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  isMobile: true,
+  zone: { activeZone: "overview", activePerson: "boss@x" },
+  isManager: true,
+}));
+
+vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => mocks.isMobile }));
+vi.mock("@/lib/portal/use-active-zone", () => ({ useActiveZone: () => mocks.zone }));
+vi.mock("@/lib/portal/use-viewer-is-manager", () => ({
+  useViewerIsManager: () => ({ isManager: mocks.isManager, isPending: false }),
+}));
+vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }));
+vi.mock("@/components/org-tree", () => ({ OrgTree: () => <div /> }));
+// The settings menu pulls in viewer/theme/i18n plumbing; its presence is what
+// matters here — on a phone it is only reachable through this drawer.
+vi.mock("@/components/app-sidebar-footer", () => ({
+  AppSidebarFooter: () => <div data-testid="settings-menu" />,
+}));
+
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { setPortalItem, usePortalItem, usePortalZone } from "@/lib/portal/portal-store";
+import { act, renderHook } from "@testing-library/react";
+
+import { ContextPane } from "./context-pane";
+import { LensRail } from "./lens-rail";
+
+/** The real shell wiring: trigger in the topbar, pane as the drawer. */
+function Shell() {
+  return (
+    <SidebarProvider>
+      <LensRail />
+      <SidebarTrigger />
+      <ContextPane />
+    </SidebarProvider>
+  );
+}
+
+beforeEach(() => {
+  mocks.isMobile = true;
+  mocks.zone = { activeZone: "overview", activePerson: "boss@x" };
+  mocks.isManager = true;
+  act(() => {
+    setPortalItem(null);
+  });
+  window.matchMedia ??= ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia;
+});
+
+const openDrawer = async () => {
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: /sidebar/i }));
+  return user;
+};
+
+describe("mobile shell", () => {
+  it("hides the icon rail — it would eat 56px of a 375px screen", () => {
+    const { container } = render(
+      <SidebarProvider>
+        <LensRail />
+      </SidebarProvider>,
+    );
+    // The provider wrapper is all that renders; the rail itself contributes no
+    // sidebar element.
+    expect(container.querySelector('[data-slot="sidebar"]')).toBeNull();
+  });
+
+  it("keeps the rail on desktop", () => {
+    mocks.isMobile = false;
+    const { container } = render(
+      <SidebarProvider>
+        <LensRail />
+      </SidebarProvider>,
+    );
+    expect(container.querySelector('[data-slot="sidebar"]')).not.toBeNull();
+  });
+
+  it("keeps the pane closed until the topbar trigger opens it", async () => {
+    render(<Shell />);
+    expect(screen.queryByText("At a glance")).not.toBeInTheDocument();
+    await openDrawer();
+    expect(screen.getByText("At a glance")).toBeInTheDocument();
+  });
+
+  it("shows the zone switcher collapsed, so sections stay above the fold", async () => {
+    render(<Shell />);
+    await openDrawer();
+    // One row for the active zone; the other zones are not listed yet.
+    expect(screen.getByRole("button", { name: "Overview", expanded: false })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "AI & Cost" })).not.toBeInTheDocument();
+    // …and the zone's own sections are already there.
+    expect(screen.getByText("Trend")).toBeInTheDocument();
+  });
+
+  it("expands the zone list on demand and re-collapses after a pick", async () => {
+    render(<Shell />);
+    const user = await openDrawer();
+    const zoneState = renderHook(() => usePortalZone());
+
+    await user.click(screen.getByRole("button", { name: "Overview", expanded: false }));
+    const aiCost = screen.getByRole("button", { name: "AI & Cost" });
+
+    await user.click(aiCost);
+    expect(zoneState.result.current).toBe("aicost");
+    // Collapsed again: "Manage" only exists while the list is expanded, so its
+    // absence is the collapse. The drawer itself stays open — the Settings row
+    // is still there — so the new zone's sections are what the reader sees next.
+    expect(screen.queryByRole("button", { name: "Manage" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();
+  });
+
+  it("closes the drawer when a section is picked — otherwise it hides the view", async () => {
+    render(<Shell />);
+    const user = await openDrawer();
+    const itemState = renderHook(() => usePortalItem());
+
+    await user.click(screen.getByText("Trend"));
+
+    expect(itemState.result.current).toBe("trend");
+    expect(screen.queryByText("Trend")).not.toBeInTheDocument();
+  });
+
+  it("keeps the settings menu one tap away instead of inline", async () => {
+    // Inline it costs six of the ~14 rows a phone has, which is what the
+    // sections need. Behind one row it costs one — the same trade the desktop
+    // rail makes with its settings icon.
+    render(<Shell />);
+    const user = await openDrawer();
+    expect(screen.queryByTestId("settings-menu")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.getByTestId("settings-menu")).toBeInTheDocument();
+  });
+
+  it("drops the header — the zone row already names the zone", async () => {
+    render(<Shell />);
+    await openDrawer();
+    expect(screen.queryByText("Cross-functional org rollup")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Overview", expanded: false })).toBeInTheDocument();
+  });
+
+  it("adds neither the zone switcher nor the settings menu on desktop", () => {
+    mocks.isMobile = false;
+    render(
+      <SidebarProvider>
+        <ContextPane />
+      </SidebarProvider>,
+    );
+    // Desktop keeps its header, and the rail's duties stay in the rail.
+    const pane = screen.getByText("Cross-functional org rollup").closest("[data-slot='sidebar']");
+    expect(screen.getByText("At a glance")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Settings" })).not.toBeInTheDocument();
+    expect(
+      within(pane as HTMLElement).queryByRole("button", { name: "Overview", expanded: false }),
+    ).not.toBeInTheDocument();
+  });
+});
