@@ -2,6 +2,7 @@ import * as React from "react";
 import * as RechartsPrimitive from "recharts";
 import type { TooltipValueType } from "recharts";
 
+import { formatAxisTick } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 // Format: { THEME_NAME: CSS_SELECTOR }
@@ -118,7 +119,23 @@ const LineChart = RechartsPrimitive.LineChart;
 const ComposedChart = RechartsPrimitive.ComposedChart;
 const CartesianGrid = RechartsPrimitive.CartesianGrid;
 const XAxis = RechartsPrimitive.XAxis;
-const YAxis = RechartsPrimitive.YAxis;
+
+/**
+ * Value axis with abbreviated ticks by default (36000 → "36k"). A raw five-digit
+ * label needs more room than the ~28px gutter charts give the axis, so it was
+ * being clipped by the chart's own edge on a narrow screen — and any series can
+ * cross that threshold as the org grows. Callers that need literal numbers can
+ * still pass their own `tickFormatter`.
+ *
+ * Category axes are left alone: a non-numeric tick passes through untouched.
+ */
+function YAxis({
+  tickFormatter = (value: unknown) =>
+    typeof value === "number" ? formatAxisTick(value) : String(value),
+  ...props
+}: React.ComponentProps<typeof RechartsPrimitive.YAxis>) {
+  return <RechartsPrimitive.YAxis tickFormatter={tickFormatter} {...props} />;
+}
 const ReferenceLine = RechartsPrimitive.ReferenceLine;
 const ResponsiveContainer = RechartsPrimitive.ResponsiveContainer;
 const ChartTooltip = RechartsPrimitive.Tooltip;

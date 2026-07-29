@@ -5,8 +5,9 @@ import { ContextPane } from "@/components/portal/context-pane";
 import { LensRail } from "@/components/portal/lens-rail";
 import { PortalTopBar } from "@/components/portal/portal-topbar";
 import { ZoneContent } from "@/components/portal/zone-content";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { setPortalZone, usePortalZone } from "@/lib/portal/portal-store";
+import { useShellLayout, type ShellLayout } from "@/lib/portal/use-shell-layout";
 import { useViewerIsManager } from "@/lib/portal/use-viewer-is-manager";
 
 /**
@@ -38,6 +39,7 @@ export function PortalLayout() {
 
   return (
     <SidebarProvider className="h-svh overflow-hidden">
+      <PaneStateForLayout />
       <LensRail />
       <ContextPane />
       <SidebarInset className="min-w-0 overflow-x-clip overflow-y-auto">
@@ -47,4 +49,26 @@ export function PortalLayout() {
       </SidebarInset>
     </SidebarProvider>
   );
+}
+
+/**
+ * The pane is in normal flow only on a wide screen; narrower, it is off-canvas
+ * and must START collapsed, or a tablet is back to 312px of chrome. The
+ * provider's `open` defaults to true and survives a resize, so a layout change
+ * has to reset it.
+ *
+ * Guarded on the layout actually CHANGING: `setOpen` from the provider is a new
+ * function on every open-state change, so an unguarded effect would re-fire and
+ * slam the pane shut the instant the reader opened it.
+ */
+function PaneStateForLayout() {
+  const layout = useShellLayout();
+  const { setOpen } = useSidebar();
+  const previous = useRef<ShellLayout | null>(null);
+  useEffect(() => {
+    if (previous.current === layout) return;
+    previous.current = layout;
+    setOpen(layout === "wide");
+  }, [layout, setOpen]);
+  return null;
 }

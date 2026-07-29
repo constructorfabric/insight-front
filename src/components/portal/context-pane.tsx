@@ -8,9 +8,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { metricGroups } from "@/lib/insight/groups";
 import { lensEntry } from "@/lib/portal/lens-configs";
+import { useShellLayout } from "@/lib/portal/use-shell-layout";
 import { useZoneNav } from "@/lib/portal/use-zone-nav";
 import {
   Sidebar,
@@ -79,16 +79,21 @@ const BADGE_TONE: Record<string, string> = {
  * `collapsible="none"`, in normal flow, zones in the rail beside it.
  */
 export function ContextPane() {
-  const isMobile = useIsMobile();
+  const layout = useShellLayout();
+  // A phone hides the rail, so the drawer inherits its duties. A tablet keeps
+  // the rail — the drawer there is only the pane itself, collapsed to give the
+  // content its 256px back.
+  const isPhone = layout === "phone";
+  const drawer = layout !== "wide";
   const { activeZone } = useActiveZone();
   const zone = zoneById(activeZone);
   const title = zone?.label ?? "Insight";
 
   return (
-    <Sidebar collapsible={isMobile ? "offcanvas" : "none"} className="border-e">
+    <Sidebar collapsible={drawer ? "offcanvas" : "none"} className="border-e">
       {/* The drawer's zone row already names the zone, so repeating it in a
           header would cost two of the ~14 rows a phone has. */}
-      {isMobile ? null : (
+      {isPhone ? null : (
         <SidebarHeader>
           <div className="flex flex-col px-2 py-1.5">
             <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">
@@ -101,7 +106,7 @@ export function ContextPane() {
         </SidebarHeader>
       )}
       <SidebarContent>
-        {isMobile ? <MobileZoneNav /> : null}
+        {isPhone ? <MobileZoneNav /> : null}
         {activeZone === "directions" ? (
           <DirectionsNav />
         ) : activeZone === "people" ? (
@@ -114,7 +119,7 @@ export function ContextPane() {
           <ThemeNav zoneId={activeZone} />
         )}
       </SidebarContent>
-      {isMobile ? (
+      {isPhone ? (
         <SidebarFooter>
           {/* One row, not six: inline the settings menu and it takes a third of
               the drawer, crowding out the sections that are the point of it.
@@ -151,9 +156,13 @@ export function ContextPane() {
  * the pane is always-visible chrome.
  */
 function useDismissDrawer(): () => void {
-  const { isMobile, setOpenMobile } = useSidebar();
+  const layout = useShellLayout();
+  const { setOpen, setOpenMobile } = useSidebar();
   return () => {
-    if (isMobile) setOpenMobile(false);
+    // Below 768 the pane is a Sheet (`openMobile`); on a tablet it is an
+    // off-canvas panel (`open`). Wide keeps it in flow — nothing to dismiss.
+    if (layout === "phone") setOpenMobile(false);
+    else if (layout === "narrow") setOpen(false);
   };
 }
 

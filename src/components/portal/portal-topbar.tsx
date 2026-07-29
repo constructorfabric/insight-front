@@ -29,9 +29,10 @@ export function PortalTopBar() {
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-2 border-b px-4 py-2 md:px-6">
-      {/* The only way to reach navigation on a phone: the rail is hidden and the
-          context pane is an off-canvas drawer, both below `md`. */}
-      <SidebarTrigger className="me-auto md:hidden" />
+      {/* Opens the context pane wherever it is collapsed — the drawer is the
+          only way to reach navigation on a phone (no rail at all), and the only
+          way to reach sections on a tablet. */}
+      <SidebarTrigger className="me-auto lg:hidden" />
       <ScopeSelect />
       <SliceSelect dims={dims} />
       <PeriodSelectorBar

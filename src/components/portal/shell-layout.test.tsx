@@ -13,12 +13,13 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  isMobile: true,
+  layout: "phone" as "phone" | "narrow" | "wide",
   zone: { activeZone: "overview", activePerson: "boss@x" },
   isManager: true,
 }));
 
-vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => mocks.isMobile }));
+vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => mocks.layout === "phone" }));
+vi.mock("@/lib/portal/use-shell-layout", () => ({ useShellLayout: () => mocks.layout }));
 vi.mock("@/lib/portal/use-active-zone", () => ({ useActiveZone: () => mocks.zone }));
 vi.mock("@/lib/portal/use-viewer-is-manager", () => ({
   useViewerIsManager: () => ({ isManager: mocks.isManager, isPending: false }),
@@ -50,7 +51,7 @@ function Shell() {
 }
 
 beforeEach(() => {
-  mocks.isMobile = true;
+  mocks.layout = "phone";
   mocks.zone = { activeZone: "overview", activePerson: "boss@x" };
   mocks.isManager = true;
   act(() => {
@@ -74,7 +75,7 @@ const openDrawer = async () => {
   return user;
 };
 
-describe("mobile shell", () => {
+describe("shell layout: phone", () => {
   it("hides the icon rail — it would eat 56px of a 375px screen", () => {
     const { container } = render(
       <SidebarProvider>
@@ -86,8 +87,18 @@ describe("mobile shell", () => {
     expect(container.querySelector('[data-slot="sidebar"]')).toBeNull();
   });
 
+  it("keeps the rail on a tablet — 56px is affordable there", () => {
+    mocks.layout = "narrow";
+    const { container } = render(
+      <SidebarProvider>
+        <LensRail />
+      </SidebarProvider>,
+    );
+    expect(container.querySelector('[data-slot="sidebar"]')).not.toBeNull();
+  });
+
   it("keeps the rail on desktop", () => {
-    mocks.isMobile = false;
+    mocks.layout = "wide";
     const { container } = render(
       <SidebarProvider>
         <LensRail />
@@ -161,7 +172,7 @@ describe("mobile shell", () => {
   });
 
   it("adds neither the zone switcher nor the settings menu on desktop", () => {
-    mocks.isMobile = false;
+    mocks.layout = "wide";
     render(
       <SidebarProvider>
         <ContextPane />
@@ -174,5 +185,38 @@ describe("mobile shell", () => {
     expect(
       within(pane as HTMLElement).queryByRole("button", { name: "Overview", expanded: false }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("shell layout: narrow (tablet)", () => {
+  beforeEach(() => {
+    mocks.layout = "narrow";
+  });
+
+  it("collapses the pane off-canvas instead of Sheeting it", () => {
+    // The rail is still there, so the pane must NOT take over the rail's duties
+    // — no zone list, no settings row, and the header stays.
+    render(<Shell />);
+    const pane = screen
+      .getByText("Cross-functional org rollup")
+      .closest("[data-slot='sidebar']") as HTMLElement;
+    // Settings still exist — in the RAIL, where they belong at this width.
+    expect(within(pane).queryByRole("button", { name: "Settings" })).not.toBeInTheDocument();
+    expect(
+      within(pane).queryByRole("button", { name: "Overview", expanded: false }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("closes the pane after a section pick, same as the phone drawer", async () => {
+    const user = userEvent.setup();
+    render(<Shell />);
+    const itemState = renderHook(() => usePortalItem());
+
+    // The pane starts expanded in this bare harness (no PaneStateForLayout), so
+    // the sections are reachable; picking one must collapse it.
+    await user.click(screen.getByText("Trend"));
+
+    expect(itemState.result.current).toBe("trend");
+    expect(document.querySelector('[data-state="collapsed"]')).not.toBeNull();
   });
 });

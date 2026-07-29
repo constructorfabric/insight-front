@@ -12,6 +12,7 @@ import {
   ChartLine,
   DOT_DENSITY_LIMIT,
   LineChart,
+  YAxis,
   type ChartConfig,
 } from "./chart";
 
@@ -87,5 +88,53 @@ describe("ChartLine defaults", () => {
     // stepAfter holds a value then jumps: horizontal then vertical segments.
     expect(d).toMatch(/L/);
     expect(d).not.toMatch(/C/);
+  });
+});
+
+describe("YAxis defaults", () => {
+  const renderAxis = (domainMax: number) =>
+    render(
+      <ChartContainer config={CONFIG} className="h-40 w-96">
+        <LineChart
+          data={[
+            { d: "a", v: 0 },
+            { d: "b", v: domainMax },
+          ]}
+          width={384}
+          height={160}
+        >
+          <YAxis />
+          <ChartLine dataKey="v" stroke="#f00" />
+        </LineChart>
+      </ChartContainer>,
+    );
+
+  const ticks = (c: HTMLElement) =>
+    [...c.querySelectorAll(".recharts-cartesian-axis-tick-value")].map(
+      (t) => t.textContent ?? "",
+    );
+
+  it("abbreviates large ticks so they fit the axis gutter", () => {
+    const { container } = renderAxis(40_000);
+    // Whatever ticks recharts picks, none of them is a raw five-digit number.
+    expect(ticks(container).some((t) => t.endsWith("k"))).toBe(true);
+    expect(ticks(container).every((t) => !/^\d{5}/.test(t))).toBe(true);
+  });
+
+  it("leaves small ticks literal", () => {
+    const { container } = renderAxis(300);
+    expect(ticks(container).every((t) => !t.includes("k"))).toBe(true);
+  });
+
+  it("lets a caller keep raw numbers", () => {
+    const { container } = render(
+      <ChartContainer config={CONFIG} className="h-40 w-96">
+        <LineChart data={[{ d: "a", v: 0 }, { d: "b", v: 40_000 }]} width={384} height={160}>
+          <YAxis tickFormatter={(v: number) => String(v)} />
+          <ChartLine dataKey="v" stroke="#f00" />
+        </LineChart>
+      </ChartContainer>,
+    );
+    expect(ticks(container).some((t) => /^\d{5}$/.test(t))).toBe(true);
   });
 });

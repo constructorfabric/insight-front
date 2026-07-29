@@ -136,6 +136,23 @@ export function formatPp(diff: number, decimals = 1): string {
   return `${sign}${Math.abs(diff).toFixed(decimals)} pp`;
 }
 
+/**
+ * Axis tick labels. Kept short on purpose: an axis gutter is ~28px, while
+ * "36000" at the 10px tick font needs 31px and gets clipped by the chart's own
+ * edge. Abbreviating makes the width independent of the magnitude, so a series
+ * that grows an order of magnitude does not silently start truncating.
+ *
+ * The 10k threshold matches `formatNumber`, and it is where abbreviation stops
+ * costing accuracy: a tick sits on a gridline, so "2.3k" for a line drawn at
+ * 2250 is a label that lies. Four digits still fit; five do not.
+ */
+export function formatAxisTick(v: number): string {
+  const abs = Math.abs(v);
+  if (abs >= 1_000_000) return `${trimTrailingZero((v / 1_000_000).toFixed(1))}M`;
+  if (abs >= 10_000) return `${Math.round(v / 1000)}k`;
+  return trimTrailingZero((Math.round(v * 10) / 10).toFixed(1));
+}
+
 export function formatCurrencyCompact(v: number): string {
   const abs = Math.abs(v);
   if (abs >= 1_000_000) return `$${(v / 1_000_000).toFixed(2)}M`;

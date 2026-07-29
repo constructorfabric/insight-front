@@ -15,8 +15,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { type Zone } from "@/lib/portal/nav-model";
+import { useShellLayout } from "@/lib/portal/use-shell-layout";
 import { useZoneNav } from "@/lib/portal/use-zone-nav";
 
 /**
@@ -27,15 +27,16 @@ import { useZoneNav } from "@/lib/portal/use-zone-nav";
  * stub over the future role_section_visibility entity). Rendered as a
  * `collapsible="none"` sidebar so it sits in normal flow beside the pane.
  *
- * Below the mobile breakpoint the rail renders nothing: 56px of icons plus a
- * 256px pane left a phone with ~60px of content. The same zones (labelled, not
- * icon-only) live in the context pane's drawer instead — see `ContextPane`.
+ * Below 768px the rail renders nothing: 56px of icons plus a 256px pane left a
+ * phone with ~60px of content. The same zones (labelled, not icon-only) live in
+ * the context pane's drawer instead — see `ContextPane`. On a tablet the rail
+ * stays: 56px is affordable, and it is the pane that collapses.
  */
 export function LensRail() {
-  const isMobile = useIsMobile();
+  const layout = useShellLayout();
   const { zones, activeZone, selectZone } = useZoneNav();
 
-  if (isMobile) return null;
+  if (layout === "phone") return null;
 
   return (
     <Sidebar collapsible="none" className="w-14! border-e">
