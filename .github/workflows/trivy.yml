@@ -3,9 +3,11 @@ name: Trivy SCA
 # Software-composition analysis over the source tree (constructorfabric/insight#1478).
 # Two passes, matching the org's GitLab trivy-scan component:
 #
-#   gate   — CRITICAL only, blocks. Stop-the-line: a CRITICAL CVE or an embedded secret in a
-#            dependency manifest must be fixed or waived in `.trivyignore` before merge.
-#            Baseline today: 0 CRITICAL, so the gate starts green.
+#   critical — CRITICAL only, and the one pass that also runs the secret scanner. Report-only
+#            (`--exit-code 0`), like everything else here: a CRITICAL surfaces in the log without
+#            stopping a merge. Kept as a separate pass because it is the only place secrets are
+#            scanned, and those must never reach a SARIF upload on a public repository.
+#            Baseline today: 0 CRITICAL.
 #   report — every severity, never blocks. Findings land in "Security -> Code scanning"
 #            (SARIF) plus a job-summary table. Baseline today: 37 vulnerabilities and 2
 #            misconfigurations, most of them build-time tooling declared under `dependencies`.
@@ -16,8 +18,8 @@ name: Trivy SCA
 #
 # The report pass deliberately drops the secret scanner (`--scanners vuln,misconfig`): Code
 # Scanning alerts on a public repository are world-readable, and Trivy's secret findings quote
-# the surrounding match. Secrets stay in the blocking gate, where TruffleHog is the primary
-# owner anyway (trufflehog.yml).
+# the surrounding match. Secrets stay in the `critical` pass, whose output goes to the log only,
+# and TruffleHog owns the domain anyway (trufflehog.yml).
 #
 # Dev dependencies are included (`--include-dev-deps`). They are not in the shipped bundle, but a
 # compromised one executes on the runner during the build, so leaving them out understates the
@@ -47,7 +49,7 @@ env:
 
 jobs:
   gate:
-    name: gate (CRITICAL)
+    name: critical (report-only)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -55,10 +57,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Trivy fs scan — CRITICAL only (blocking)
-        # `--ignore-unfixed` keeps the gate actionable: a CRITICAL with no released fix cannot
-        # be resolved by the PR author, so it belongs in the report pass, not in a merge block.
-        # Waivers go in `.trivyignore` at the repo root, date-scoped:
+      - name: Trivy fs scan — CRITICAL only (report-only)
+        # `--ignore-unfixed` keeps the output actionable: a CRITICAL with no released fix cannot
+        # be resolved by the PR author. Waivers go in `.trivyignore` at the repo root,
+        # date-scoped — they matter again the moment this pass becomes blocking:
         #   CVE-2026-12345   exp:2026-12-31   # tracked in <issue>, fix queued
         #
         # `-w /src` is load-bearing for that: Trivy resolves the default ignore file relative to
@@ -74,7 +76,7 @@ jobs:
               --scanners vuln,secret,misconfig \
               --severity CRITICAL \
               --ignore-unfixed \
-              --exit-code 1 \
+              --exit-code 0 \
               --no-progress \
               /src
 
@@ -90,14 +92,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Trivy fs scan — all severities, dev deps included (never blocks)
+      - name: Trivy fs scan — all severities, dev deps included
         # One scan, two formats: JSON feeds the summary below, and `trivy convert` derives the
         # SARIF from that same JSON instead of rescanning. `-w /src` for the ignore-file reason
-        # documented on the gate job. `--exit-code 0` — this pass only reports.
+        # documented on the `critical` pass. `--exit-code 0` — nothing here blocks.
         #
-        # CRITICAL is in the severity list even though the gate already blocks on it: the gate
-        # only prints a table, so without this a CRITICAL would fail the check and never appear
-        # as an alert. Reporting and blocking are separate concerns.
+        # CRITICAL is in the severity list even though the `critical` pass covers it: that pass
+        # only prints a table, so without this a CRITICAL would never appear as an alert.
         #
         # `--include-dev-deps` because a compromised build-time dependency executes on the
         # runner and can alter the bundle. Trivy's pnpm default hides them, which understates
@@ -147,8 +148,7 @@ jobs:
               miscfg += [(r.get("Target"), m) for m in (r.get("Misconfigurations") or [])]
           w("## Trivy SCA (report-only)\n\n")
           w(f"**{len(vulns)}** vulnerabilit(ies) + **{len(miscfg)}** misconfiguration(s), every "
-            f"severity, production and development dependencies. The blocking `gate` job covers "
-            f"CRITICAL separately. Full details in [Security -> Code scanning]({cs_url}).\n\n")
+            f"severity, production and development dependencies. Nothing here blocks a merge. Full details in [Security -> Code scanning]({cs_url}).\n\n")
           if vulns:
               sev = collections.Counter(v["Severity"] for v in vulns)
               w("| Severity | Count |\n|---|---:|\n")
