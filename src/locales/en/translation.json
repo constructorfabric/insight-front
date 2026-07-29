@@ -100,9 +100,6 @@
     },
     "explanations": {
       "label": "Explanations"
-    },
-    "metrics_v2": {
-      "label": "New metrics UI"
     }
   },
   "whats_new": {
@@ -259,59 +256,6 @@
     "title": "Viewing as {{email}}",
     "description": "You are signed in as {{impersonator}} and seeing the portal as this person.",
     "exit": "Exit view-as"
-  },
-  "members_table": {
-    "view_team_stats": "View team stats",
-    "click_hint": "Click member to open IC dashboard"
-  },
-  "team_metrics_modal": {
-    "title": "All Team Member Metrics",
-    "member_column": "Member",
-    "empty": "No metrics returned for these members.",
-    "sections": {
-      "task_delivery": "Delivery",
-      "collaboration": "Collaboration",
-      "ai_adoption": "AI Adoption",
-      "git_output": "Git"
-    }
-  },
-  "ic_dashboard": {
-    "sections": {
-      "task_delivery": "Task Delivery",
-      "git_output": "Git Output",
-      "code_quality": "Code Quality",
-      "loc_breakdown_title": "LOC Breakdown",
-      "loc_breakdown_subtitle": "Bitbucket · lines added per period · AI-assisted vs manual vs spec/config",
-      "delivery_trends_title": "Delivery Trends",
-      "delivery_trends_subtitle": "Jira + Bitbucket · activity counts · Commits, PRs and Tasks are independent signals",
-      "ai_dev_tools_title": "AI Dev Tools & AI Chat",
-      "ai_adoption": "AI Adoption",
-      "collaboration": "Collaboration"
-    }
-  },
-  "sales_dashboard": {
-    "sections": {
-      "velocity_quality": "Velocity & Quality",
-      "outreach_activity": "Outreach Activity",
-      "deal_flow_title": "Deal Flow",
-      "deal_flow_subtitle": "HubSpot · weekly · opened / closed / won counts"
-    },
-    "hero": {
-      "deals_opened": "Deals Opened",
-      "deals_opened_sublabel": "Created in period",
-      "deals_closed": "Deals Closed",
-      "deals_closed_sublabel": "Won + lost in period",
-      "closed_value": "Closed Value",
-      "closed_value_sublabel": "Won deals · sum",
-      "win_rate": "Win Rate",
-      "win_rate_sublabel": "Won ÷ Closed",
-      "pipeline_now": "Pipeline Now",
-      "pipeline_sublabel": "{{count}} open · as of today"
-    },
-    "pacing": {
-      "closed_this_period": "Closed this period",
-      "vs_prior_year": "vs prior-year same period"
-    }
   },
   "ic_route": {
     "personal_view_label": "Personal",

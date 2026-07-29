@@ -8,7 +8,6 @@ import type { IdentityPerson } from "@/types/insight";
 let currentPath = "/";
 let viewerEmail: string | null = "alice@x.io";
 let viewerData: IdentityPerson | undefined;
-let metricsV2Enabled = false;
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
@@ -39,12 +38,8 @@ vi.mock("@/queries/ic-dashboard", () => ({
   useIcPerson: () => ({ data: viewerData }),
 }));
 
-vi.mock("@/lib/feature-flags", () => ({
-  useMetricsV2Enabled: () => metricsV2Enabled,
-}));
-
-vi.mock("@/components/sidebar-v2-settings", () => ({
-  SidebarV2Settings: () => null,
+vi.mock("@/components/sidebar-settings", () => ({
+  SidebarSettings: () => null,
 }));
 
 vi.mock("@/components/theme-switcher", () => ({
@@ -124,7 +119,6 @@ beforeEach(() => {
   currentPath = "/";
   viewerEmail = "alice@x.io";
   viewerData = tree;
-  metricsV2Enabled = false;
 });
 
 describe("AppSidebar", () => {
@@ -220,14 +214,7 @@ describe("AppSidebar", () => {
     expect(buttonFor("alice@x.io")).toBeInTheDocument();
   });
 
-  it("hides the metric catalog entry when metrics-v2 is off", () => {
-    render(<AppSidebar />);
-
-    expect(screen.queryByText("Metric catalog")).not.toBeInTheDocument();
-  });
-
-  it("shows the metric catalog entry, active on its route, when metrics-v2 is on", () => {
-    metricsV2Enabled = true;
+  it("shows the metric catalog entry, active on its route", () => {
     currentPath = "/metrics";
     render(<AppSidebar />);
 

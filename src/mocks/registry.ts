@@ -44,16 +44,12 @@ export const PEOPLE: MockPerson[] = [
   { person_id: 'dave.sales@example.com',    name: 'Dave Hart',     department: 'Sales',       role: 'Account Executive',        seniority: 'Senior',    is_lead: false, ai_tools: [],                        supervisor_email: null },
 ];
 
-export const PEOPLE_BY_ID: Record<string, MockPerson> = Object.fromEntries(
+const PEOPLE_BY_ID: Record<string, MockPerson> = Object.fromEntries(
   PEOPLE.map((p) => [p.person_id, p]),
 );
 
-export function directReports(supervisorEmail: string): MockPerson[] {
+function directReports(supervisorEmail: string): MockPerson[] {
   return PEOPLE.filter((p) => p.supervisor_email === supervisorEmail);
-}
-
-export function teamMembers(supervisorEmail: string): MockPerson[] {
-  return directReports(supervisorEmail);
 }
 
 export type MockIdentityRaw = {

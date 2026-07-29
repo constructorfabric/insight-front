@@ -53,7 +53,7 @@ cyber-insight-front/
 │   └─ theme-decorators.ts     # addon-themes adapted to light/dark
 ├─ vitest.config.ts            # test.projects = [unit (jsdom), storybook (browser)]
 ├─ public/mockServiceWorker.js # already present (msw workerDirectory: public)
-└─ src/components/widgets/v2/kpi-tile.stories.tsx  # PoC story + play tests
+└─ src/components/widgets/dashboard/kpi-tile.stories.tsx  # PoC story + play tests
 ```
 
 > Existing `*.test.tsx` (RTL/jsdom) are untouched and run in the `unit` project.
@@ -330,7 +330,7 @@ import { expect, waitFor } from "storybook/test";
 import { KpiTile } from "./kpi-tile";
 
 const meta: Meta<typeof KpiTile> = {
-  title: "Widgets/v2/KpiTile",
+  title: "Widgets/Dashboard/KpiTile",
   component: KpiTile,
   beforeEach: () => { authStore.setTenantId("t-1"); }, // global beforeEach handles cleanup
 };

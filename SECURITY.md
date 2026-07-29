@@ -5,23 +5,26 @@ checklist for exposing Insight to the public internet (without VPN).
 
 ## Threat model
 
-The frontend is a public-facing SPA that authenticates users via OIDC
-(Authorization Code + PKCE) against a customer-provided issuer and calls a
-single backend through `/api/*`. Trust boundary: the FE itself is untrusted —
-all authorization decisions live on the backend; the FE only attaches the
-bearer token and the tenant id.
+The frontend is a public-facing SPA. Authentication is a server-side
+cookie/BFF flow: the gateway and authenticator own the provider handshake and
+set a `__Host-sid` session cookie; the SPA calls `/api/*` and `/auth/*`
+same-origin. Trust boundary: the FE itself is untrusted — all authorization
+decisions live on the backend, and the FE supplies no credentials of its own
+beyond the cookie the browser sends automatically.
 
-## Token storage
+## Session handling
 
-Access tokens are stored in `sessionStorage` via `oidc-client-ts`'s
-`WebStorageStateStore`. This is the standard SPA tradeoff:
+The SPA stores no tokens. The session is an HttpOnly, `Secure`, `__Host-`
+prefixed cookie set by the authenticator; the gateway exchanges it for a
+downstream JWT server-side.
 
-- `sessionStorage` is per-tab and cleared when the tab closes — better than
-  `localStorage` for blast radius.
-- Tokens are accessible from JavaScript, so any XSS = token exfiltration. The
-  CSP below is the primary mitigation; keep it tight.
-- HttpOnly cookies would be stronger, but require a backend session bridge —
-  out of scope for the current architecture.
+- Not readable from JavaScript, so XSS cannot exfiltrate a long-lived
+  credential. The CSP below remains the primary XSS mitigation.
+- State-changing `/auth/*` calls carry the session's CSRF token, which arrives
+  with `/auth/me` at boot.
+- The session is non-sliding: `src/auth/refresh.ts` drives `POST /auth/refresh`
+  on the server-supplied `refresh_at`, so an idle tab's session dies on the
+  server's schedule rather than the client's.
 
 ## Headers shipped by nginx
 
@@ -42,45 +45,35 @@ Defined in `Dockerfile`:
 
 - `style-src 'unsafe-inline'` is required for React inline styles and recharts.
   Tightening this requires a nonce-based pipeline — tracked as a follow-up.
-- `connect-src` and `frame-src` are templated at container start by
-  `docker-entrypoint.sh`: when `OIDC_ISSUER` is set, the issuer's origin is
-  substituted in (tight). When not set, falls back to broad `https:` (still
-  better than `*`). The substitution covers silent-renew iframe and token
-  endpoint requests.
-- After deployment, verify silent renew works (token auto-refreshes after 5 min)
-  — if the OIDC issuer sets `X-Frame-Options: DENY` on its authorize endpoint,
-  silent renew will fail and you'll need a different refresh strategy.
+- `connect-src` and `frame-src` stay at `'self'`: the SPA is same-origin only,
+  reaching `/api/*` and `/auth/*` through the gateway that fronts it. The nginx
+  config ships with no runtime placeholders.
 
 ## Build hygiene
 
 - `build.sourcemap: false` — production bundles never ship source maps.
 - `esbuild.drop: ['debugger']` — `debugger` statements are stripped.
 - `console.*` calls are gated behind `import.meta.env.DEV` and tree-shaken in
-  production. After `npm run build`, verify with:
+  production. After `pnpm build`, verify with:
   ```sh
-  grep -c "AuthPlugin\|Auto-discovered\|OIDC skipped" dist/assets/*.js
-  # Expect: 0
   ls dist/assets/*.map 2>/dev/null
   # Expect: nothing
   ```
 
 ## Pre-deployment checklist (no-VPN exposure)
 
-- [ ] `.env` on the build host does NOT contain `VITE_DEV_USER_EMAIL` or
-      `VITE_ENABLE_MOCKS=true`. These are dev-only and tree-shaken in prod, but
-      double-check there's no DEV build going to production.
+- [ ] `.env` on the build host does NOT contain `VITE_ENABLE_MOCKS=true`. It is
+      dev-only and tree-shaken in prod, but double-check there's no DEV build
+      going to production.
 - [ ] Container is served behind HTTPS-terminating reverse proxy. HSTS only
       makes sense over TLS.
-- [ ] `window.__OIDC_CONFIG__` is injected at container startup with the real
-      issuer URL, client id, and redirect URI. No fallback to mock auth in prod.
-- [ ] Backend (`api-gateway`, `analytics-api`, `identity-resolution`) validates
-      the `X-Tenant-ID` header against the JWT's tenant claim. When the FE sends
-      this header (currently reserved — wired through `authStore.tenantId` in
-      `src/api/fetch-with-auth.ts`), without server-side validation a
-      logged-in user can read other tenants by editing the header in DevTools.
+- [ ] Backend (`api-gateway`, `analytics-api`, `identity-resolution`) derives
+      tenant scoping from the session/gateway JWT only, never from a
+      client-supplied header. The FE sends no tenant header.
 - [ ] Backend rate-limits unauthenticated and authenticated endpoints
       separately. The FE has no rate-limiting and shouldn't.
-- [ ] Verify silent renew works in staging for ≥10 minutes of idle session.
+- [ ] Verify session refresh works in staging for ≥10 minutes of idle session
+      (`POST /auth/refresh` fires before the server-supplied `refresh_at`).
 - [ ] Confirm CSP doesn't break recharts / shadcn / @base-ui styling on every screen.
 - [ ] Run `npm audit --omit=dev` — no high-severity findings.
 

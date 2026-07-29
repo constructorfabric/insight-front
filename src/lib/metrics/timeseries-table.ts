@@ -4,7 +4,7 @@ export type MetricTimeseriesTableTone =
   | "success"
   | "destructive";
 
-export type MetricTimeseriesTableTemplatePart =
+type MetricTimeseriesTableTemplatePart =
   | {
       metric: string;
       prefix?: string;

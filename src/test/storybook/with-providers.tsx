@@ -6,10 +6,6 @@
  *   - TanStack Router      — memory-history router (story = not-found route)
  *   - ThemeProvider        — light/dark classes; the theme toolbar drives it
  *   - I18nextProvider      — app i18n instance
- *
- * `CatalogProvider` is intentionally NOT included globally — catalog-driven
- * widgets mock `POST /catalog/get_metrics` via MSW per story, so the story
- * exercises the real `useCatalog()` wiring instead of a stubbed provider.
  */
 
 import type { Decorator } from "@storybook/react-vite";
