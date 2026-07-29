@@ -141,13 +141,14 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: TruffleHog scan (GitHub API — comments, wikis, unreachable objects)
-        env:
-          # The auto-injected token is enough for a public repository's commits and comments.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Deliberately unauthenticated. `GITHUB_TOKEN` cannot be used here: the GitHub source
+        # calls `GET /user` to identify the token owner, and an installation token gets
+        # `403 Resource not accessible by integration` — which is exactly how this job failed on
+        # its first real run on main. There is no flag to skip that call. This repository is
+        # public, so no token is needed — measured unauthenticated: 8651 chunks in 8 seconds.
         run: |
           set -euo pipefail
           docker run --rm \
-            -e GITHUB_TOKEN \
             trufflesecurity/trufflehog:3.96.0@sha256:aa821cf4ace8861c7d096d83818cdf7bb9719028a52d37a52eaad44086a52577 \
             github \
               --repo "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
