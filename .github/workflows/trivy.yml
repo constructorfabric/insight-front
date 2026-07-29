@@ -49,7 +49,7 @@ env:
 
 jobs:
   gate:
-    name: critical (report-only)
+    name: critical (blocking)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -57,10 +57,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Trivy fs scan — CRITICAL only (report-only)
+      - name: Trivy fs scan — CRITICAL only (blocking)
         # `--ignore-unfixed` keeps the output actionable: a CRITICAL with no released fix cannot
         # be resolved by the PR author. Waivers go in `.trivyignore` at the repo root,
-        # date-scoped — they matter again the moment this pass becomes blocking:
+        # date-scoped, and load-bearing now that this pass blocks:
         #   CVE-2026-12345   exp:2026-12-31   # tracked in <issue>, fix queued
         #
         # `-w /src` is required for that: Trivy resolves the default ignore file relative to the
@@ -74,7 +74,7 @@ jobs:
               --scanners vuln,secret,misconfig \
               --severity CRITICAL \
               --ignore-unfixed \
-              --exit-code 0 \
+              --exit-code 1 \
               --no-progress \
               /src
 

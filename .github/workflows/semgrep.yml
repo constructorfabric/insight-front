@@ -47,14 +47,17 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
+          # `--baseline-commit` on the blocking pass builds a worktree at the base commit, so the
+          # full history has to be present.
+          fetch-depth: 0
           persist-credentials: false
 
-      - name: Semgrep scan (report-only — ratchet to blocking with --error once baseline is clean)
+      - name: Semgrep scan (full tree — feeds Code Scanning, never blocks)
         # Runs the digest-pinned Semgrep image via `docker run` (not a `container:` job) so the
         # checkout and SARIF-upload JS actions keep the host runner's Node — the Semgrep image
-        # does not ship Node. No `--error`: findings are reported, never block. Secrets excluded
-        # (TruffleHog owns them). `.semgrepignore` in the repo root prunes build/dep artifacts
-        # and the vendored cypilot kit.
+        # does not ship Node. No `--error` here: this pass owns the SARIF and must report the
+        # whole baseline. Secrets excluded (TruffleHog owns them). `.semgrepignore` in the repo
+        # root prunes build/dep artifacts and the vendored cypilot kit.
         # NB: `--config auto` requires metrics ON (it sends language/rule/finding counts — not
         # source — to semgrep.dev to select rules), so `--metrics off` is intentionally omitted.
         run: |
@@ -66,6 +69,29 @@ jobs:
               --config auto \
               --exclude-rule generic.secrets.security.detected-generic-secret \
               --sarif --output semgrep.sarif
+
+      - name: Semgrep scan — findings added by this pull request (BLOCKING)
+        # Enforcement without clearing the backlog first. Measured on this repository: plain
+        # `--error` exits 1 against the 19-finding baseline, so every pull request would be red
+        # until the whole backlog is triaged; `--baseline-commit` scopes the failure to what the
+        # pull request introduces and exits 0 on a clean one.
+        #
+        # No SARIF from this pass: with `--baseline-commit` the report holds only new findings,
+        # and uploading that would mark the existing baseline as fixed on this ref.
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/src" \
+            -w /src \
+            -e BASE_SHA \
+            semgrep/semgrep:1.170.0@sha256:c98f8829eea377274ee4b10656458b078b88232469b2ff913f091c2317347c9d \
+            semgrep scan \
+              --config auto \
+              --exclude-rule generic.secrets.security.detected-generic-secret \
+              --error \
+              --baseline-commit "$BASE_SHA"
 
       - name: Summarize findings in the job summary
         if: always()

@@ -2,12 +2,10 @@ name: TruffleHog Secrets
 
 # Secret detection over the full git history (constructorfabric/insight-front#231).
 #
-# Report-only, like every other security check here: findings render in the job summary and the
-# run stays green. The baseline is empty — a full-history scan over all 62 refs returns 0
-# findings and 0 detector hits — so there is nothing to triage, and making this blocking is a
-# one-line change tracked separately. Until then the zero-leak policy is a convention, not an
-# enforced one: a committed credential must be revoked and rotated, and rewriting history is
-# not remediation.
+# BLOCKING. The baseline is empty — a full-history scan over all 62 refs returns 0 findings and
+# 0 detector hits — so there is nothing to triage and no reason to run this one in observation
+# mode. Zero-leak policy: a committed credential must be revoked and rotated, and rewriting
+# history is not remediation.
 #
 # `--results` is the load-bearing flag. TruffleHog's default (`verified,unknown`) HIDES
 # findings whose live verification failed, so an already-revoked or inactive key in the
@@ -84,7 +82,7 @@ jobs:
               --results=verified,unknown,unverified,filtered_unverified \
             > trufflehog-findings.jsonl
 
-      - name: Summarize (redacted)
+      - name: Summarize (redacted) and fail on any finding
         if: always()
         # Null-guarded append (repo convention, cf. ci.yml). Prints detector / commit / path
         # only — never `Raw`, `RawV2` or the surrounding line.
@@ -137,6 +135,7 @@ jobs:
           w("\n**Revoke and rotate every credential listed above.** Removing the commit is not "
             "remediation — assume the value is compromised the moment it was pushed.\n")
           out.close()
+          sys.exit(1)
           PY
 
   # The git scan above only reaches commits that some ref still points at. Two classes of leak
