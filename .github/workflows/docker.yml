@@ -209,15 +209,17 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Trivy image scan (all severities)
+      - name: Trivy image scan (CRITICAL/HIGH)
         # Trivy pulls straight from the registry (TRIVY_USERNAME/TRIVY_PASSWORD) rather than
         # via a mounted docker socket, so no daemon and no local `docker pull` is needed.
         # `--ignore-unfixed` keeps the output to what a base-image bump can actually fix.
         # A multi-arch manifest resolves to the runner's platform (linux/amd64); the arm64
         # leg shares the same base image and package set, so one pass is representative.
         #
-        # Every severity, not just CRITICAL/HIGH: this job is the only inventory of what actually
-        # ships, and on the current image the narrower filter hides 70 of 107 findings.
+        # CRITICAL/HIGH only. Widening to MEDIUM/LOW was tried and reverted on review
+        # (constructorfabric/insight#2016): every finding here comes from the base layer and the
+        # remedy is the same either way — refresh the base image — while the wider filter triples
+        # the alert count and buries the CRITICALs that drive action.
         env:
           TRIVY_IMAGE: aquasec/trivy:0.72.0@sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f
           IMAGE_REF: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.merge.outputs.build_tag }}
@@ -238,7 +240,7 @@ jobs:
             -w /work \
             -e TRIVY_USERNAME -e TRIVY_PASSWORD \
             "$TRIVY_IMAGE" image \
-              --severity CRITICAL,HIGH,MEDIUM,LOW \
+              --severity CRITICAL,HIGH \
               --pkg-types os,library \
               --ignore-unfixed \
               --exit-code 0 \
