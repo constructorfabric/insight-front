@@ -59,9 +59,16 @@ jobs:
         # be resolved by the PR author, so it belongs in the report pass, not in a merge block.
         # Waivers go in `.trivyignore` at the repo root, date-scoped:
         #   CVE-2026-12345   exp:2026-12-31   # tracked in <issue>, fix queued
+        #
+        # `-w /src` is load-bearing for that: Trivy resolves the default ignore file relative to
+        # the working directory, so without it a repo-root `.trivyignore` is read from the
+        # image's own cwd and silently ignored. `--ignorefile` is not used instead because Trivy
+        # exits FATAL when the named file does not exist, which would break every run until
+        # someone adds a waiver.
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/src:ro" \
+            -w /src \
             "$TRIVY_IMAGE" fs \
               --scanners vuln,secret,misconfig \
               --severity CRITICAL \
@@ -83,23 +90,15 @@ jobs:
           persist-credentials: false
 
       - name: Trivy fs scan — HIGH/MEDIUM/LOW (never blocks)
-        # Two output formats from two runs over the same cached DB: SARIF for Code Scanning,
-        # JSON for the summary table below. `--exit-code 0` on both — this pass only reports.
+        # One scan, two formats: JSON feeds the summary below, and `trivy convert` derives the
+        # SARIF from that same JSON instead of rescanning. `-w /src` for the ignore-file reason
+        # documented on the gate job. `--exit-code 0` — this pass only reports.
         run: |
           set -euo pipefail
           docker run --rm \
             -v "${{ github.workspace }}:/src" \
             -v /tmp/trivy-cache:/root/.cache \
-            "$TRIVY_IMAGE" fs \
-              --scanners vuln,misconfig \
-              --severity HIGH,MEDIUM,LOW \
-              --exit-code 0 \
-              --no-progress \
-              --format sarif --output /src/trivy-fs.sarif \
-              /src
-          docker run --rm \
-            -v "${{ github.workspace }}:/src" \
-            -v /tmp/trivy-cache:/root/.cache \
+            -w /src \
             "$TRIVY_IMAGE" fs \
               --scanners vuln,misconfig \
               --severity HIGH,MEDIUM,LOW \
@@ -107,6 +106,11 @@ jobs:
               --no-progress \
               --format json --output /src/trivy-fs.json \
               /src
+          docker run --rm \
+            -v "${{ github.workspace }}:/src" \
+            "$TRIVY_IMAGE" convert \
+              --format sarif --output /src/trivy-fs.sarif \
+              /src/trivy-fs.json
 
       - name: Summarize findings in the job summary
         if: always()
@@ -162,7 +166,9 @@ jobs:
 
       - name: Upload SARIF to GitHub Code Scanning
         # Skip on fork PRs: read-only token cannot upload, which would red-X this report-only job.
-        if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        # The hashFiles guard keeps a failed scan from producing a second, misleading error that
+        # points at Code Scanning rather than at the scan that actually broke.
+        if: ${{ always() && hashFiles('trivy-fs.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
         uses: github/codeql-action/upload-sarif@fb0994ef1c058010acf1efccff928b0a83b1ed54 # v4.32.6
         with:
           sarif_file: trivy-fs.sarif
