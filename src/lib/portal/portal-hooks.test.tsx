@@ -85,6 +85,21 @@ describe("useActiveZone", () => {
     expect(renderHook(() => useActiveZone()).result.current.activeZone).toBe("people");
   });
 
+  it("only the /team segment means People — an email starting with 'team' does not", () => {
+    // The email lives in the path, so a substring check would hijack the
+    // dashboards of team@, teamlead@, … into the People zone.
+    mocks.pathname = "/ic/teamlead%40x/personal";
+    expect(renderHook(() => useActiveZone()).result.current).toEqual({
+      activeZone: "person",
+      activePerson: "teamlead@x",
+    });
+  });
+
+  it("tolerates a trailing slash on the team route", () => {
+    mocks.pathname = "/ic/some.one%40x/team/";
+    expect(renderHook(() => useActiveZone()).result.current.activeZone).toBe("people");
+  });
+
   it("a pinned theme zone wins over the route", () => {
     mocks.pathname = "/ic/some.one%40x/personal";
     act(() => setPortalZone("overview"));

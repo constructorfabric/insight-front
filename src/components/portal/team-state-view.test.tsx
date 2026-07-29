@@ -129,6 +129,10 @@ describe("TeamStateView", () => {
     mocks.members = [];
     mocks.tree = person("boss@x");
     render(<TeamStateView />);
-    expect(screen.getByText(/No people in the current scope|No org under/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "No people in the current scope — pick a different scope in the topbar.",
+      ),
+    ).toBeInTheDocument();
   });
 });

@@ -19,7 +19,10 @@ export function useActiveZone(): { activeZone: string; activePerson: string } {
   return useMemo(() => {
     const m = /^\/ic\/([^/]+)/.exec(pathname);
     const activePerson = m ? decodeURIComponent(m[1]!) : (email ?? "");
-    const routeZone = pathname.includes("/team") ? "people" : "person";
+    // Match the trailing `/team` SEGMENT, not a substring: the person email is
+    // part of the path, so `/ic/team%40x/personal` contains "/team" and a
+    // substring check would send a whole person's dashboard to the People zone.
+    const routeZone = /\/team\/?$/.test(pathname) ? "people" : "person";
     return { activeZone: zone ?? routeZone, activePerson };
   }, [zone, pathname, email]);
 }
