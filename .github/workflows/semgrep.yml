@@ -1,19 +1,10 @@
 name: Semgrep SAST
 
-# Report-only SAST gate (constructorfabric/insight#1478), mirroring
-# constructorfabric/insight's semgrep.yml so findings stay comparable across the two
-# repos.
+# SAST (#231). `--config auto`; secrets are excluded here — trufflehog.yml owns them.
 #
-# Findings (Semgrep `--config auto` — per-language auto-detection via the registry,
-# matching the org GitLab semgrep-scan component; no `p/rust`/`p/csharp` here since this
-# repo is TypeScript + a little Python in scripts/ci) surface in the GitHub
-# "Security -> Code scanning" tab (SARIF upload) AND as a count in the job summary, but
-# they DO NOT block: `semgrep scan` runs WITHOUT `--error`. Flip to blocking once the
-# baseline is triaged and clean (zero un-waived findings) by adding `--error` here and
-# marking `sast` a required status check.
-#
-# Secret detection is intentionally excluded (`--exclude-rule generic.secrets...`); the
-# separate TruffleHog gate (trufflehog.yml) owns secret scanning.
+#   sast   — full tree, report-only, owns the SARIF upload.
+#   second pass — `--error --baseline-commit`, BLOCKING on findings the PR introduces. Plain
+#                 `--error` would fail on the existing baseline instead.
 
 on:
   pull_request:
@@ -47,19 +38,13 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
-          # `--baseline-commit` on the blocking pass builds a worktree at the base commit, so the
-          # full history has to be present.
+          # `--baseline-commit` builds a worktree at the base commit.
           fetch-depth: 0
           persist-credentials: false
 
       - name: Semgrep scan (full tree — feeds Code Scanning, never blocks)
-        # Runs the digest-pinned Semgrep image via `docker run` (not a `container:` job) so the
-        # checkout and SARIF-upload JS actions keep the host runner's Node — the Semgrep image
-        # does not ship Node. No `--error` here: this pass owns the SARIF and must report the
-        # whole baseline. Secrets excluded (TruffleHog owns them). `.semgrepignore` in the repo
-        # root prunes build/dep artifacts and the vendored cypilot kit.
-        # NB: `--config auto` requires metrics ON (it sends language/rule/finding counts — not
-        # source — to semgrep.dev to select rules), so `--metrics off` is intentionally omitted.
+        # `docker run` rather than a `container:` job so the JS actions keep the runner's Node.
+        # `--config auto` needs metrics on to select rules, so `--metrics off` is omitted.
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/src" \
@@ -71,13 +56,7 @@ jobs:
               --sarif --output semgrep.sarif
 
       - name: Semgrep scan — findings added by this pull request (BLOCKING)
-        # Enforcement without clearing the backlog first. Measured on this repository: plain
-        # `--error` exits 1 against the 19-finding baseline, so every pull request would be red
-        # until the whole backlog is triaged; `--baseline-commit` scopes the failure to what the
-        # pull request introduces and exits 0 on a clean one.
-        #
-        # No SARIF from this pass: with `--baseline-commit` the report holds only new findings,
-        # and uploading that would mark the existing baseline as fixed on this ref.
+        # Scoped to the PR's own findings; uploads no SARIF, which would mark the baseline fixed.
         if: github.event_name == 'pull_request'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -95,14 +74,10 @@ jobs:
 
       - name: Summarize findings in the job summary
         if: always()
-        # Null-guarded append (repo convention, cf. ci.yml). Renders a severity + per-rule
-        # breakdown from the SARIF using the stdlib (no jq dependency).
         run: |
           [ -f semgrep.sarif ] || exit 0
           [ -n "${GITHUB_STEP_SUMMARY:-}" ] || exit 0
-          # Link the summary to Code scanning. On PRs the analysis is attributed to the PR
-          # (merge ref) — NOT the branch ref — so filter by pr:<n>; on push/schedule/dispatch
-          # filter by branch. GITHUB_REF_NAME is "<n>/merge" on pull_request events.
+          # On PRs the analysis is attributed to the PR, not the branch.
           CS_BASE="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/security/code-scanning"
           if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
             CS_URL="${CS_BASE}?query=is%3Aopen+pr%3A${GITHUB_REF_NAME%/merge}"
@@ -135,8 +110,7 @@ jobs:
           PY
 
       - name: Upload SARIF to GitHub Code Scanning
-        # Skip on fork PRs: they receive a read-only token and cannot upload to Code Scanning,
-        # which would otherwise red-X this report-only job.
+        # Fork PRs get a read-only token and cannot upload.
         if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
         uses: github/codeql-action/upload-sarif@fb0994ef1c058010acf1efccff928b0a83b1ed54 # v4.32.6
         with:

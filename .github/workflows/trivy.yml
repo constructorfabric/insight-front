@@ -1,29 +1,16 @@
 name: Trivy SCA
 
-# Software-composition analysis over the source tree (constructorfabric/insight#1478).
-# Two passes, matching the org's GitLab trivy-scan component:
+# Dependency and misconfiguration scanning over the repository (#231).
 #
-#   critical — CRITICAL only, and the one pass that also runs the secret scanner. Report-only
-#            (`--exit-code 0`), like everything else here: a CRITICAL surfaces in the log without
-#            stopping a merge. Kept as a separate pass because it is the only place secrets are
-#            scanned, and those must never reach a SARIF upload on a public repository.
-#            Baseline today: 0 CRITICAL.
-#   report — every severity, never blocks. Findings land in "Security -> Code scanning"
-#            (SARIF) plus a job-summary table. Baseline today: 37 vulnerabilities and 2
-#            misconfigurations, most of them build-time tooling declared under `dependencies`.
+#   critical — CRITICAL only; the one pass that also scans secrets, so its output stays in the
+#              log and never reaches a SARIF upload. BLOCKING.
+#   report   — every severity, dev dependencies included.
 #
-# Scope: this scans the repository (`trivy fs`) — lock file, Dockerfile, configs. It does NOT
-# see the image that ships: base-image and OS-package CVEs are covered by the `trivy-image`
-# job in docker.yml, which runs against the pushed manifest.
+# Image layers are not visible here — docker.yml scans the pushed manifest.
 #
-# The report pass deliberately drops the secret scanner (`--scanners vuln,misconfig`): Code
-# Scanning alerts on a public repository are world-readable, and Trivy's secret findings quote
-# the surrounding match. Secrets stay in the `critical` pass, whose output goes to the log only,
-# and TruffleHog owns the domain anyway (trufflehog.yml).
-#
-# Dev dependencies are included (`--include-dev-deps`). They are not in the shipped bundle, but a
-# compromised one executes on the runner during the build, so leaving them out understates the
-# supply-chain surface rather than simplifying it.
+# Do not change without reading why:
+#   - keep `-w /src`; do not switch to `--ignorefile` — it exits FATAL when the file is absent.
+#   - the report pass must not run the secret scanner: its SARIF is world-readable here.
 
 on:
   pull_request:
@@ -58,14 +45,8 @@ jobs:
           persist-credentials: false
 
       - name: Trivy fs scan — CRITICAL only (blocking)
-        # `--ignore-unfixed` keeps the output actionable: a CRITICAL with no released fix cannot
-        # be resolved by the PR author. Waivers go in `.trivyignore` at the repo root,
-        # date-scoped, and load-bearing now that this pass blocks:
-        #   CVE-2026-12345   exp:2026-12-31   # tracked in <issue>, fix queued
-        #
-        # `-w /src` is required for that: Trivy resolves the default ignore file relative to the
-        # working directory. Do not switch to `--ignorefile` — it exits FATAL when the file is
-        # absent, breaking every run until someone adds a waiver.
+        # Waivers: `.trivyignore` at the repo root, date-scoped — `CVE-... exp:YYYY-MM-DD # <issue>`.
+        # Keep `-w /src`; `--ignorefile` exits FATAL when the file is absent.
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/src:ro" \
@@ -91,15 +72,7 @@ jobs:
           persist-credentials: false
 
       - name: Trivy fs scan — all severities, dev deps included
-        # One scan, two formats: JSON feeds the summary below, and `trivy convert` derives the
-        # SARIF from that same JSON instead of rescanning. `-w /src` for the ignore-file reason
-        # documented on the `critical` pass. `--exit-code 0` — nothing here blocks.
-        #
-        # CRITICAL is in the severity list even though the `critical` pass covers it: that pass
-        # only prints a table, so without this a CRITICAL would never appear as an alert.
-        #
-        # `--include-dev-deps` because a compromised build-time dependency executes on the runner
-        # and can alter the bundle; Trivy's pnpm default hides them.
+        # `trivy convert` derives the SARIF instead of rescanning.
         run: |
           set -euo pipefail
           docker run --rm \
@@ -122,8 +95,7 @@ jobs:
 
       - name: Summarize findings in the job summary
         if: always()
-        # Null-guarded append (repo convention, cf. ci.yml). Groups by package so the summary
-        # reflects the unit of remediation ("bump X") rather than the CVE count.
+        # Grouped by package — the unit of remediation.
         run: |
           [ -f trivy-fs.json ] || exit 0
           [ -n "${GITHUB_STEP_SUMMARY:-}" ] || exit 0
@@ -172,9 +144,7 @@ jobs:
           PY
 
       - name: Upload SARIF to GitHub Code Scanning
-        # Skip on fork PRs: read-only token cannot upload, which would red-X this report-only job.
-        # The hashFiles guard keeps a failed scan from producing a second, misleading error that
-        # points at Code Scanning rather than at the scan that actually broke.
+        # Fork PRs get a read-only token and cannot upload.
         if: ${{ always() && hashFiles('trivy-fs.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
         uses: github/codeql-action/upload-sarif@fb0994ef1c058010acf1efccff928b0a83b1ed54 # v4.32.6
         with:

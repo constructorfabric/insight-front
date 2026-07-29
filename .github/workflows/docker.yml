@@ -223,14 +223,10 @@ jobs:
           persist-credentials: false
 
       - name: Trivy image scan (CRITICAL/HIGH)
-        # Trivy pulls straight from the registry (TRIVY_USERNAME/TRIVY_PASSWORD) rather than
-        # via a mounted docker socket, so no daemon and no local `docker pull` is needed.
-        # `--ignore-unfixed` keeps the output to what a base-image bump can actually fix.
-        # A multi-arch manifest resolves to the runner's platform (linux/amd64); the arm64
-        # leg shares the same base image and package set, so one pass is representative.
-        #
-        # CRITICAL/HIGH only: everything here comes from the base layer, and the remedy is the
-        # same at any severity — refresh the base image.
+        # Pulls from the registry directly, so no docker daemon is needed. CRITICAL/HIGH only:
+        # everything here comes from the base layer and the remedy is the same at any severity.
+        # `trivy convert` renders both the table and the SARIF from one scan.
+        # Keep `-w /work` so a repo-root `.trivyignore` is resolved.
         env:
           TRIVY_IMAGE: aquasec/trivy:0.72.0@sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f
           IMAGE_REF: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.merge.outputs.build_tag }}
@@ -264,8 +260,7 @@ jobs:
             "$TRIVY_IMAGE" convert --format sarif --output /work/trivy-image.sarif /work/trivy-image.json
 
       - name: Upload SARIF to GitHub Code Scanning
-        # The guard keeps a failed registry pull from reporting twice — once for the pull, once
-        # for a SARIF file that was never written.
+        # Guard: a failed pull must not also report a missing SARIF.
         if: ${{ always() && hashFiles('trivy-image.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@fb0994ef1c058010acf1efccff928b0a83b1ed54 # v4.32.6
         with:
