@@ -34,10 +34,13 @@ export function consumeAuthErrorParam(): AuthError | null {
   // reason) is stripped but neither counted nor acted on.
   if (!code) return null;
   const attempts = readAttempts() + 1;
-  writeAttempts(attempts);
+  // An unpersisted attempt must not auto-retry: the next bounce would read
+  // zero again and the guard would never trip.
+  const counted = writeAttempts(attempts);
   return {
     code,
-    autoRetry: code !== "access_denied" && attempts <= MAX_AUTO_RETRIES,
+    autoRetry:
+      counted && code !== "access_denied" && attempts <= MAX_AUTO_RETRIES,
   };
 }
 
@@ -62,10 +65,11 @@ function readAttempts(): number {
   }
 }
 
-function writeAttempts(attempts: number): void {
+function writeAttempts(attempts: number): boolean {
   try {
     sessionStorage.setItem(ATTEMPTS_KEY, String(attempts));
+    return true;
   } catch {
-    // Storage unavailable — readAttempts already fails closed.
+    return false;
   }
 }

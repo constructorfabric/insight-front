@@ -97,6 +97,24 @@ describe("consumeAuthErrorParam", () => {
     expect(consumeAuthErrorParam()?.autoRetry).toBe(true);
   });
 
+  it("does not auto-retry when the attempt cannot be persisted", () => {
+    stubLocation("https://insight.test/?auth_error=state_expired");
+    // Reads work, writes fail (e.g. quota): the next bounce would read zero
+    // again, so an unpersisted attempt must not spend a retry.
+    vi.stubGlobal("sessionStorage", {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error("quota exceeded");
+      },
+      removeItem: () => undefined,
+    });
+
+    expect(consumeAuthErrorParam()).toEqual({
+      code: "state_expired",
+      autoRetry: false,
+    });
+  });
+
   it("fails closed to the error screen when storage is unavailable", () => {
     stubLocation("https://insight.test/?auth_error=state_expired");
     // Replace the global outright — spying on methods of the environment's
