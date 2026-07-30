@@ -27,13 +27,17 @@ server {
         return 404;
     }
 
+    # `index.html` names the content-hashed assets below, so it must revalidate
+    # or the browser pins an old build to old asset URLs until a cache clear.
     location / {
         try_files $uri $uri/ /index.html;
+        add_header Cache-Control "no-cache" always;
+        # Re-include security headers — see comment above for why.
+        include /etc/nginx/snippets/security-headers.conf;
     }
 
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable" always;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
         # Re-include security headers — see comment above for why.
         include /etc/nginx/snippets/security-headers.conf;
     }
