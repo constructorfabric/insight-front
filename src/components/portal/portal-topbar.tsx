@@ -28,19 +28,32 @@ export function PortalTopBar() {
   );
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2 border-b px-4 py-2 md:px-6">
+    // Sticky to the scroll container (`SidebarInset` owns the overflow): scope,
+    // slice and period apply to whatever is on screen, so they have to stay
+    // reachable while reading down a long zone. Opaque background — content
+    // scrolling underneath a translucent bar makes both unreadable.
+    <div className="sticky top-0 z-20 flex items-center gap-2 border-b bg-background px-4 py-2 md:px-6">
       {/* Opens the context pane wherever it is collapsed — the drawer is the
           only way to reach navigation on a phone (no rail at all), and the only
-          way to reach sections on a tablet. */}
-      <SidebarTrigger className="me-auto lg:hidden" />
-      <ScopeSelect />
-      <SliceSelect dims={dims} />
-      <PeriodSelectorBar
-        period={period}
-        customRange={customRange}
-        onPeriodChange={setPeriod}
-        onRangeChange={setCustomRange}
-      />
+          way to reach sections on a tablet. Outside the scroller below, so it
+          stays put while the controls slide. */}
+      <SidebarTrigger className="shrink-0 lg:hidden" />
+      {/* Narrow screens keep the three controls on ONE scrollable row: wrapped,
+          they stack three deep and a sticky bar then holds 17% of a phone
+          viewport for good. Wide screens wrap as before — there is room. */}
+      {/* `justify-end` only once there is room to wrap: inside a horizontal
+          scroller it pushes the overflow off the START edge, where no scroll
+          gesture can reach it — Scope and Slice became unreachable. */}
+      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto md:flex-wrap md:justify-end md:overflow-x-visible">
+        <ScopeSelect />
+        <SliceSelect dims={dims} />
+        <PeriodSelectorBar
+          period={period}
+          customRange={customRange}
+          onPeriodChange={setPeriod}
+          onRangeChange={setCustomRange}
+        />
+      </div>
     </div>
   );
 }

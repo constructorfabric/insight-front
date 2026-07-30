@@ -32,9 +32,12 @@ export function ScopeSelect() {
             type="button"
             className="flex h-9 items-center gap-1.5 rounded-md border bg-background px-3 text-sm shadow-xs hover:bg-accent"
           >
-            <span className="text-muted-foreground">Scope:</span>
-            <span className="max-w-40 truncate font-medium">{label}</span>
-            <span className="text-muted-foreground">· {count}</span>
+            {/* Narrow screens keep only the identity of the scope: the word
+                "Scope" and the head-count are recoverable from the popover, and
+                the sticky bar has ~300px for three controls. */}
+            <span className="hidden text-muted-foreground md:inline">Scope:</span>
+            <span className="max-w-28 truncate font-medium md:max-w-40">{label}</span>
+            <span className="hidden text-muted-foreground md:inline">· {count}</span>
             <ChevronDown className="size-4 text-muted-foreground" aria-hidden />
           </button>
         }

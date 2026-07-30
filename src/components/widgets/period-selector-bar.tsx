@@ -125,7 +125,9 @@ export function PeriodSelectorBar({
             render={
               <ToggleGroupItem value="custom" className="gap-1.5">
                 <CalendarIcon className="size-3.5" />
-                <span>{activeRangeLabel}</span>
+                {/* The range spells out to ~140px; below `sm` the calendar icon
+                    stands in for it and the popover shows the actual dates. */}
+                <span className="hidden sm:inline">{activeRangeLabel}</span>
                 <TooltipProvider delay={200}>
                   <Tooltip>
                     <TooltipTrigger

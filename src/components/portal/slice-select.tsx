@@ -36,8 +36,11 @@ export function SliceSelect({ dims }: { dims: SliceDim[] }) {
       value={value}
       onValueChange={(v) => setPortalSlice(v && v !== TEAM_KEY ? v : "")}
     >
-      <SelectTrigger size="sm" aria-label="Slice by" className="w-48">
-        <SelectValue>Slice: {label}</SelectValue>
+      <SelectTrigger size="sm" aria-label="Slice by" className="w-32 md:w-48">
+        <SelectValue>
+          <span className="hidden md:inline">Slice: </span>
+          {label}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent align="end">
         <SelectGroup>

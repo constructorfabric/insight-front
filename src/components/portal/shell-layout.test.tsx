@@ -26,6 +26,23 @@ vi.mock("@/lib/portal/use-viewer-is-manager", () => ({
 }));
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }));
 vi.mock("@/components/org-tree", () => ({ OrgTree: () => <div /> }));
+vi.mock("@/components/portal/scope-select", () => ({ ScopeSelect: () => <div /> }));
+vi.mock("@/components/portal/slice-select", () => ({ SliceSelect: () => <div /> }));
+vi.mock("@/components/widgets/period-selector-bar", () => ({
+  PeriodSelectorBar: () => <div />,
+}));
+vi.mock("@/queries/ic-dashboard", () => ({
+  useIcPerson: () => ({ data: null }),
+}));
+vi.mock("@/hooks/use-period", () => ({
+  usePeriod: () => ({
+    period: "month",
+    customRange: null,
+    setPeriod: vi.fn(),
+    setCustomRange: vi.fn(),
+  }),
+}));
+vi.mock("@/auth", () => ({ useViewer: () => ({ email: "boss@x" }) }));
 // The settings menu pulls in viewer/theme/i18n plumbing; its presence is what
 // matters here — on a phone it is only reachable through this drawer.
 vi.mock("@/components/app-sidebar-footer", () => ({
@@ -218,5 +235,23 @@ describe("shell layout: narrow (tablet)", () => {
 
     expect(itemState.result.current).toBe("trend");
     expect(document.querySelector('[data-state="collapsed"]')).not.toBeNull();
+  });
+});
+
+describe("the global controls stay reachable while reading", () => {
+  it("pins the topbar to the scroll container, opaquely", async () => {
+    const { PortalTopBar } = await import("./portal-topbar");
+    const { container } = render(
+      <SidebarProvider>
+        <PortalTopBar />
+      </SidebarProvider>,
+    );
+    const bar = container.querySelector("div.sticky");
+    // Sticky alone is not enough: content scrolling under a transparent bar
+    // makes both unreadable, and a bar below the cards' stacking order is
+    // covered by them.
+    expect(bar?.className).toContain("top-0");
+    expect(bar?.className).toContain("bg-background");
+    expect(bar?.className).toMatch(/z-\d+/);
   });
 });

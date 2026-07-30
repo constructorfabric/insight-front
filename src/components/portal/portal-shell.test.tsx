@@ -251,7 +251,10 @@ describe("SliceSelect", () => {
   it("shows the active dimension and writes the store on change", async () => {
     const slice = renderHook(() => usePortalSlice());
     render(<SliceSelect dims={[{ key: "division", label: "Division" }]} />);
-    expect(screen.getByText("Slice: Team (all)")).toBeInTheDocument();
+    // "Slice:" is a separate, md-only span now, so match the value itself.
+    expect(screen.getByRole("combobox", { name: "Slice by" })).toHaveTextContent(
+      "Team (all)",
+    );
 
     await userEvent.click(screen.getByRole("combobox", { name: "Slice by" }));
     await userEvent.click(await screen.findByRole("option", { name: "Division" }));
