@@ -2,6 +2,11 @@ import type {
   MetricCollectionConfig,
   MetricTimeseriesGroupLimitConfig,
 } from "@/lib/metrics/collection";
+import type {
+  MetricTimeseriesTableColumnConfig,
+  MetricTimeseriesTableConfig,
+} from "@/lib/metrics/timeseries-table";
+import type { MetricTimeseriesChartConfig } from "@/lib/metrics/timeseries-chart";
 
 /**
  * Dashboard composition registry: named groups of metrics and the KPI row.
@@ -18,8 +23,8 @@ import type {
  * dashboard composition, so they live here.
  */
 
-export type BreakdownChartKind = "bars" | "summary-card";
-export type HistogramChartKind = "histogram";
+type BreakdownChartKind = "bars" | "summary-card";
+type HistogramChartKind = "histogram";
 
 /**
  * One chart in a group's drilldown. Blocks compose: a multi-metric chart
@@ -35,32 +40,24 @@ export type DrilldownBlock =
       view: "timeseries";
       metrics: string[];
       defaultPresentation?: "chart" | "table";
+      chart?: MetricTimeseriesChartConfig;
       groupBy?: {
         default: string;
         options?: string[];
         limits?: Record<string, MetricTimeseriesGroupLimitConfig>;
       };
+      table?: MetricTimeseriesTableConfig;
     }
   | { view: "breakdown"; chart: BreakdownChartKind; metrics: string[] }
   | { view: "histogram"; chart: HistogramChartKind; metrics: string[] };
 
 export interface MetricGroup {
-  kind: "metrics";
   id: GroupId;
   title: string;
   collection: MetricCollectionConfig;
   card: { preview: string[] };
   drilldown: DrilldownBlock[];
 }
-
-/** A group still rendered by the legacy data path; dies with it. */
-export interface LegacyGroup {
-  kind: "legacy";
-  id: GroupId;
-  title: string;
-}
-
-export type GroupDef = MetricGroup | LegacyGroup;
 
 export type GroupId =
   | "task_delivery"
@@ -193,6 +190,19 @@ const GIT_OUTPUT_COLLECTION: MetricCollectionConfig = {
   ],
 };
 
+const GIT_LINES_TABLE_COLUMN = {
+  label: "Lines",
+  template: [
+    { metric: "git.lines_added", prefix: "+", tone: "success" },
+    { text: " / " },
+    {
+      metric: "git.lines_removed",
+      prefix: "−",
+      tone: "destructive",
+    },
+  ],
+} satisfies MetricTimeseriesTableColumnConfig;
+
 const COLLABORATION_COLLECTION: MetricCollectionConfig = {
   metrics: [
     {
@@ -305,9 +315,8 @@ const WIKI_COLLECTION: MetricCollectionConfig = {
   ],
 };
 
-export const GROUPS: readonly GroupDef[] = [
+export const GROUPS: readonly MetricGroup[] = [
   {
-    kind: "metrics",
     id: "task_delivery",
     title: "Task delivery",
     collection: TASK_DELIVERY_COLLECTION,
@@ -319,6 +328,7 @@ export const GROUPS: readonly GroupDef[] = [
         id: "task-throughput",
         view: "timeseries",
         metrics: ["tasks.closed", "tasks.bugs_fixed"],
+        chart: { multiMetric: "combined" },
       },
       {
         chart: "histogram",
@@ -334,7 +344,6 @@ export const GROUPS: readonly GroupDef[] = [
     ],
   },
   {
-    kind: "metrics",
     id: "git_output",
     title: "Git output",
     collection: GIT_OUTPUT_COLLECTION,
@@ -352,6 +361,13 @@ export const GROUPS: readonly GroupDef[] = [
           "git.lines_removed",
         ],
         defaultPresentation: "table",
+        table: {
+          columns: [
+            { metric: "git.commits" },
+            { metric: "git.prs_merged", labelSource: "short" },
+            GIT_LINES_TABLE_COLUMN,
+          ],
+        },
         groupBy: {
           default: "repository",
           limits: {
@@ -367,16 +383,11 @@ export const GROUPS: readonly GroupDef[] = [
         id: "lines-added-by-category",
         view: "timeseries",
         metrics: ["git.lines_added", "git.lines_removed"],
+        table: {
+          columns: [GIT_LINES_TABLE_COLUMN],
+        },
         groupBy: {
           default: "category",
-          options: ["category", "repository"],
-          limits: {
-            repository: {
-              count: 10,
-              rankBy: "git.lines_added",
-              includeRemainder: true,
-            },
-          },
         },
       },
       {
@@ -389,7 +400,6 @@ export const GROUPS: readonly GroupDef[] = [
     ],
   },
   {
-    kind: "metrics",
     id: "collaboration",
     title: "Collaboration",
     collection: COLLABORATION_COLLECTION,
@@ -418,7 +428,6 @@ export const GROUPS: readonly GroupDef[] = [
     ],
   },
   {
-    kind: "metrics",
     id: "ai_adoption",
     title: "AI adoption",
     collection: AI_ADOPTION_COLLECTION,
@@ -435,7 +444,6 @@ export const GROUPS: readonly GroupDef[] = [
     ],
   },
   {
-    kind: "metrics",
     id: "wiki",
     title: "Wiki",
     collection: WIKI_COLLECTION,
@@ -447,6 +455,7 @@ export const GROUPS: readonly GroupDef[] = [
         id: "wiki-activity",
         view: "timeseries",
         metrics: ["wiki.pages_created", "wiki.edits"],
+        chart: { multiMetric: "combined" },
       },
     ],
   },
@@ -482,56 +491,34 @@ export const HEATMAP_COLLECTION: MetricCollectionConfig = {
   })),
 };
 
-export function groupById(id: GroupId): GroupDef {
-  const def = GROUPS.find((g) => g.id === id);
-  if (!def) throw new Error(`Unknown group: ${id}`);
-  return def;
-}
-
-export function metricGroups(): MetricGroup[] {
-  return GROUPS.filter((g): g is MetricGroup => g.kind === "metrics");
-}
-
-export function legacyGroups(): LegacyGroup[] {
-  return GROUPS.filter((g): g is LegacyGroup => g.kind === "legacy");
-}
-
-/** Every group's card-preview keys, deduped — the cross-domain headline set. */
-export function headlineMetricKeys(): string[] {
-  return [...new Set(metricGroups().flatMap((g) => g.card.preview))];
-}
-
 /**
- * The "At a glance" KPI row: array order is display order. `legacy` tiles
- * come from the legacy KPI batch; `metric` tiles come from the derived
- * KPI collection below. Both render through the same display-ready tile
- * intermediate — selectors own formatting and scoring.
+ * The "At a glance" KPI row: array order is display order. Tiles are metric
+ * keys resolved against the KPI collection below and render through the
+ * display-ready tile intermediate — selectors own formatting and scoring.
  */
-export type KpiTileSource =
-  | { kind: "legacy"; key: string; groupId: GroupId }
-  | { kind: "metric"; metricKey: string };
-
-export const KPI_ROW: readonly KpiTileSource[] = [
-  { kind: "metric", metricKey: "tasks.closed" },
-  { kind: "metric", metricKey: "collab.focus_time_pct" },
-  { kind: "metric", metricKey: "git.prs_merged" },
-  { kind: "metric", metricKey: "ai.active_days" },
-  { kind: "metric", metricKey: "ai.accepted_lines" },
+export const KPI_ROW: readonly string[] = [
+  "tasks.closed",
+  "collab.focus_time_pct",
+  "git.prs_merged",
+  "ai.active_days",
+  "ai.accepted_lines",
 ];
 
 export const KPI_ROW_COLLECTION: MetricCollectionConfig = {
-  metrics: KPI_ROW.filter(
-    (t): t is Extract<KpiTileSource, { kind: "metric" }> => t.kind === "metric"
-  ).map((t) => ({
-    key: t.metricKey,
+  metrics: KPI_ROW.map((key) => ({
+    key,
     views: [{ view: "period" }, { view: "peer" }],
   })),
 };
 
-/** Metrics-backed KPI tiles navigate to the group that owns their metric. */
+/** KPI tiles navigate to the group that owns their metric. */
+/** Every group's card-preview keys, deduped — the cross-domain headline set. */
+export function headlineMetricKeys(): string[] {
+  return [...new Set(GROUPS.flatMap((g) => g.card.preview))];
+}
+
 export function groupIdForMetricKey(metricKey: string): GroupId | null {
   for (const def of GROUPS) {
-    if (def.kind !== "metrics") continue;
     if (def.collection.metrics.some((m) => m.key === metricKey)) return def.id;
   }
   return null;

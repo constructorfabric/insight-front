@@ -1,4 +1,9 @@
 export { authStore } from "./auth-store";
+export {
+  clearAuthErrorAttempts,
+  consumeAuthErrorParam,
+  type AuthError,
+} from "./auth-error";
 export { consumeOverrideParam } from "./override";
 export { loadSession } from "./session";
 export { startSessionRefresh } from "./refresh";

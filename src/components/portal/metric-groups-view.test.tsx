@@ -38,11 +38,11 @@ vi.mock("@/hooks/use-period", () => ({
   usePeriod: () => ({ period: "week", dateRange: { start: "2026-07-20", end: "2026-07-26" } }),
 }));
 vi.mock("@/hooks/use-settings", () => ({ useSettings: () => ({ focusMode: false }) }));
-vi.mock("@/components/widgets/v2/kpi-tile", () => ({
+vi.mock("@/components/widgets/dashboard/kpi-tile", () => ({
   KpiTile: ({ tile }: { tile: { key: string } }) => <div data-testid="kpi-tile">{tile.key}</div>,
   KpiTilePlaceholder: () => <div data-testid="kpi-placeholder" />,
 }));
-vi.mock("@/components/widgets/v2/ic-needs-attention", () => ({
+vi.mock("@/components/widgets/dashboard/ic-needs-attention", () => ({
   IcNeedsAttention: () => <div data-testid="needs-attention" />,
 }));
 vi.mock("@/components/widgets/metric-views/metric-group-card", () => ({
@@ -52,7 +52,7 @@ vi.mock("@/components/widgets/metric-views/metric-group-card", () => ({
     </button>
   ),
 }));
-vi.mock("@/components/widgets/v2/group-drilldown-sheet", () => ({
+vi.mock("@/components/widgets/dashboard/group-drilldown-sheet", () => ({
   GroupDrilldownSheet: ({ open, def }: { open: boolean; def: { id: string } }) =>
     open ? <div data-testid={`drilldown-${def.id}`} /> : null,
 }));

@@ -38,7 +38,7 @@ export interface MetricDefinition {
   last_observed_date: string | null;
 }
 
-export type MetricSchemaErrorCode =
+type MetricSchemaErrorCode =
   | "table_not_found"
   | "column_not_found"
   | "dimension_not_covered"

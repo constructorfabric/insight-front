@@ -12,8 +12,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type {
-  MetricDefinition,
   MetricDefinitionSchemaStatus,
+  MetricDefinition,
 } from "@/api/metric-definitions-client";
 import { useMetricDefinitions } from "@/queries/metric-definitions";
 import { cn } from "@/lib/utils";

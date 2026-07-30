@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { metricGroups } from "@/lib/insight/groups";
+import { GROUPS } from "@/lib/insight/groups";
 import { DIRECTIONS } from "@/lib/portal/nav-model";
 import {
   DIRECTION_LENSES,
@@ -11,7 +11,7 @@ import {
 } from "./lens-configs";
 
 const KNOWN_KEYS = new Set(
-  metricGroups().flatMap((g) => g.collection.metrics.map((m) => m.key)),
+  GROUPS.flatMap((g) => g.collection.metrics.map((m) => m.key)),
 );
 
 describe("DIRECTION_LENSES registry", () => {
@@ -112,7 +112,7 @@ describe("sectionMetricKeys — Overview section kinds", () => {
     const keys = new Set(
       sectionMetricKeys({ title: "t", sections: [{ kind: "coverage-radar" }] }),
     );
-    for (const g of metricGroups()) {
+    for (const g of GROUPS) {
       for (const k of g.card.preview) expect(keys.has(k), k).toBe(true);
     }
   });

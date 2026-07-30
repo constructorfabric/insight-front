@@ -1,24 +1,27 @@
 /**
- * "Direct reports only" scoping on the legacy team view.
+ * "Direct reports only" scoping on the v2 team dashboard (#1724).
  *
- * Mirrors the v2 screen tests: the toggle narrows the member list to depth-1
- * reports, and is hidden entirely when the team has no indirect reports —
- * there it could never change the roster (#1756).
+ * The toggle (default ON) narrows the roster to depth-1 reports before it
+ * reaches any query, so the member list, the heatmap, and the metric
+ * collections all scope together. Covers:
+ *   - default render shows direct reports only, with the scope subtitle
+ *     ("Direct reports of X") and the scoped/total count on the toggle.
+ *   - toggling off widens the roster to the full subtree and flips the
+ *     subtitle to "X's department".
+ *   - the scoped roster is what reaches the metric fetch — scoping happens
+ *     upstream of it, not as a client-side row filter.
+ *   - the toggle is hidden when the team has no indirect reports, where it
+ *     could never change the roster (#1756).
  *
  * Child widgets are stubbed: this file tests the roster/toggle wiring, not
- * widget render rules.
+ * widget render rules (those have their own component tests).
  */
 
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { RosterEntry } from "@/lib/insight/identity-tree";
-import type {
-  IdentityPerson,
-  PeriodValue,
-  TeamMember,
-} from "@/types/insight";
+import type { IdentityPerson, TeamMember } from "@/types/insight";
 
 vi.mock("@/components/ic-view-toggle", () => ({
   IcViewToggle: () => null,
@@ -29,38 +32,20 @@ vi.mock("@/components/ui/sidebar", () => ({
 vi.mock("@/components/widgets/period-selector-bar", () => ({
   PeriodSelectorBar: () => null,
 }));
-vi.mock("@/components/widgets/view-mode-toggle", () => ({
-  ViewModeToggle: () => null,
+
+vi.mock("@/components/widgets/dashboard/team-members-attention", () => ({
+  TeamMembersAttention: () => null,
 }));
-vi.mock("@/components/widgets/team-hero-strip", () => ({
-  TeamHeroStrip: () => null,
-}));
-vi.mock("@/components/widgets/attention-needed", () => ({
-  AttentionNeeded: () => null,
-}));
-vi.mock("@/components/widgets/members-table", () => ({
-  MembersTable: ({ members }: { members: TeamMember[] }) => (
-    <div data-testid="members">{members.map((m) => m.name).join(",")}</div>
+vi.mock("@/components/widgets/dashboard/members-overview", () => ({
+  MembersOverview: ({ members }: { members: TeamMember[] }) => (
+    <div data-testid="heatmap">{members.map((m) => m.name).join(",")}</div>
   ),
 }));
-vi.mock("@/components/widgets/team-bullet-sections", () => ({
-  TeamBulletSections: () => null,
+vi.mock("@/components/widgets/metric-views/team-metric-group-card", () => ({
+  TeamMetricGroupCard: () => null,
 }));
-vi.mock("@/components/widgets/drill-modal", () => ({
-  DrillModal: () => null,
-}));
-vi.mock("@/components/widgets/team-metrics-modal", () => ({
-  TeamMetricsModal: () => null,
-}));
-
-vi.mock("@/api/view-configs", () => ({
-  useTeamViewConfig: () => ({
-    alert_thresholds: [],
-    column_thresholds: {},
-  }),
-}));
-vi.mock("@/lib/insight/team-kpis", () => ({
-  useTeamKpis: () => ({}),
+vi.mock("@/components/widgets/dashboard/group-drilldown-sheet", () => ({
+  GroupDrilldownSheet: () => null,
 }));
 
 const queryState = {
@@ -70,32 +55,28 @@ const queryState = {
   refetch: () => {},
 };
 
-function makeMember(entry: RosterEntry): TeamMember {
-  return {
-    person_id: entry.email,
-    period: "month" as PeriodValue,
-    name: entry.display_name,
-    seniority: "",
-    supervisor_email: entry.supervisor_email,
-    org_unit_id: null,
-    tasks_closed: 0,
-    bugs_fixed: 0,
-    dev_time_h: null,
-    prs_merged: null,
-    build_success_pct: null,
-    focus_time_pct: null,
-    ai_tools: [],
-    ai_loc_share_pct: null,
-  };
+const useMemberGridData = vi.fn((_collection: unknown, _entity: unknown) => ({
+  byKey: new Map(),
+  previousByKey: new Map(),
+  ...queryState,
+}));
+
+vi.mock("@/queries/member-grid", () => ({
+  useMemberGridData: (...args: [unknown, unknown]) =>
+    useMemberGridData(args[0], args[1]),
+}));
+
+/** Entity ids the scoped roster sent to the heatmap fetch. */
+function heatmapFetchedIds(): string[] {
+  const entity = useMemberGridData.mock.lastCall?.[1] as
+    | { ids: string[] }
+    | undefined;
+  return entity?.ids ?? [];
 }
 
-vi.mock("@/queries/team-view", () => ({
-  useTeamMembers: (_teamId: string, roster: RosterEntry[] | null) => ({
-    ...queryState,
-    data: (roster ?? []).map(makeMember),
-  }),
-  useTeamBulletSection: () => ({ ...queryState, data: undefined }),
-  useTeamDrill: () => ({ ...queryState, data: undefined }),
+vi.mock("@/queries/metric-results", () => ({
+  useMetricCollectionSet: () => new Map(),
+  collectionSetPending: () => false,
 }));
 
 function person(
@@ -140,13 +121,17 @@ function renderScreen(teamId = "alice@x.io") {
 }
 
 describe("TeamViewScreen direct-reports scoping", () => {
-  it("defaults to direct reports only when subteams exist", () => {
+  it("defaults to direct reports only, scoping the roster before the fetch", () => {
     renderScreen();
 
+    expect(
+      screen.getByText("Direct reports of Alice · 2 members"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Direct reports only")).toBeInTheDocument();
     expect(screen.getByText("(2/3)")).toBeInTheDocument();
-    expect(screen.getByText("Direct reports of Alice")).toBeInTheDocument();
-    expect(screen.getByTestId("members")).toHaveTextContent("Bob,Erin");
+    expect(screen.getByTestId("heatmap")).toHaveTextContent("Bob,Erin");
+
+    expect(heatmapFetchedIds()).toEqual(["bob@x.io", "erin@x.io"]);
   });
 
   it("widens to the whole department when toggled off", async () => {
@@ -155,9 +140,13 @@ describe("TeamViewScreen direct-reports scoping", () => {
 
     await user.click(screen.getByRole("switch"));
 
-    expect(screen.getByText("Alice's department")).toBeInTheDocument();
+    expect(
+      screen.getByText("Alice's department · 3 members"),
+    ).toBeInTheDocument();
     expect(screen.getByText("(3/3)")).toBeInTheDocument();
-    expect(screen.getByTestId("members")).toHaveTextContent("Bob,Carol,Erin");
+    expect(screen.getByTestId("heatmap")).toHaveTextContent("Bob,Carol,Erin");
+
+    expect(heatmapFetchedIds()).toEqual(["bob@x.io", "carol@x.io", "erin@x.io"]);
   });
 
   it("hides the toggle for a team with no subteams (#1756)", () => {
@@ -166,7 +155,14 @@ describe("TeamViewScreen direct-reports scoping", () => {
 
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
     expect(screen.queryByText("Direct reports only")).not.toBeInTheDocument();
-    expect(screen.getByText("Dave's department")).toBeInTheDocument();
-    expect(screen.getByTestId("members")).toHaveTextContent("Fay,Gil");
+    // Without the toggle the scope label is meaningless too — the subtitle
+    // is just the member count, and the full roster reaches the queries.
+    expect(screen.getByText("2 members")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Direct reports of|department/),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("heatmap")).toHaveTextContent("Fay,Gil");
+
+    expect(heatmapFetchedIds()).toEqual(["fay@x.io", "gil@x.io"]);
   });
 });

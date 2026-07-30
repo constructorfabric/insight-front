@@ -1,0 +1,182 @@
+name: Trivy SCA
+
+# Software-composition analysis over the source tree (constructorfabric/insight#1478).
+# Two passes, matching the org's GitLab trivy-scan component:
+#
+#   critical — CRITICAL only, and the one pass that also runs the secret scanner. Report-only
+#            (`--exit-code 0`), like everything else here: a CRITICAL surfaces in the log without
+#            stopping a merge. Kept as a separate pass because it is the only place secrets are
+#            scanned, and those must never reach a SARIF upload on a public repository.
+#            Baseline today: 0 CRITICAL.
+#   report — every severity, never blocks. Findings land in "Security -> Code scanning"
+#            (SARIF) plus a job-summary table. Baseline today: 37 vulnerabilities and 2
+#            misconfigurations, most of them build-time tooling declared under `dependencies`.
+#
+# Scope: this scans the repository (`trivy fs`) — lock file, Dockerfile, configs. It does NOT
+# see the image that ships: base-image and OS-package CVEs are covered by the `trivy-image`
+# job in docker.yml, which runs against the pushed manifest.
+#
+# The report pass deliberately drops the secret scanner (`--scanners vuln,misconfig`): Code
+# Scanning alerts on a public repository are world-readable, and Trivy's secret findings quote
+# the surrounding match. Secrets stay in the `critical` pass, whose output goes to the log only,
+# and TruffleHog owns the domain anyway (trufflehog.yml).
+#
+# Dev dependencies are included (`--include-dev-deps`). They are not in the shipped bundle, but a
+# compromised one executes on the runner during the build, so leaving them out understates the
+# supply-chain surface rather than simplifying it.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # Nightly, 03:41 UTC — after the TruffleHog sweep (03:13) and Semgrep baseline (03:27),
+    # so a bad night shows up as three separate red checks rather than one pile.
+    - cron: "41 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Digest-pinned Trivy, same convention as semgrep.yml / trufflehog.yml.
+  TRIVY_IMAGE: aquasec/trivy:0.72.0@sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f
+
+jobs:
+  gate:
+    name: critical (report-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+
+      - name: Trivy fs scan — CRITICAL only (report-only)
+        # `--ignore-unfixed` keeps the output actionable: a CRITICAL with no released fix cannot
+        # be resolved by the PR author. Waivers go in `.trivyignore` at the repo root,
+        # date-scoped — they matter again the moment this pass becomes blocking:
+        #   CVE-2026-12345   exp:2026-12-31   # tracked in <issue>, fix queued
+        #
+        # `-w /src` is required for that: Trivy resolves the default ignore file relative to the
+        # working directory. Do not switch to `--ignorefile` — it exits FATAL when the file is
+        # absent, breaking every run until someone adds a waiver.
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/src:ro" \
+            -w /src \
+            "$TRIVY_IMAGE" fs \
+              --scanners vuln,secret,misconfig \
+              --severity CRITICAL \
+              --ignore-unfixed \
+              --exit-code 0 \
+              --no-progress \
+              /src
+
+  report:
+    name: report (all severities)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read # checkout
+      security-events: write # upload SARIF to Code Scanning
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+
+      - name: Trivy fs scan — all severities, dev deps included
+        # One scan, two formats: JSON feeds the summary below, and `trivy convert` derives the
+        # SARIF from that same JSON instead of rescanning. `-w /src` for the ignore-file reason
+        # documented on the `critical` pass. `--exit-code 0` — nothing here blocks.
+        #
+        # CRITICAL is in the severity list even though the `critical` pass covers it: that pass
+        # only prints a table, so without this a CRITICAL would never appear as an alert.
+        #
+        # `--include-dev-deps` because a compromised build-time dependency executes on the runner
+        # and can alter the bundle; Trivy's pnpm default hides them.
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/src" \
+            -v /tmp/trivy-cache:/root/.cache \
+            -w /src \
+            "$TRIVY_IMAGE" fs \
+              --scanners vuln,misconfig \
+              --severity CRITICAL,HIGH,MEDIUM,LOW \
+              --include-dev-deps \
+              --exit-code 0 \
+              --no-progress \
+              --format json --output /src/trivy-fs.json \
+              /src
+          docker run --rm \
+            -v "${{ github.workspace }}:/src" \
+            "$TRIVY_IMAGE" convert \
+              --format sarif --output /src/trivy-fs.sarif \
+              /src/trivy-fs.json
+
+      - name: Summarize findings in the job summary
+        if: always()
+        # Null-guarded append (repo convention, cf. ci.yml). Groups by package so the summary
+        # reflects the unit of remediation ("bump X") rather than the CVE count.
+        run: |
+          [ -f trivy-fs.json ] || exit 0
+          [ -n "${GITHUB_STEP_SUMMARY:-}" ] || exit 0
+          CS_BASE="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/security/code-scanning"
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            CS_URL="${CS_BASE}?query=is%3Aopen+pr%3A${GITHUB_REF_NAME%/merge}"
+          else
+            CS_URL="${CS_BASE}?query=is%3Aopen+branch%3A${GITHUB_REF_NAME}"
+          fi
+          python3 - trivy-fs.json "$GITHUB_STEP_SUMMARY" "$CS_URL" <<'PY'
+          import json, sys, collections
+          d = json.load(open(sys.argv[1], encoding="utf-8"))
+          out = open(sys.argv[2], "a", encoding="utf-8")
+          cs_url = sys.argv[3]
+          w = out.write
+          vulns, miscfg = [], []
+          for r in d.get("Results") or []:
+              vulns += r.get("Vulnerabilities") or []
+              miscfg += [(r.get("Target"), m) for m in (r.get("Misconfigurations") or [])]
+          w("## Trivy SCA (report-only)\n\n")
+          w(f"**{len(vulns)}** vulnerabilit(ies) + **{len(miscfg)}** misconfiguration(s), every "
+            f"severity, production and development dependencies. Nothing here blocks a merge. Full details in [Security -> Code scanning]({cs_url}).\n\n")
+          if vulns:
+              sev = collections.Counter(v["Severity"] for v in vulns)
+              w("| Severity | Count |\n|---|---:|\n")
+              for s in ("CRITICAL", "HIGH", "MEDIUM", "LOW"):
+                  if sev.get(s):
+                      w(f"| {s} | {sev[s]} |\n")
+              # One row per (package, version): that is what an upgrade actually fixes.
+              bundles = collections.defaultdict(list)
+              for v in vulns:
+                  bundles[(v["PkgName"], v.get("InstalledVersion", "?"))].append(v)
+              rank = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+              w("\n<details><summary>By package</summary>\n\n| Package | Max | CVEs | Fixed in |\n|---|---|---:|---|\n")
+              for (pkg, ver), items in sorted(
+                      bundles.items(), key=lambda kv: (min(rank.get(i["Severity"], 4) for i in kv[1]), kv[0])):
+                  worst = min(items, key=lambda i: rank.get(i["Severity"], 4))["Severity"]
+                  fixes = sorted({i.get("FixedVersion") or "-" for i in items})
+                  w(f"| `{pkg}@{ver}` | {worst} | {len(items)} | {', '.join(fixes)} |\n")
+              w("\n</details>\n")
+          if miscfg:
+              w("\n<details><summary>Misconfigurations</summary>\n\n| Severity | ID | Target | Title |\n|---|---|---|---|\n")
+              for target, m in miscfg:
+                  w(f"| {m['Severity']} | `{m['ID']}` | `{target}` | {m.get('Title', '')} |\n")
+              w("\n</details>\n")
+          PY
+
+      - name: Upload SARIF to GitHub Code Scanning
+        # Skip on fork PRs: read-only token cannot upload, which would red-X this report-only job.
+        # The hashFiles guard keeps a failed scan from producing a second, misleading error that
+        # points at Code Scanning rather than at the scan that actually broke.
+        if: ${{ always() && hashFiles('trivy-fs.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        uses: github/codeql-action/upload-sarif@fb0994ef1c058010acf1efccff928b0a83b1ed54 # v4.32.6
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-fs

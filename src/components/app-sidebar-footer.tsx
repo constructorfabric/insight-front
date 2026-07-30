@@ -3,7 +3,7 @@ import { BookOpenText, Megaphone } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { useViewer } from "@/auth";
-import { SidebarV2Settings } from "@/components/sidebar-v2-settings";
+import { SidebarSettings } from "@/components/sidebar-settings";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -11,13 +11,12 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { useMetricsV2Enabled } from "@/lib/feature-flags";
 import { getInitials } from "@/lib/insight/get-initials";
 import { useIcPerson } from "@/queries/ic-dashboard";
 
 /**
- * Shared footer for the sidebar chrome: What's new, view settings
- * (portal / metrics-v2 / focus / explanations), theme switch, and the viewer
+ * Shared footer for the sidebar chrome: metric catalog, What's new, view
+ * settings (portal / focus / explanations), theme switch, and the viewer
  * identity block. Extracted from AppSidebar so the portal shell can surface
  * the same controls (from the rail's settings popover) without duplicating them.
  */
@@ -27,7 +26,6 @@ export function AppSidebarFooter() {
   const viewerQ = useIcPerson(viewerEmail ?? "");
   const viewer = viewerQ.data ?? null;
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const metricsV2 = useMetricsV2Enabled();
 
   const primaryEmail = viewer?.email ?? viewerEmail;
   const primary = viewer?.display_name || primaryEmail;
@@ -36,17 +34,15 @@ export function AppSidebarFooter() {
   return (
     <>
       <SidebarMenu>
-        {metricsV2 ? (
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              isActive={pathname === "/metrics"}
-              render={<Link to="/metrics" />}
-            >
-              <BookOpenText />
-              <span>{t("metric_definitions.nav_label")}</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ) : null}
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            isActive={pathname === "/metrics"}
+            render={<Link to="/metrics" />}
+          >
+            <BookOpenText />
+            <span>{t("metric_definitions.nav_label")}</span>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
         <SidebarMenuItem>
           <SidebarMenuButton
             isActive={pathname === "/whats-new"}
@@ -57,7 +53,7 @@ export function AppSidebarFooter() {
           </SidebarMenuButton>
         </SidebarMenuItem>
       </SidebarMenu>
-      <SidebarV2Settings />
+      <SidebarSettings />
       <ThemeSwitcher />
       {viewerEmail ? (
         <SidebarMenu>

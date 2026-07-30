@@ -9,12 +9,11 @@ import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { NormalizedMetricResult } from "@/lib/metrics/collection";
-import type { IdentityPerson, TeamMember } from "@/types/insight";
+import type { IdentityPerson } from "@/types/insight";
 
 const mocks = vi.hoisted(() => ({
   email: "boss@x" as string | null,
   tree: undefined as IdentityPerson | undefined,
-  members: [] as TeamMember[],
   grid: {
     byKey: new Map<string, NormalizedMetricResult>(),
     previousByKey: new Map<string, NormalizedMetricResult>(),
@@ -29,10 +28,7 @@ vi.mock("@/auth", () => ({ useViewer: () => ({ email: mocks.email }) }));
 vi.mock("@/queries/ic-dashboard", () => ({
   useIcPerson: () => ({ data: mocks.tree, isPending: false, isLoading: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock("@/queries/team-view", () => ({
-  useTeamMembers: () => ({ data: mocks.members, isPending: false, isLoading: false, isError: false, refetch: vi.fn() }),
-}));
-vi.mock("@/queries/v2/member-grid", () => ({ useMemberGridData: () => mocks.grid }));
+vi.mock("@/queries/member-grid", () => ({ useMemberGridData: () => mocks.grid }));
 vi.mock("@/hooks/use-period", () => ({
   usePeriod: () => ({ period: "week", dateRange: { start: "2026-07-20", end: "2026-07-26" } }),
 }));
@@ -46,8 +42,6 @@ import { TeamStateView } from "./team-state-view";
 const person = (email: string, subs: IdentityPerson[] = []): IdentityPerson =>
   ({ email, display_name: email.split("@")[0], subordinates: subs }) as unknown as IdentityPerson;
 
-const member = (id: string): TeamMember =>
-  ({ person_id: id, name: `Name ${id.split("@")[0]}` }) as unknown as TeamMember;
 
 function metric(
   key: string,
@@ -72,10 +66,9 @@ const IDS = ["a@x", "b@x", "c@x", "d@x"];
 beforeEach(() => {
   mocks.email = "boss@x";
   mocks.tree = person("boss@x", IDS.map((id) => person(id)));
-  mocks.members = IDS.map(member);
   mocks.grid.isPending = false;
   mocks.grid.isError = false;
-  // git.commits is a real headline key (metricGroups card.preview) — the view
+  // git.commits is a real headline key (GROUPS card.preview) — the view
   // only renders columns from that set.
   mocks.grid.byKey = new Map([
     ["git.commits", metric("git.commits", [["a@x", 10], ["b@x", 20], ["c@x", 30], ["d@x", 40]], { label: "Commits" })],
@@ -100,8 +93,9 @@ describe("TeamStateView", () => {
     render(<TeamStateView />);
     expect(screen.getByText("boss's team")).toBeInTheDocument();
     expect(screen.getByText(/4 people · state & attention/)).toBeInTheDocument();
+    // Names come from identity now — the roster is the member list.
     for (const id of IDS) {
-      expect(screen.getByText(`Name ${id.split("@")[0]}`)).toBeInTheDocument();
+      expect(screen.getByText(id.split("@")[0]!)).toBeInTheDocument();
     }
   });
 
@@ -126,8 +120,7 @@ describe("TeamStateView", () => {
   });
 
   it("gates on the empty roster with the People-specific label", () => {
-    mocks.members = [];
-    mocks.tree = person("boss@x");
+    mocks.tree = person("boss@x"); // a manager with nobody under them
     render(<TeamStateView />);
     expect(
       screen.getByText(

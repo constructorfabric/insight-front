@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { CenteredSpinner } from "@/components/widgets/centered-spinner";
 import { ComingSoon } from "@/components/widgets/coming-soon";
 import { orgScopeGate } from "@/components/portal/org-scope-gate";
-import { MembersGrid } from "@/components/widgets/v2/members-grid";
+import { MembersGrid } from "@/components/widgets/dashboard/members-grid";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/table";
 import { usePeriod } from "@/hooks/use-period";
 import { formatMetricValue } from "@/lib/format";
-import { metricGroups } from "@/lib/insight/groups";
+import { GROUPS } from "@/lib/insight/groups";
 import {
   availableSlices,
   cohortKey,
@@ -31,9 +31,9 @@ import {
 } from "@/lib/metrics/collection";
 import { normalizePersonId } from "@/lib/metrics/entity";
 import { usePortalSlice } from "@/lib/portal/portal-store";
+import type { TeamMember } from "@/types/insight";
 import { useOrgScope } from "@/lib/portal/use-org-scope";
-import { useTeamMembers } from "@/queries/team-view";
-import { useMemberGridData } from "@/queries/v2/member-grid";
+import { useMemberGridData } from "@/queries/member-grid";
 import { useMetricCollection } from "@/queries/metric-results";
 
 const EMPTY_COLLECTION: MetricCollectionConfig = { metrics: [] };
@@ -108,19 +108,27 @@ export function AiCostView({ item }: { item: string | null }) {
   const { period, dateRange } = usePeriod();
 
   const orgScope = useOrgScope();
-  const { pivot, roster, pivotEmail } = orgScope;
+  const { pivot, roster } = orgScope;
 
-  const membersQ = useTeamMembers(pivotEmail, roster, period, dateRange, {
-    keepPrevious: true,
-  });
-  const members = useMemo(() => membersQ.data ?? [], [membersQ.data]);
+  // The roster IS the member list: identity owns who is on the team and
+  // every metric for them comes from `/v1/metric-results`. There is no second
+  // source to reconcile — the legacy per-member batch this used to call was
+  // removed upstream with the rest of the old metric UI.
+  const members = useMemo<TeamMember[]>(
+    () =>
+      (roster ?? []).map((entry) => ({
+        person_id: entry.email,
+        name: entry.display_name,
+      })),
+    [roster],
+  );
   const memberIds = useMemo(
     () => members.map((m) => normalizePersonId(m.person_id)),
     [members],
   );
 
   const aiGroup = useMemo(
-    () => metricGroups().find((g) => g.id === "ai_adoption") ?? null,
+    () => GROUPS.find((g) => g.id === "ai_adoption") ?? null,
     [],
   );
   const gridCollection = useMemo<MetricCollectionConfig>(
@@ -268,15 +276,14 @@ export function AiCostView({ item }: { item: string | null }) {
   const gate = orgScopeGate({
     viewerLoading: orgScope.isLoading,
     viewerError: orgScope.isError,
-    membersLoading: membersQ.isLoading,
-    membersError: membersQ.isError,
+    membersLoading: false,
+    membersError: false,
     memberCount: members.length,
     gridPending: grid.isPending,
     gridError: grid.isError,
     emptyLabel: "No people in the current scope — pick a different scope in the topbar.",
     onRetry: () => {
       orgScope.refetch();
-      membersQ.refetch();
       grid.refetch();
     },
   });

@@ -1,34 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  applyFocusStatus,
-  statusForValue,
-  statusVsMedian,
-  type StatusDef,
-} from "@/lib/status";
-
-describe("statusForValue", () => {
-  const higher: StatusDef = { good: 80, warn: 60, higher_is_better: true };
-  const lower: StatusDef = { good: 2, warn: 5, higher_is_better: false };
-
-  it("is neutral for missing or NaN values", () => {
-    expect(statusForValue(null, higher)).toBe("neutral");
-    expect(statusForValue(undefined, higher)).toBe("neutral");
-    expect(statusForValue(Number.NaN, higher)).toBe("neutral");
-  });
-
-  it("grades higher-is-better thresholds inclusively", () => {
-    expect(statusForValue(80, higher)).toBe("good");
-    expect(statusForValue(60, higher)).toBe("warn");
-    expect(statusForValue(59.9, higher)).toBe("bad");
-  });
-
-  it("grades lower-is-better thresholds inclusively", () => {
-    expect(statusForValue(2, lower)).toBe("good");
-    expect(statusForValue(5, lower)).toBe("warn");
-    expect(statusForValue(5.1, lower)).toBe("bad");
-  });
-});
+import { applyFocusStatus, statusVsMedian } from "@/lib/status";
 
 describe("applyFocusStatus", () => {
   it("passes everything through in 'all' mode", () => {

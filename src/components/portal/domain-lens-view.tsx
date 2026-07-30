@@ -12,7 +12,7 @@ import {
 import { AttentionList } from "@/components/portal/attention-list";
 import { ComingSoon } from "@/components/widgets/coming-soon";
 import { orgScopeGate } from "@/components/portal/org-scope-gate";
-import { SectionTrend } from "@/components/widgets/v2/section-trend";
+import { SectionTrend } from "@/components/portal/section-trend";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   BarChart,
@@ -30,7 +30,7 @@ import {
   attentionSummary,
   computeAttentionFlags,
 } from "@/lib/insight/attention-flags";
-import { metricGroups } from "@/lib/insight/groups";
+import { GROUPS } from "@/lib/insight/groups";
 import { availableSlices, cohortKey, collectRosterAttrs, PLANNED_SLICES } from "@/lib/insight/slices";
 import { MIN_COHORT } from "@/lib/insight/within-team-peer";
 import {
@@ -62,10 +62,10 @@ import {
 import { DIRECTIONS } from "@/lib/portal/nav-model";
 import { buildTrendData, pickTrendBucket } from "@/lib/portal/trend-data";
 import { setPortalDir, setPortalLens, setPortalZone, usePortalSlice } from "@/lib/portal/portal-store";
+import type { TeamMember } from "@/types/insight";
 import { useOrgScope } from "@/lib/portal/use-org-scope";
-import { useTeamMembers } from "@/queries/team-view";
 import { useMetricCollection } from "@/queries/metric-results";
-import { useMemberGridData } from "@/queries/v2/member-grid";
+import { useMemberGridData } from "@/queries/member-grid";
 
 const EMPTY_COLLECTION: MetricCollectionConfig = { metrics: [] };
 
@@ -95,11 +95,19 @@ export function DomainLensView({
   const { period, dateRange } = usePeriod();
 
   const orgScope = useOrgScope();
-  const { pivot, roster, pivotEmail } = orgScope;
-  const membersQ = useTeamMembers(pivotEmail, roster, period, dateRange, {
-    keepPrevious: true,
-  });
-  const members = useMemo(() => membersQ.data ?? [], [membersQ.data]);
+  const { pivot, roster } = orgScope;
+  // The roster IS the member list: identity owns who is on the team and
+  // every metric for them comes from `/v1/metric-results`. There is no second
+  // source to reconcile — the legacy per-member batch this used to call was
+  // removed upstream with the rest of the old metric UI.
+  const members = useMemo<TeamMember[]>(
+    () =>
+      (roster ?? []).map((entry) => ({
+        person_id: entry.email,
+        name: entry.display_name,
+      })),
+    [roster],
+  );
   const memberIds = useMemo(
     () => members.map((m) => normalizePersonId(m.person_id)),
     [members],
@@ -232,8 +240,8 @@ export function DomainLensView({
   const gate = orgScopeGate({
     viewerLoading: orgScope.isLoading,
     viewerError: orgScope.isError,
-    membersLoading: membersQ.isLoading,
-    membersError: membersQ.isError,
+    membersLoading: false,
+    membersError: false,
     memberCount: members.length,
     gridPending: grid.isPending,
     gridError: grid.isError,
@@ -241,7 +249,6 @@ export function DomainLensView({
       "No team in the current scope — a Direction shows a domain across a team; pick a different scope in the topbar.",
     onRetry: () => {
       orgScope.refetch();
-      membersQ.refetch();
       grid.refetch();
     },
   });
@@ -1045,7 +1052,7 @@ function CoverageRadarSection({
   memberIds: readonly string[];
 }) {
   if (memberIds.length < MIN_COHORT) return null;
-  const data = metricGroups().map((g) => ({
+  const data = GROUPS.map((g) => ({
     domain: g.title,
     coverage: Math.round((groupCoverage(grid.byKey, g.card.preview, memberIds) ?? 0) * 100),
   }));

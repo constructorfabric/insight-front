@@ -1,5 +1,5 @@
 import type { MetricBucket } from "@/api/metric-results-client";
-import type { SectionTrendPoint } from "@/components/widgets/v2/section-trend";
+import type { SectionTrendPoint } from "@/components/portal/section-trend";
 import {
   forEntity,
   MAX_PROJECTED_ROWS,

@@ -13,14 +13,17 @@ import {
   YAxis,
   type ChartConfig,
 } from "@/components/ui/chart";
+import { buildMetricTimeseriesChartModel } from "@/components/widgets/metric-views/metric-timeseries-chart-model";
 import type { MetricTimeseriesModel } from "@/components/widgets/metric-views/metric-timeseries-model";
 import { formatMetricNumber } from "@/lib/format";
 import { percentShareLabels } from "@/lib/metrics/shares";
+import type { MetricTimeseriesChartConfig } from "@/lib/metrics/timeseries-chart";
 import { seriesColors } from "@/lib/series-colors";
 
 export interface MetricTimeseriesChartProps {
   model: MetricTimeseriesModel;
   selectedMetricKey: string;
+  multiMetric?: MetricTimeseriesChartConfig["multiMetric"];
 }
 
 function dateLabel(value: string, pattern: string): string {
@@ -32,17 +35,22 @@ function dateLabel(value: string, pattern: string): string {
 export function MetricTimeseriesChart({
   model,
   selectedMetricKey,
+  multiMetric = "selectable",
 }: MetricTimeseriesChartProps) {
-  const selectedMetric =
-    model.metrics.find((metric) => metric.metric_key === selectedMetricKey) ??
-    model.metrics[0];
-  if (!selectedMetric) return null;
+  const chartModel = buildMetricTimeseriesChartModel(
+    model,
+    selectedMetricKey,
+    multiMetric
+  );
+  if (!chartModel) return null;
 
-  const colors = seriesColors(model.columns.map((column) => column.colorSeed));
+  const colors = seriesColors(
+    chartModel.series.map((series) => series.colorSeed)
+  );
   const config: ChartConfig = Object.fromEntries(
-    model.columns.map((column) => [
-      column.key,
-      { label: column.label, color: colors[column.colorSeed] },
+    chartModel.series.map((series) => [
+      series.key,
+      { label: series.label, color: colors[series.colorSeed] },
     ])
   );
   const data = model.buckets.map((bucketStart) => ({
@@ -53,16 +61,14 @@ export function MetricTimeseriesChart({
     ),
     tooltipLabel: dateLabel(bucketStart, "MMMM d, yyyy"),
     ...Object.fromEntries(
-      model.columns.map((column) => [
-        column.key,
-        column.points.get(selectedMetric.metric_key)?.get(bucketStart) ?? null,
+      chartModel.series.map((series) => [
+        series.key,
+        series.points.get(bucketStart) ?? 0,
       ])
     ),
   }));
-  const totals = model.columns.map(
-    (column) => column.totals.get(selectedMetric.metric_key) ?? null
-  );
-  const shares = percentShareLabels(totals.map((value) => value ?? 0));
+  const totals = chartModel.series.map((series) => series.total ?? 0);
+  const shares = percentShareLabels(totals);
   const chartContent = (
     <>
       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -77,7 +83,7 @@ export function MetricTimeseriesChart({
       <YAxis
         tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
         tickFormatter={(value) =>
-          formatMetricNumber(Number(value), selectedMetric.format)
+          formatMetricNumber(Number(value), chartModel.valueMetric.format)
         }
         tickLine={false}
         axisLine={false}
@@ -102,19 +108,19 @@ export function MetricTimeseriesChart({
         config={config}
         className="aspect-auto min-h-0 w-full flex-1"
       >
-        {model.dimensions.length > 0 ? (
+        {chartModel.grouped ? (
           <BarChart
             data={data}
             margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
           >
             {chartContent}
-            {model.columns.map((column) => (
+            {chartModel.series.map((series) => (
               <ChartBar
-                key={column.key}
-                dataKey={column.key}
-                stackId={selectedMetric.metric_key}
-                fill={`var(--color-${column.key})`}
-                name={column.label}
+                key={series.key}
+                dataKey={series.key}
+                stackId={chartModel.valueMetric.metric_key}
+                fill={`var(--color-${series.key})`}
+                name={series.label}
                 radius={[2, 2, 0, 0]}
               />
             ))}
@@ -125,33 +131,33 @@ export function MetricTimeseriesChart({
             margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
           >
             {chartContent}
-            {model.columns.map((column) => (
+            {chartModel.series.map((series) => (
               <ChartLine
-                key={column.key}
-                dataKey={column.key}
-                stroke={`var(--color-${column.key})`}
+                key={series.key}
+                dataKey={series.key}
+                stroke={`var(--color-${series.key})`}
                 strokeWidth={2}
-                name={selectedMetric.label}
+                name={series.label}
               />
             ))}
           </LineChart>
         )}
       </ChartContainer>
-      {model.dimensions.length > 0 ? (
+      {chartModel.grouped || chartModel.series.length > 1 ? (
         <ul className="mt-3 flex max-h-16 shrink-0 flex-wrap gap-x-6 gap-y-1.5 overflow-y-auto">
-          {model.columns.map((column, index) => (
-            <li key={column.key} className="flex items-center gap-2 text-xs">
+          {chartModel.series.map((series, index) => (
+            <li key={series.key} className="flex items-center gap-2 text-xs">
               <span
                 aria-hidden
                 className="size-2.5 shrink-0 rounded-[3px]"
-                style={{ backgroundColor: colors[column.colorSeed] }}
+                style={{ backgroundColor: colors[series.colorSeed] }}
               />
-              <span className="font-medium">{column.label}</span>
-              <span className="text-muted-foreground tabular-nums">
-                {totals[index] == null
-                  ? "—"
-                  : `${formatMetricNumber(totals[index], selectedMetric.format)}${selectedMetric.unit ? ` ${selectedMetric.unit}` : ""}${shares[index] ? ` · ${shares[index]}%` : ""}`}
-              </span>
+              <span className="font-medium">{series.label}</span>
+              {chartModel.grouped ? (
+                <span className="text-muted-foreground tabular-nums">
+                  {`${formatMetricNumber(totals[index] ?? 0, chartModel.valueMetric.format)}${chartModel.valueMetric.unit ? ` ${chartModel.valueMetric.unit}` : ""}${shares[index] ? ` · ${shares[index]}%` : ""}`}
+                </span>
+              ) : null}
             </li>
           ))}
         </ul>

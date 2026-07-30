@@ -17,7 +17,7 @@ import {
  */
 
 /** Why a standing is (in)eligible, most specific reason wins. */
-export type StandingReason =
+type StandingReason =
   /** Rankable — `rank` is meaningful. */
   | "ok"
   /** No period value for the entity. */

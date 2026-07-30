@@ -12,7 +12,6 @@ vi.mock("@/hooks/use-settings", () => ({
 }));
 
 const DEF: MetricGroup = {
-  kind: "metrics",
   id: "ai_adoption",
   title: "AI adoption",
   collection: {

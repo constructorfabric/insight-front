@@ -18,7 +18,7 @@ import type {
   TimeseriesView,
 } from "@/api/metric-results-client";
 
-export type MetricCollectionBucket = MetricBucket | "auto";
+type MetricCollectionBucket = MetricBucket | "auto";
 
 export interface MetricTimeseriesGroupLimitConfig {
   count: number;
@@ -26,7 +26,7 @@ export interface MetricTimeseriesGroupLimitConfig {
   includeRemainder: boolean;
 }
 
-export type MetricCollectionViewConfig =
+type MetricCollectionViewConfig =
   | { view: "period" }
   | { view: "peer" }
   | {
@@ -41,7 +41,7 @@ export type MetricCollectionViewConfig =
     }
   | { view: "histogram" };
 
-export interface MetricCollectionMetricConfig {
+interface MetricCollectionMetricConfig {
   key: string;
   filters?: MetricDimensionFilter[];
   views: MetricCollectionViewConfig[];

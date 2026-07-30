@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { metricGroups } from "@/lib/insight/groups";
+import { GROUPS } from "@/lib/insight/groups";
 import { ZONE_SECTIONS } from "@/lib/portal/nav-model";
 import { sectionMetricKeys } from "@/lib/portal/lens-configs";
 import { DEFAULT_OVERVIEW_ITEM, OVERVIEW_ITEMS, overviewMetricKeys } from "./overview-configs";
 
 const KNOWN_KEYS = new Set(
-  metricGroups().flatMap((g) => g.collection.metrics.map((m) => m.key)),
+  GROUPS.flatMap((g) => g.collection.metrics.map((m) => m.key)),
 );
 const NAV_ITEM_IDS = (ZONE_SECTIONS.overview ?? []).flatMap((group) =>
   group.items.map((i) => i.id),

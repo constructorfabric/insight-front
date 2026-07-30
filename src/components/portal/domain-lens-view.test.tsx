@@ -11,15 +11,13 @@ import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { NormalizedMetricResult } from "@/lib/metrics/collection";
-import type { IdentityPerson, TeamMember } from "@/types/insight";
+import type { IdentityPerson } from "@/types/insight";
 
 /* ── module mocks ────────────────────────────────────────────────────── */
 
 const mocks = vi.hoisted(() => ({
   email: "boss@x" as string | null,
   tree: undefined as IdentityPerson | undefined,
-  members: [] as TeamMember[],
-  membersPending: false,
   grid: {
     byKey: new Map<string, NormalizedMetricResult>(),
     previousByKey: new Map<string, NormalizedMetricResult>(),
@@ -46,16 +44,7 @@ vi.mock("@/queries/ic-dashboard", () => ({
     refetch: vi.fn(),
   }),
 }));
-vi.mock("@/queries/team-view", () => ({
-  useTeamMembers: () => ({
-    data: mocks.members,
-    isPending: mocks.membersPending,
-    isLoading: mocks.membersPending,
-    isError: false,
-    refetch: vi.fn(),
-  }),
-}));
-vi.mock("@/queries/v2/member-grid", () => ({
+vi.mock("@/queries/member-grid", () => ({
   useMemberGridData: () => mocks.grid,
 }));
 // DomainLensView calls useMetricCollection three times (trend, composition,
@@ -78,7 +67,7 @@ vi.mock("@/hooks/use-period", () => ({
 }));
 // Charts are exercised by the browser/storybook project; here they'd render
 // into a 0×0 jsdom box. Stub them with introspectable placeholders.
-vi.mock("@/components/widgets/v2/section-trend", () => ({
+vi.mock("@/components/portal/section-trend", () => ({
   SectionTrend: ({ series }: { series: unknown[] }) => (
     <div data-testid="section-trend" data-series={JSON.stringify(series ?? []).length} />
   ),
@@ -135,15 +124,12 @@ const person = (
 ): IdentityPerson =>
   ({ email, display_name: email.split("@")[0], subordinates, ...over }) as unknown as IdentityPerson;
 
-const member = (id: string): TeamMember =>
-  ({ person_id: id, name: `Name ${id.split("@")[0]}` }) as unknown as TeamMember;
 
 const IDS = ["a@x", "b@x", "c@x", "d@x"];
 
 function seedHappyOrg() {
   mocks.email = "boss@x";
   mocks.tree = person("boss@x", {}, IDS.map((id) => person(id)));
-  mocks.members = IDS.map(member);
   // 4 members, 10+20+30+40 = 100 commits; everyone active.
   mocks.grid.byKey = new Map([
     ["t.commits", metric("t.commits", [["a@x", 10], ["b@x", 20], ["c@x", 30], ["d@x", 40]], { short_label: "Commits", unit: "commits" })],
@@ -164,7 +150,6 @@ beforeEach(() => {
   seedHappyOrg();
   mocks.grid.isPending = false;
   mocks.grid.isError = false;
-  mocks.membersPending = false;
   act(() => {
     setPortalSlice("");
     setPortalScope({ root: null, directOnly: false });
@@ -217,7 +202,6 @@ describe("rule 6: honest not-ingested gate", () => {
 
 describe("org-scope gates", () => {
   it("shows the empty-roster label instead of a fabricated dashboard", () => {
-    mocks.members = [];
     mocks.tree = person("boss@x");
     render(<DomainLensView config={HEADLINE_CONFIG} />);
     expect(screen.getByText(/No team in the current scope/)).toBeInTheDocument();
@@ -389,7 +373,6 @@ describe("by-unit auto-section (rule 7: slice cohorts inside scope)", () => {
     mocks.tree = person("boss@x", {}, ids.map((id) =>
       person(id, { division: id.startsWith("a") ? "R&D" : "Sales" } as never),
     ));
-    mocks.members = ids.map(member);
     mocks.grid.byKey = new Map([
       ["t.commits", metric("t.commits", ids.map((id) => [id, id.startsWith("a") ? 10 : 30]), { short_label: "Commits" })],
     ]);
@@ -424,7 +407,6 @@ describe("direction-cards / coverage-radar / attention sections", () => {
     // 7 healthy + 1 collapsed member
     const ids = ["m1@x", "m2@x", "m3@x", "m4@x", "m5@x", "m6@x", "m7@x", "z@x"];
     mocks.tree = person("boss@x", {}, ids.map((id) => person(id)));
-    mocks.members = ids.map(member);
     mocks.grid.byKey = new Map([
       ["t.commits", metric("t.commits", ids.map((id) => [id, id === "z@x" ? 0 : 10]), { label: "Commits" })],
     ]);
@@ -438,12 +420,12 @@ describe("direction-cards / coverage-radar / attention sections", () => {
       />,
     );
     expect(screen.getByText(/1 of 8 people need a look/)).toBeInTheDocument();
-    expect(screen.getByText("Name z")).toBeInTheDocument();
+    // Identity owns the display name now.
+    expect(screen.getByText("z")).toBeInTheDocument();
     expect(screen.getByText(/no commits/)).toBeInTheDocument();
   });
 
   it("suppresses the coverage radar below the minimum cohort", () => {
-    mocks.members = [member("a@x"), member("b@x")];
     mocks.tree = person("boss@x", {}, [person("a@x"), person("b@x")]);
     render(
       <DomainLensView

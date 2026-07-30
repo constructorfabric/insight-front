@@ -25,6 +25,7 @@ import {
   TimeseriesExportMenu,
   TimeseriesPresentationToggle,
 } from "@/components/widgets/metric-views/metric-timeseries-chrome";
+import { shouldCombineTimeseriesMetrics } from "@/components/widgets/metric-views/metric-timeseries-chart-model";
 import {
   parseTimeseriesPresentation,
   serializeTimeseriesPresentation,
@@ -37,6 +38,8 @@ import {
   type MetricCollectionConfig,
   type MetricTimeseriesGroupLimitConfig,
 } from "@/lib/metrics/collection";
+import type { MetricTimeseriesTableConfig } from "@/lib/metrics/timeseries-table";
+import type { MetricTimeseriesChartConfig } from "@/lib/metrics/timeseries-chart";
 import { cn } from "@/lib/utils";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import {
@@ -44,7 +47,7 @@ import {
   useMetricCollectionSet,
 } from "@/queries/metric-results";
 
-export interface MetricTimeseriesGroupBy {
+interface MetricTimeseriesGroupBy {
   default: string;
   options?: string[];
   limits?: Record<string, MetricTimeseriesGroupLimitConfig>;
@@ -73,7 +76,9 @@ export interface MetricTimeseriesViewProps {
   range: DateRange;
   metricKeys: string[];
   defaultPresentation?: Presentation;
+  chart?: MetricTimeseriesChartConfig;
   groupBy?: MetricTimeseriesGroupBy;
+  table?: MetricTimeseriesTableConfig;
 }
 
 type Presentation = TimeseriesPresentation;
@@ -216,7 +221,9 @@ export function MetricTimeseriesView({
   range,
   metricKeys,
   defaultPresentation = "chart",
+  chart,
   groupBy,
+  table,
 }: MetricTimeseriesViewProps) {
   const [presentation, setPresentation] = useLocalStorageState<Presentation>({
     key: `insight.timeseries.${id}.presentation`,
@@ -319,6 +326,9 @@ export function MetricTimeseriesView({
   const selectedMetric =
     model.metrics.find((metric) => metric.metric_key === selectedMetricKey) ??
     model.metrics[0];
+  const shouldCombineMetrics =
+    presentation === "chart" &&
+    shouldCombineTimeseriesMetrics(model, chart?.multiMetric ?? "selectable");
   const filterModels = dimensionOptions
     .filter((dimension) => dimension !== selectedGroupBy)
     .map((dimension) => {
@@ -386,7 +396,11 @@ export function MetricTimeseriesView({
       <div className="flex items-center justify-between gap-2 border-b p-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           {selectedMetric ? (
-            model.metrics.length > 1 && presentation === "chart" ? (
+            shouldCombineMetrics ? (
+              <h3 className="px-2 text-sm font-semibold">
+                {model.metrics.map((metric) => metric.label).join(" & ")}
+              </h3>
+            ) : model.metrics.length > 1 && presentation === "chart" ? (
               <Select
                 value={selectedMetric.metric_key}
                 onValueChange={(value) => {
@@ -460,6 +474,8 @@ export function MetricTimeseriesView({
           presentation={presentation}
           model={model}
           selectedMetricKey={selectedMetric?.metric_key ?? ""}
+          multiMetric={shouldCombineMetrics ? "combined" : "selectable"}
+          table={table}
         />
       </CardContent>
     </Card>

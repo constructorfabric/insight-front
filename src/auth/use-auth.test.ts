@@ -47,6 +47,24 @@ describe("signIn", () => {
     expect(assign).toHaveBeenCalledWith("/auth/login?return_to=%2F");
   });
 
+  it("defaults return_to to the current path, query, and hash", async () => {
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: {
+        ...window.location,
+        pathname: "/board",
+        search: "?tab=1",
+        hash: "#row-9",
+        assign,
+      },
+    });
+    const signIn = await freshSignIn();
+    signIn();
+    expect(assign).toHaveBeenCalledWith(
+      `/auth/login?return_to=${encodeURIComponent("/board?tab=1#row-9")}`
+    );
+  });
+
   it("does not stack redirects while one is in flight", async () => {
     const signIn = await freshSignIn();
     signIn("/a");

@@ -8,7 +8,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { metricGroups } from "@/lib/insight/groups";
+import { GROUPS } from "@/lib/insight/groups";
 import { lensEntry } from "@/lib/portal/lens-configs";
 import { useShellLayout } from "@/lib/portal/use-shell-layout";
 import { useZoneNav } from "@/lib/portal/use-zone-nav";
@@ -488,7 +488,7 @@ function WorkChart() {
 function PersonSectionsNav() {
   const dismiss = useDismissDrawer();
   const active = usePortalItem();
-  const groups = metricGroups();
+  const groups = GROUPS;
   const groupIds = groups.map((g) => g.id) as string[];
   const glance = active == null || !groupIds.includes(active);
   return (

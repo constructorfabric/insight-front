@@ -1,10 +1,10 @@
 import { MetricGroupsView } from "@/components/portal/metric-groups-view";
 import { PersonHeader } from "@/components/portal/person-header";
 import { SingleGroupView } from "@/components/portal/single-group-view";
-import { metricGroups, type GroupId } from "@/lib/insight/groups";
+import { GROUPS, type GroupId } from "@/lib/insight/groups";
 import { setPortalItem, usePortalItem } from "@/lib/portal/portal-store";
 
-const PERSON_GROUP_IDS: readonly GroupId[] = metricGroups().map((g) => g.id);
+const PERSON_GROUP_IDS: readonly GroupId[] = GROUPS.map((g) => g.id);
 
 /**
  * Person zone: one specific person (like the reporting tool's Person page).

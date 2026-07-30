@@ -2,7 +2,7 @@ import { useMemo } from "react";
 
 import { AttentionList } from "@/components/portal/attention-list";
 import { orgScopeGate } from "@/components/portal/org-scope-gate";
-import { MembersGrid } from "@/components/widgets/v2/members-grid";
+import { MembersGrid } from "@/components/widgets/dashboard/members-grid";
 import { Card, CardContent } from "@/components/ui/card";
 import { usePeriod } from "@/hooks/use-period";
 import { formatMetricValue } from "@/lib/format";
@@ -10,7 +10,7 @@ import {
   attentionSummary,
   computeAttentionFlags,
 } from "@/lib/insight/attention-flags";
-import { headlineMetricKeys, metricGroups } from "@/lib/insight/groups";
+import { headlineMetricKeys, GROUPS } from "@/lib/insight/groups";
 import {
   availableSlices,
   cohortKey,
@@ -25,9 +25,9 @@ import {
 } from "@/lib/metrics/collection";
 import { normalizePersonId } from "@/lib/metrics/entity";
 import { usePortalSlice } from "@/lib/portal/portal-store";
+import type { TeamMember } from "@/types/insight";
 import { useOrgScope } from "@/lib/portal/use-org-scope";
-import { useTeamMembers } from "@/queries/team-view";
-import { useMemberGridData } from "@/queries/v2/member-grid";
+import { useMemberGridData } from "@/queries/member-grid";
 
 const EMPTY_COLLECTION: MetricCollectionConfig = { metrics: [] };
 
@@ -46,12 +46,20 @@ export function TeamStateView() {
   const { period, dateRange } = usePeriod();
 
   const orgScope = useOrgScope();
-  const { pivot, roster, pivotEmail } = orgScope;
+  const { pivot, roster } = orgScope;
 
-  const membersQ = useTeamMembers(pivotEmail, roster, period, dateRange, {
-    keepPrevious: true,
-  });
-  const members = useMemo(() => membersQ.data ?? [], [membersQ.data]);
+  // The roster IS the member list: identity owns who is on the team and
+  // every metric for them comes from `/v1/metric-results`. There is no second
+  // source to reconcile — the legacy per-member batch this used to call was
+  // removed upstream with the rest of the old metric UI.
+  const members = useMemo<TeamMember[]>(
+    () =>
+      (roster ?? []).map((entry) => ({
+        person_id: entry.email,
+        name: entry.display_name,
+      })),
+    [roster],
+  );
   const memberIds = useMemo(
     () => members.map((m) => normalizePersonId(m.person_id)),
     [members],
@@ -85,14 +93,14 @@ export function TeamStateView() {
 
   // Headline metrics only (card.preview): the set a lead scans, and — crucially —
   // small enough to stay under the API's 50-metrics-per-request cap when the full
-  // metric catalog across every group would blow past it. `metricGroups()` is
+  // metric catalog across every group would blow past it. `GROUPS` is
   // called INSIDE the memo — it returns a fresh array per call, and a fresh
   // dependency would defeat the memo and re-key the grid query every render.
   const headlineKeys = useMemo(() => headlineMetricKeys(), []);
   const gridCollection = useMemo<MetricCollectionConfig>(() => {
     const want = new Set(headlineKeys);
     const byKey = new Map<string, MetricCollectionConfig["metrics"][number]>();
-    for (const g of metricGroups()) {
+    for (const g of GROUPS) {
       for (const m of g.collection.metrics) {
         if (want.has(m.key) && !byKey.has(m.key)) byKey.set(m.key, m);
       }
@@ -187,15 +195,14 @@ export function TeamStateView() {
   const gate = orgScopeGate({
     viewerLoading: orgScope.isLoading,
     viewerError: orgScope.isError,
-    membersLoading: membersQ.isLoading,
-    membersError: membersQ.isError,
+    membersLoading: false,
+    membersError: false,
     memberCount: members.length,
     gridPending: grid.isPending,
     gridError: grid.isError,
     emptyLabel: "No people in the current scope — pick a different scope in the topbar.",
     onRetry: () => {
       orgScope.refetch();
-      membersQ.refetch();
       grid.refetch();
     },
   });

@@ -4,7 +4,7 @@ import { CenteredSpinner } from "@/components/widgets/centered-spinner";
 import { ComingSoon } from "@/components/widgets/coming-soon";
 import { CollectionDrilldown } from "@/components/widgets/metric-views/collection-drilldown";
 import { usePeriod } from "@/hooks/use-period";
-import { metricGroups, type GroupId } from "@/lib/insight/groups";
+import { GROUPS, type GroupId } from "@/lib/insight/groups";
 import { injectCohortPeer } from "@/lib/insight/within-team-peer";
 import { type MetricCollectionConfig } from "@/lib/metrics/collection";
 import { normalizePersonId } from "@/lib/metrics/entity";
@@ -30,7 +30,7 @@ export function SingleGroupView({
 }) {
   const { dateRange } = usePeriod();
   const entityId = normalizePersonId(personId);
-  const def = metricGroups().find((d) => d.id === groupId) ?? null;
+  const def = GROUPS.find((d) => d.id === groupId) ?? null;
 
   const data = useMetricCollection(
     def?.collection ?? EMPTY_COLLECTION,

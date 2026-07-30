@@ -40,7 +40,7 @@ vi.mock("@/queries/ic-dashboard", () => ({
 vi.mock("@/queries/team-view", () => ({
   useTeamMembers: () => ({ data: mocks.members, isPending: false, isLoading: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock("@/queries/v2/member-grid", () => ({ useMemberGridData: () => mocks.grid }));
+vi.mock("@/queries/member-grid", () => ({ useMemberGridData: () => mocks.grid }));
 vi.mock("@/queries/metric-results", () => ({ useMetricCollection: () => mocks.tools }));
 vi.mock("@/hooks/use-period", () => ({
   usePeriod: () => ({ period: "week", dateRange: { start: "2026-07-20", end: "2026-07-26" } }),
