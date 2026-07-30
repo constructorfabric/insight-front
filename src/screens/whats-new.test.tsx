@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import "@/i18n";
@@ -39,44 +40,74 @@ describe("WhatsNewScreen", () => {
   it("renders the release header and stamp", () => {
     renderScreen();
     expect(
-      screen.getByRole("heading", { name: "What's new — 13 July 2026" })
+      screen.getByRole("heading", { name: "What's new · 31 July 2026" })
     ).toBeInTheDocument();
-    expect(screen.getByText("9 improvements")).toBeInTheDocument();
+    expect(screen.getByText("5 improvements")).toBeInTheDocument();
     expect(
-      screen.getByText("data accuracy & completeness")
+      screen.getByText("the new interface, two new pages")
     ).toBeInTheDocument();
   });
 
   it("renders every improvement entry with its category", () => {
     renderScreen();
     for (const title of [
-      "“Direct reports only” toggle is back",
-      "Full metrics when you expand a team member",
-      "Bitbucket pull requests now counted",
-      "Consistent commit & lines-of-code metrics",
-      "Readable quarterly & yearly Git charts",
-      "Jira Task Delivery metrics now populate",
-      "Zoom meeting data restored",
-      "AI adoption graphs fixed",
-      "Claude Code cost shown as currency",
+      "We've moved to the new interface for good",
+      "Activity over time, by repository",
+      "Metric catalog",
+      "“No data” instead of a misleading zero",
+      "Steadier data across your connectors",
     ]) {
       expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
     }
-    expect(screen.getAllByText("Team dashboards")).toHaveLength(2);
-    expect(screen.getAllByText("Git & code reviews")).toHaveLength(3);
-    expect(screen.getAllByText("AI adoption")).toHaveLength(2);
+    expect(screen.getAllByText("Dashboards")).toHaveLength(2);
+    expect(screen.getByText("Git output")).toBeInTheDocument();
+    // "Trust" labels both the Metric catalog entry and a Coming-next entry.
+    expect(screen.getAllByText("Trust")).toHaveLength(2);
   });
 
-  it("renders the known-gaps callout and the coming-next section", () => {
+  it("states today's limitation inside each coming-next entry", () => {
     renderScreen();
-    expect(screen.getByText("Still on our list")).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent("GitLab lines-of-code");
     expect(screen.getByText("Coming next")).toBeInTheDocument();
+    for (const title of [
+      "See the records behind a number",
+      "Better people matching",
+      "Compare like with like",
+    ]) {
+      expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
+    }
+    // The separate "still on our list" callout is gone; the limitations it
+    // listed have to survive inside the entries that address them.
+    expect(screen.queryByText("Still on our list")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "One accurate metrics engine" })
+      screen.getByText(/email doesn't match still isn't attributed/)
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Better people matching" })
+      screen.getByText(/but not the records themselves/)
+    ).toBeInTheDocument();
+  });
+
+  it("keeps earlier releases on the page, collapsed", async () => {
+    const user = userEvent.setup();
+    renderScreen();
+
+    expect(screen.getByText("Earlier releases")).toBeInTheDocument();
+    const entry = screen.getByRole("button", {
+      name: /What's new — 13 July 2026/,
+    });
+    expect(entry).toHaveTextContent("9 improvements");
+    expect(
+      screen.queryByRole("heading", { name: "Zoom meeting data restored" })
+    ).not.toBeInTheDocument();
+
+    await user.click(entry);
+
+    expect(
+      screen.getByRole("heading", { name: "Zoom meeting data restored" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Bitbucket pull requests now counted",
+      })
     ).toBeInTheDocument();
   });
 });
