@@ -139,7 +139,7 @@
       "steadier_data": {
         "category": "Platform",
         "title": "Steadier data across your connectors",
-        "description_html": "A large round of reliability work — <strong>data collection across Jira, Bitbucket, Zoom, Claude and Microsoft 365</strong>, data preparation, and first-time setup — so syncs finish, survive rate limits and interruptions, and pick up where they left off. Freshly set-up environments no longer start with blank Jira metrics."
+        "description_html": "A large round of reliability work on <strong>data collection from Jira, Bitbucket, Zoom, Claude and Microsoft 365</strong> and the data preparation behind it — so syncs finish, survive rate limits and interruptions, and pick up where they left off."
       }
     },
     "coming": {
