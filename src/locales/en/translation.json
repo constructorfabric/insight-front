@@ -108,87 +108,118 @@
   "whats_new": {
     "nav_label": "What's new",
     "eyebrow": "Insight · What's new",
-    "title": "What's new — 13 July 2026",
-    "lead_html": "This update makes your dashboards <strong>more complete and more accurate</strong>. Data now flows and is attributed to the right people across Git, Jira, collaboration and Zoom, and several metrics that were showing wrong or empty values have been corrected. No new screens this time — everything below improves what you already use.",
+    "title": "What's new · 31 July 2026",
+    "lead_html": "<strong>The new interface is now the standard across Insight.</strong> Until now it was an option you switched on in the sidebar. Two of its pages are new: <strong>activity over time, split by repository</strong> in Git output, and a <strong>searchable catalog of every metric</strong> we report.",
     "stamp": {
       "highlights_label": "Highlights",
-      "highlights": "9 improvements",
+      "highlights": "5 improvements",
       "focus_label": "Focus",
-      "focus": "data accuracy & completeness"
+      "focus": "the new interface, two new pages"
     },
-    "in_short_html": "<strong>In short:</strong> more of your team's activity now shows up correctly — Bitbucket reviews, Jira task delivery, collaboration and Zoom meetings are back and attributed properly, long-range Git charts are readable, and AI cost is shown as real money.",
     "improvements_label": "Improvements you'll notice",
     "items": {
-      "direct_reports_toggle": {
-        "category": "Team dashboards",
-        "title": "“Direct reports only” toggle is back",
-        "description_html": "Filter a team down to just your direct reports — members, heatmap and metrics all update together. <strong>On by default,</strong> and hidden automatically for teams without sub-teams, where it had no effect."
+      "new_interface": {
+        "category": "Dashboards",
+        "title": "We've moved to the new interface for good",
+        "description_html": "Until now the new interface was an option in the sidebar. Now it's what Insight looks like."
       },
-      "member_expand_full_metrics": {
-        "category": "Team dashboards",
-        "title": "Full metrics when you expand a team member",
-        "description_html": "Expanding a person now opens their <strong>complete metric set</strong> instead of a trimmed subset — so you can assess someone without switching screens."
+      "activity_over_time": {
+        "category": "Git output",
+        "title": "Activity over time, by repository",
+        "description_html": "A new table and chart in Git output: commits, merged pull requests and lines, <strong>split by repository</strong> and grouped by day, week or month to match the period you picked. The 10 busiest repositories are listed, the rest roll up into “Other”, and the totals always add up. Switch between chart and table, and <strong>download it as CSV or Excel.</strong>"
       },
-      "bitbucket_prs": {
-        "category": "Git & code reviews",
-        "title": "Bitbucket pull requests now counted",
-        "description_html": "Pull-request activity from Bitbucket is attributed to the right person. <strong>Review metrics that used to show zero</strong> now reflect real work."
+      "metric_catalog": {
+        "category": "Trust",
+        "title": "Metric catalog",
+        "description_html": "A new page in the sidebar lists every metric we report: what it means, its unit, which breakdowns it supports, and <strong>when it last had data.</strong> If a chart looks empty, that last column usually explains why."
       },
-      "consistent_git_metrics": {
-        "category": "Git & code reviews",
-        "title": "Consistent commit & lines-of-code metrics",
-        "description_html": "Commit and LOC figures now come from a single shared source, so <strong>Git activity is reported the same way across connectors.</strong>"
+      "honest_no_data": {
+        "category": "Dashboards",
+        "title": "“No data” instead of a misleading zero",
+        "description_html": "Collaboration, task delivery and wiki now measure the same way as Git and AI. Where something isn't measured yet, <strong>you'll see “no data” rather than a zero that looks like a real result.</strong>"
       },
-      "readable_git_charts": {
-        "category": "Git & code reviews",
-        "title": "Readable quarterly & yearly Git charts",
-        "description_html": "Long-range charts no longer repeat the same label over and over. <strong>Quarterly and annual trends are now legible.</strong>"
-      },
-      "jira_task_delivery": {
-        "category": "Task delivery",
-        "title": "Jira Task Delivery metrics now populate",
-        "description_html": "Closed tasks are detected by their status <i>category</i> rather than English-only status names, so <strong>non-English and custom “Done” workflows report correctly.</strong>"
-      },
-      "zoom_data": {
-        "category": "Collaboration",
-        "title": "Zoom meeting data restored",
-        "description_html": "The Zoom sync was hitting an API limit and stalled for about ten days. It's fixed, so <strong>meeting activity repopulates</strong> going forward."
-      },
-      "ai_adoption_graphs": {
-        "category": "AI adoption",
-        "title": "AI adoption graphs fixed",
-        "description_html": "AI-adoption graphs now show <strong>real distributions with honest “no data” states</strong> instead of blanks or misleading zeros."
-      },
-      "claude_code_cost": {
-        "category": "AI adoption",
-        "title": "Claude Code cost shown as currency",
-        "description_html": "The “Claude Code Cost” metric now displays as <strong>money</strong> instead of a raw number of cents — no more figures that looked inflated."
-      }
-    },
-    "gaps": {
-      "title": "Still on our list",
-      "items": {
-        "identity": "<strong>People without a matching email</strong> aren't attributed yet — this can still leave some Bitbucket and Jira metrics incomplete. Identity resolution is in progress.",
-        "gitlab_loc": "<strong>GitLab lines-of-code</strong> still shows 0. The commit and LOC fix above applies elsewhere; GitLab LOC is being worked on.",
-        "jira_kpis": "<strong>Some Jira KPIs</strong> may still be blank or slow to load on freshly set-up environments."
+      "steadier_data": {
+        "category": "Platform",
+        "title": "Steadier data across your connectors",
+        "description_html": "Connector fixes across <strong>Jira, Bitbucket, Zoom, Claude and Microsoft 365</strong>, plus the data preparation behind them, so syncs finish and resume where they stopped instead of stalling."
       }
     },
     "coming": {
       "label": "Coming next",
       "items": {
-        "metrics_engine": {
-          "category": "Platform",
-          "title": "One accurate metrics engine",
-          "description": "Bringing all metric families onto a single engine, with correct “no data” states in place of misleading zeros everywhere."
+        "drill_down": {
+          "category": "Trust",
+          "title": "See the records behind a number",
+          "description": "Right now a metric group shows trends, distributions and peer standing, but not the records themselves. We're building the next step: the actual commits, pull requests and tasks behind a number, with a link straight to the source."
         },
         "people_matching": {
           "category": "Platform",
           "title": "Better people matching",
-          "description": "Attributing work to the right person even across multiple or missing email addresses — the root cause behind the gaps above."
+          "description": "Work by someone whose email doesn't match still isn't attributed, which can leave some Git and Jira metrics incomplete. Better matching is in flight."
+        },
+        "role_cohorts": {
+          "category": "Platform",
+          "title": "Compare like with like",
+          "description": "A person is currently compared against their whole department. Role-based comparison is planned: peers whose role is expected to do the same kind of work."
         }
       }
     },
-    "footer": "Insight · what's new · 13 July 2026"
+    "history_label": "Earlier releases",
+    "history": {
+      "release_2026_07_13": {
+        "title": "What's new — 13 July 2026",
+        "summary": "9 improvements · data accuracy & completeness",
+        "lead_html": "This update makes your dashboards <strong>more complete and more accurate</strong>. Data now flows and is attributed to the right people across Git, Jira, collaboration and Zoom, and several metrics that were showing wrong or empty values have been corrected. No new screens this time — everything below improves what you already use.",
+        "items": {
+          "direct_reports_toggle": {
+            "category": "Team dashboards",
+            "title": "“Direct reports only” toggle is back",
+            "description_html": "Filter a team down to just your direct reports — members, heatmap and metrics all update together. <strong>On by default,</strong> and hidden automatically for teams without sub-teams, where it had no effect."
+          },
+          "member_expand_full_metrics": {
+            "category": "Team dashboards",
+            "title": "Full metrics when you expand a team member",
+            "description_html": "Expanding a person now opens their <strong>complete metric set</strong> instead of a trimmed subset — so you can assess someone without switching screens."
+          },
+          "bitbucket_prs": {
+            "category": "Git & code reviews",
+            "title": "Bitbucket pull requests now counted",
+            "description_html": "Pull-request activity from Bitbucket is attributed to the right person. <strong>Review metrics that used to show zero</strong> now reflect real work."
+          },
+          "consistent_git_metrics": {
+            "category": "Git & code reviews",
+            "title": "Consistent commit & lines-of-code metrics",
+            "description_html": "Commit and LOC figures now come from a single shared source, so <strong>Git activity is reported the same way across connectors.</strong>"
+          },
+          "readable_git_charts": {
+            "category": "Git & code reviews",
+            "title": "Readable quarterly & yearly Git charts",
+            "description_html": "Long-range charts no longer repeat the same label over and over. <strong>Quarterly and annual trends are now legible.</strong>"
+          },
+          "jira_task_delivery": {
+            "category": "Task delivery",
+            "title": "Jira Task Delivery metrics now populate",
+            "description_html": "Closed tasks are detected by their status <i>category</i> rather than English-only status names, so <strong>non-English and custom “Done” workflows report correctly.</strong>"
+          },
+          "zoom_data": {
+            "category": "Collaboration",
+            "title": "Zoom meeting data restored",
+            "description_html": "The Zoom sync was hitting an API limit and stalled for about ten days. It's fixed, so <strong>meeting activity repopulates</strong> going forward."
+          },
+          "ai_adoption_graphs": {
+            "category": "AI adoption",
+            "title": "AI adoption graphs fixed",
+            "description_html": "AI-adoption graphs now show <strong>real distributions with honest “no data” states</strong> instead of blanks or misleading zeros."
+          },
+          "claude_code_cost": {
+            "category": "AI adoption",
+            "title": "Claude Code cost shown as currency",
+            "description_html": "The “Claude Code Cost” metric now displays as <strong>money</strong> instead of a raw number of cents — no more figures that looked inflated."
+          }
+        }
+      }
+    },
+    "footer": "Insight · what's new · 31 July 2026"
   },
   "auth": {
     "loginFailedAccessDenied": "Your account is not authorized to access this application. Contact your administrator if you believe this is a mistake.",
