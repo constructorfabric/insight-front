@@ -29,7 +29,7 @@ export function LoginError({ code }: LoginErrorProps): React.ReactElement {
           <Button
             onClick={() => {
               clearAuthErrorAttempts();
-              signIn("/");
+              signIn();
             }}
           >
             {t("auth.loginFailedTryAgain")}
