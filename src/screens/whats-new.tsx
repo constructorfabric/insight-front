@@ -1,7 +1,12 @@
+import { ChevronDown } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { CollapsibleSection } from "@/components/widgets/collapsible-section";
 
 const IMPROVEMENT_KEYS = [
   "new_interface",
@@ -164,26 +169,44 @@ export function WhatsNewScreen() {
             </h3>
             <div className="mt-3 flex flex-col gap-2.5">
               {PAST_RELEASES.map((release) => (
-                <CollapsibleSection
+                <Collapsible
                   key={release.id}
-                  title={t(`whats_new.history.${release.id}.title`)}
-                  subtitle={t(`whats_new.history.${release.id}.summary`)}
-                  storageKey={`whats-new:history:${release.id}`}
+                  className="overflow-hidden rounded-lg border bg-card"
                 >
-                  <p
-                    className={`px-4 py-3.5 text-sm leading-relaxed text-muted-foreground sm:px-5 ${EMPHASIS}`}
+                  <CollapsibleTrigger
+                    render={
+                      <button
+                        type="button"
+                        className="group flex w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/40"
+                      />
+                    }
                   >
-                    <Trans
-                      i18nKey={`whats_new.history.${release.id}.lead_html`}
-                    />
-                  </p>
-                  <div className="divide-y border-t">
-                    <ImprovementList
-                      itemsKey={`whats_new.history.${release.id}.items`}
-                      itemKeys={release.itemKeys}
-                    />
-                  </div>
-                </CollapsibleSection>
+                    <span className="flex flex-col">
+                      <span className="text-sm font-semibold">
+                        {t(`whats_new.history.${release.id}.title`)}
+                      </span>
+                      <span className="mt-0.5 text-xs text-muted-foreground">
+                        {t(`whats_new.history.${release.id}.summary`)}
+                      </span>
+                    </span>
+                    <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[panel-open]:rotate-180" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="border-t">
+                    <p
+                      className={`px-4 py-3.5 text-sm leading-relaxed text-muted-foreground sm:px-5 ${EMPHASIS}`}
+                    >
+                      <Trans
+                        i18nKey={`whats_new.history.${release.id}.lead_html`}
+                      />
+                    </p>
+                    <div className="divide-y border-t">
+                      <ImprovementList
+                        itemsKey={`whats_new.history.${release.id}.items`}
+                        itemKeys={release.itemKeys}
+                      />
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               ))}
             </div>
           </section>
