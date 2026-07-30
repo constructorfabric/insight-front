@@ -40,11 +40,11 @@ describe("WhatsNewScreen", () => {
   it("renders the release header and stamp", () => {
     renderScreen();
     expect(
-      screen.getByRole("heading", { name: "What's new — 31 July 2026" })
+      screen.getByRole("heading", { name: "What's new · 31 July 2026" })
     ).toBeInTheDocument();
     expect(screen.getByText("5 improvements")).toBeInTheDocument();
     expect(
-      screen.getByText("the new interface & what it can show you")
+      screen.getByText("the new interface, two new pages")
     ).toBeInTheDocument();
   });
 
@@ -53,7 +53,7 @@ describe("WhatsNewScreen", () => {
     for (const title of [
       "We've moved to the new interface for good",
       "Activity over time, by repository",
-      "Every metric, defined in one place",
+      "Metric catalog",
       "“No data” instead of a misleading zero",
       "Steadier data across your connectors",
     ]) {
@@ -69,7 +69,7 @@ describe("WhatsNewScreen", () => {
     renderScreen();
     expect(screen.getByText("Coming next")).toBeInTheDocument();
     for (const title of [
-      "Trace any number to its evidence",
+      "See the records behind a number",
       "Better people matching",
       "Compare like with like",
     ]) {
@@ -79,7 +79,7 @@ describe("WhatsNewScreen", () => {
     // listed have to survive inside the entries that address them.
     expect(screen.queryByText("Still on our list")).not.toBeInTheDocument();
     expect(
-      screen.getByText(/email doesn't match isn't attributed/)
+      screen.getByText(/email doesn't match still isn't attributed/)
     ).toBeInTheDocument();
     expect(
       screen.getByText(/but not the records themselves/)

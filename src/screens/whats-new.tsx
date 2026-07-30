@@ -120,12 +120,6 @@ export function WhatsNewScreen() {
             </div>
           </section>
 
-          <p
-            className={`rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground ${EMPHASIS}`}
-          >
-            <Trans i18nKey="whats_new.in_short_html" />
-          </p>
-
           <section>
             <h3 className="text-[11px] font-semibold tracking-widest text-muted-foreground uppercase">
               {t("whats_new.improvements_label")}

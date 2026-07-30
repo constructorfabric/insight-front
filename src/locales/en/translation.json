@@ -105,21 +105,20 @@
   "whats_new": {
     "nav_label": "What's new",
     "eyebrow": "Insight · What's new",
-    "title": "What's new — 31 July 2026",
-    "lead_html": "<strong>We've moved to the new interface for good.</strong> Until now it was an option you switched on in the sidebar; it's the standard one across Insight, designed to be clearer and easier to read. Two of its pages are new: <strong>activity over time, split by repository</strong> in Git output, and a <strong>searchable catalog of every metric</strong> we report. Every metric group now works the same way underneath, and your connectors keep their data flowing more steadily.",
+    "title": "What's new · 31 July 2026",
+    "lead_html": "<strong>The new interface is now the standard across Insight.</strong> Until now it was an option you switched on in the sidebar. Two of its pages are new: <strong>activity over time, split by repository</strong> in Git output, and a <strong>searchable catalog of every metric</strong> we report.",
     "stamp": {
       "highlights_label": "Highlights",
       "highlights": "5 improvements",
       "focus_label": "Focus",
-      "focus": "the new interface & what it can show you"
+      "focus": "the new interface, two new pages"
     },
-    "in_short_html": "<strong>In short:</strong> the new interface is now the standard across Insight, Git output gains an activity-over-time table and chart you can download, a new Metric catalog explains every metric and when it last saw data, and every metric group now behaves the same way — including saying “no data” when something isn't measured.",
     "improvements_label": "Improvements you'll notice",
     "items": {
       "new_interface": {
         "category": "Dashboards",
         "title": "We've moved to the new interface for good",
-        "description_html": "The new interface — until now an option you switched on in the sidebar — is <strong>the standard one across Insight.</strong> It's designed to be clearer and easier to read at a glance."
+        "description_html": "Until now the new interface was an option in the sidebar. Now it's what Insight looks like."
       },
       "activity_over_time": {
         "category": "Git output",
@@ -128,18 +127,18 @@
       },
       "metric_catalog": {
         "category": "Trust",
-        "title": "Every metric, defined in one place",
-        "description_html": "A new <strong>Metric catalog</strong> page in the sidebar: search any metric and see what it means, how it's formatted, whether higher or lower is better, which breakdowns it supports — and <strong>the last date it saw any data,</strong> so an empty chart is explainable rather than mysterious."
+        "title": "Metric catalog",
+        "description_html": "A new page in the sidebar lists every metric we report: what it means, its unit, which breakdowns it supports, and <strong>when it last had data.</strong> If a chart looks empty, that last column usually explains why."
       },
       "honest_no_data": {
         "category": "Dashboards",
         "title": "“No data” instead of a misleading zero",
-        "description_html": "The single metrics engine we promised last time is now in place for <strong>collaboration, task delivery and wiki</strong> as well. Where something isn't measured yet, <strong>you'll see “no data” rather than a zero that looks like a real result.</strong>"
+        "description_html": "Collaboration, task delivery and wiki now measure the same way as Git and AI. Where something isn't measured yet, <strong>you'll see “no data” rather than a zero that looks like a real result.</strong>"
       },
       "steadier_data": {
         "category": "Platform",
         "title": "Steadier data across your connectors",
-        "description_html": "A large round of reliability work on <strong>data collection from Jira, Bitbucket, Zoom, Claude and Microsoft 365</strong> and the data preparation behind it — so syncs finish, survive rate limits and interruptions, and pick up where they left off."
+        "description_html": "Connector fixes across <strong>Jira, Bitbucket, Zoom, Claude and Microsoft 365</strong>, plus the data preparation behind them, so syncs finish and resume where they stopped instead of stalling."
       }
     },
     "coming": {
@@ -147,18 +146,18 @@
       "items": {
         "drill_down": {
           "category": "Trust",
-          "title": "Trace any number to its evidence",
-          "description": "Today you can open a metric group and see trends, distributions and peer standing, but not the records themselves. In flight: the actual commits, pull requests and tasks behind a number, with a link straight to the source."
+          "title": "See the records behind a number",
+          "description": "Right now a metric group shows trends, distributions and peer standing, but not the records themselves. We're building the next step: the actual commits, pull requests and tasks behind a number, with a link straight to the source."
         },
         "people_matching": {
           "category": "Platform",
           "title": "Better people matching",
-          "description": "Today work by someone whose email doesn't match isn't attributed, which can leave some Git and Jira metrics incomplete. In flight: attributing work to the right person even across multiple, changed or missing email addresses."
+          "description": "Work by someone whose email doesn't match still isn't attributed, which can leave some Git and Jira metrics incomplete. Better matching is in flight."
         },
         "role_cohorts": {
           "category": "Platform",
           "title": "Compare like with like",
-          "description": "Today a person is compared against their whole department. Planned: peer comparisons against people whose role is expected to do the same kind of work."
+          "description": "A person is currently compared against their whole department. Role-based comparison is planned: peers whose role is expected to do the same kind of work."
         }
       }
     },
