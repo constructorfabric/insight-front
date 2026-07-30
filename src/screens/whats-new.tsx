@@ -4,12 +4,9 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { CollapsibleSection } from "@/components/widgets/collapsible-section";
 
 const IMPROVEMENT_KEYS = [
-  "new_ui_default",
+  "new_interface",
   "activity_over_time",
-  "vendored_loc",
   "metric_catalog",
-  "ai_cost",
-  "collaboration_licences",
   "honest_no_data",
   "steadier_data",
 ] as const;

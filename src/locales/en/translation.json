@@ -106,45 +106,30 @@
     "nav_label": "What's new",
     "eyebrow": "Insight · What's new",
     "title": "What's new — 31 July 2026",
-    "lead_html": "Last time there were no new screens. This time there are two: <strong>activity over time, split by repository</strong> in Git output, and a <strong>searchable catalog of every metric</strong> we report. The new dashboards are also what you see by default now — and the numbers behind them count the right things across Git, collaboration and AI.",
+    "lead_html": "<strong>We've moved to the new interface for good.</strong> Until now it was an option you switched on in the sidebar; it's the standard one across Insight, designed to be clearer and easier to read. Two of its pages are new: <strong>activity over time, split by repository</strong> in Git output, and a <strong>searchable catalog of every metric</strong> we report. Every metric group now works the same way underneath, and your connectors keep their data flowing more steadily.",
     "stamp": {
       "highlights_label": "Highlights",
-      "highlights": "8 improvements",
+      "highlights": "5 improvements",
       "focus_label": "Focus",
-      "focus": "new dashboards by default & numbers you can check"
+      "focus": "the new interface & what it can show you"
     },
-    "in_short_html": "<strong>In short:</strong> the new metrics UI is on for everyone, Git output gains an activity-over-time table and chart you can download, a new Metric catalog explains every metric and when it last saw data, and lines of code, collaboration and AI cost now count the right things.",
+    "in_short_html": "<strong>In short:</strong> the new interface is now the standard across Insight, Git output gains an activity-over-time table and chart you can download, a new Metric catalog explains every metric and when it last saw data, and every metric group now behaves the same way — including saying “no data” when something isn't measured.",
     "improvements_label": "Improvements you'll notice",
     "items": {
-      "new_ui_default": {
+      "new_interface": {
         "category": "Dashboards",
-        "title": "The new dashboards are now the default",
-        "description_html": "Every page opens on the new metric cards, drill-downs and peer comparisons — <strong>no switch to find first.</strong> Task delivery, Collaboration, Wiki and Team views moved onto the same engine as Git and AI, so all of them now offer trends, distributions and per-person spread. The previous view is still one toggle away in the sidebar."
+        "title": "We've moved to the new interface for good",
+        "description_html": "The new interface — until now an option you switched on in the sidebar — is <strong>the standard one across Insight.</strong> It's designed to be clearer and easier to read at a glance."
       },
       "activity_over_time": {
         "category": "Git output",
         "title": "Activity over time, by repository",
         "description_html": "A new table and chart in Git output: commits, merged pull requests and lines, <strong>split by repository</strong> and grouped by day, week or month to match the period you picked. The 10 busiest repositories are listed, the rest roll up into “Other”, and the totals always add up. Switch between chart and table, and <strong>download it as CSV or Excel.</strong>"
       },
-      "vendored_loc": {
-        "category": "Git & code reviews",
-        "title": "Lines of code that count only your code",
-        "description_html": "Dependency folders, build output, lockfiles and minified files are recognised and left out of authored line counts. Previously one commit bringing in a vendored tree could add <strong>hundreds of thousands of lines to a single person</strong> and skew every cohort they sit in — so <strong>expect some line counts to settle at their true value.</strong> Nothing is hidden: a second view breaks lines down by category, so you can see exactly what was excluded. One gap remains here: <strong>GitLab repositories still report 0 lines.</strong>"
-      },
       "metric_catalog": {
         "category": "Trust",
         "title": "Every metric, defined in one place",
         "description_html": "A new <strong>Metric catalog</strong> page in the sidebar: search any metric and see what it means, how it's formatted, whether higher or lower is better, which breakdowns it supports — and <strong>the last date it saw any data,</strong> so an empty chart is explainable rather than mysterious."
-      },
-      "ai_cost": {
-        "category": "AI adoption",
-        "title": "AI cost, complete, to the day — Cursor included",
-        "description_html": "Cursor spend used to be empty; it is now filled from priced usage events. Claude usage is collected in full across the period and <strong>lands on the day it happened.</strong> The metric now states plainly what it measures: <strong>usage priced at the vendor's rates,</strong> not an invoiced amount."
-      },
-      "collaboration_licences": {
-        "category": "Collaboration",
-        "title": "Collaboration counted across the right people",
-        "description_html": "Collaboration figures now cover <strong>only colleagues who can actually take part.</strong> Accounts without a Teams licence are recognised and left out, instead of counting as people who never collaborate and pulling averages down."
       },
       "honest_no_data": {
         "category": "Dashboards",
@@ -163,7 +148,7 @@
         "drill_down": {
           "category": "Trust",
           "title": "Trace any number to its evidence",
-          "description": "Today a drill-down shows trends, distributions and per-person spread, but not the underlying records. In flight: open a metric and see the actual commits, pull requests and tasks behind it, with a link straight to the source."
+          "description": "Today you can open a metric group and see trends, distributions and peer standing, but not the records themselves. In flight: the actual commits, pull requests and tasks behind a number, with a link straight to the source."
         },
         "people_matching": {
           "category": "Platform",

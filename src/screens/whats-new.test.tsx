@@ -42,21 +42,18 @@ describe("WhatsNewScreen", () => {
     expect(
       screen.getByRole("heading", { name: "What's new — 31 July 2026" })
     ).toBeInTheDocument();
-    expect(screen.getByText("8 improvements")).toBeInTheDocument();
+    expect(screen.getByText("5 improvements")).toBeInTheDocument();
     expect(
-      screen.getByText("new dashboards by default & numbers you can check")
+      screen.getByText("the new interface & what it can show you")
     ).toBeInTheDocument();
   });
 
   it("renders every improvement entry with its category", () => {
     renderScreen();
     for (const title of [
-      "The new dashboards are now the default",
+      "We've moved to the new interface for good",
       "Activity over time, by repository",
-      "Lines of code that count only your code",
       "Every metric, defined in one place",
-      "AI cost, complete, to the day — Cursor included",
-      "Collaboration counted across the right people",
       "“No data” instead of a misleading zero",
       "Steadier data across your connectors",
     ]) {
@@ -64,7 +61,8 @@ describe("WhatsNewScreen", () => {
     }
     expect(screen.getAllByText("Dashboards")).toHaveLength(2);
     expect(screen.getByText("Git output")).toBeInTheDocument();
-    expect(screen.getByText("Collaboration")).toBeInTheDocument();
+    // "Trust" labels both the Metric catalog entry and a Coming-next entry.
+    expect(screen.getAllByText("Trust")).toHaveLength(2);
   });
 
   it("states today's limitation inside each coming-next entry", () => {
@@ -84,10 +82,7 @@ describe("WhatsNewScreen", () => {
       screen.getByText(/email doesn't match isn't attributed/)
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/but not the underlying records/)
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/GitLab repositories still report 0 lines/)
+      screen.getByText(/but not the records themselves/)
     ).toBeInTheDocument();
   });
 
