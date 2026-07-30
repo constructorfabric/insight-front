@@ -39,7 +39,7 @@ export function PortalLayout() {
     } else if (zone != null && zone !== "person") {
       setZone(null);
     }
-  }, [isPending, isManager, zone]);
+  }, [isPending, isManager, zone, setZone]);
 
   return (
     <SidebarProvider className="h-svh overflow-hidden">

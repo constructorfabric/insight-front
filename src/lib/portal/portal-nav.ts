@@ -1,4 +1,5 @@
 import { useRouterState } from "@tanstack/react-router";
+import { useMemo } from "react";
 
 import type { OrgScope } from "@/lib/portal/portal-store";
 import { usePortalSearch, useSetPortalSearch } from "@/lib/portal/portal-search";
@@ -55,24 +56,32 @@ export interface PortalNavActions {
 
 export function usePortalNavActions(): PortalNavActions {
   const setSearch = useSetPortalSearch();
-  const current = usePortalSearch();
-  return {
-    // A zone change drops the item with it: `item` is per-zone, and carrying
-    // it across renders a fallback view while the pane highlights nothing.
-    setZone: (zone) => setSearch({ zone: zone ?? undefined, item: undefined }),
-    setItem: (item) => setSearch({ item: item ?? undefined }),
-    setDir: (dir) => setSearch({ dir: dir || undefined }),
-    setLens: (lens) => setSearch({ lens: lens || undefined }),
-    setSlice: (slice) => setSearch({ slice: slice || undefined }),
-    setScope: (patch) =>
-      setSearch({
-        ...("root" in patch ? { scope: patch.root ?? undefined } : {}),
-        ...("directOnly" in patch ? { direct: patch.directOnly } : {}),
-        // A scope the reader cannot reach from the new root is worse than
-        // none: reset direct-only when the root itself changes.
-        ...("root" in patch && !("directOnly" in patch) && patch.root !== current.scope
-          ? { direct: undefined }
-          : {}),
-      }),
-  };
+  // Memoised so callers can list these in effect dependencies: a fresh object
+  // per render would re-run the landing-zone and scope-sync effects forever.
+  return useMemo(
+    () => ({
+      // A zone change drops the item with it: `item` is per-zone, and carrying
+      // it across renders a fallback view while the pane highlights nothing.
+      setZone: (zone) => setSearch({ zone: zone ?? undefined, item: undefined }),
+      setItem: (item) => setSearch({ item: item ?? undefined }),
+      setDir: (dir) => setSearch({ dir: dir || undefined }),
+      setLens: (lens) => setSearch({ lens: lens || undefined }),
+      setSlice: (slice) => setSearch({ slice: slice || undefined }),
+      setScope: (patch) =>
+        // Derived from the PREVIOUS search rather than a captured render value,
+        // which is what keeps this callback stable.
+        setSearch((prev) => ({
+          ...("root" in patch ? { scope: patch.root ?? undefined } : {}),
+          ...("directOnly" in patch ? { direct: patch.directOnly } : {}),
+          // A direct-only narrowing rarely survives a new root: reset it when
+          // the root itself moves and the caller did not say otherwise.
+          ...("root" in patch &&
+          !("directOnly" in patch) &&
+          patch.root !== prev.scope
+            ? { direct: undefined }
+            : {}),
+        })),
+    }),
+    [setSearch],
+  );
 }

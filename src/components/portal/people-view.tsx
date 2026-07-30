@@ -41,7 +41,7 @@ export function PeopleView({
       lastRouteSync = person;
       setScope({ root: person });
     }
-  }, [person]);
+  }, [person, setScope]);
 
   if (item === "median-by-role") {
     return (

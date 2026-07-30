@@ -1,4 +1,5 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useCallback } from "react";
 
 import type { PeriodValue } from "@/types/insight";
 
@@ -97,20 +98,32 @@ export function usePortalSearch(): PortalSearch {
  * an explicit erase, distinct from "leave it alone" (omit it), which matters
  * for zone changes that must drop a now-meaningless item.
  */
-export function useSetPortalSearch(): (patch: Partial<PortalSearch>) => void {
+export type PortalSearchPatch =
+  | Partial<PortalSearch>
+  | ((prev: PortalSearch) => Partial<PortalSearch>);
+
+export function useSetPortalSearch(): (patch: PortalSearchPatch) => void {
   const navigate = useNavigate();
-  return (patch) => {
-    void navigate({
-      to: ".",
-      search: (prev: Record<string, unknown>) => {
-        const next = { ...prev };
-        for (const [k, v] of Object.entries(patch)) {
-          if (v === undefined || v === "" || v === false) delete next[k];
-          else next[k] = v;
-        }
-        return next;
-      },
-      replace: false,
-    });
-  };
+  // Stable across renders — `navigate` is, and the patch may be a function of
+  // the previous search, so nothing else needs to be captured. Callers put this
+  // in effect dependency lists, where a fresh identity per render would loop.
+  return useCallback(
+    (patch) => {
+      void navigate({
+        to: ".",
+        search: (prev: Record<string, unknown>) => {
+          const resolved =
+            typeof patch === "function" ? patch(prev as PortalSearch) : patch;
+          const next = { ...prev };
+          for (const [k, v] of Object.entries(resolved)) {
+            if (v === undefined || v === "" || v === false) delete next[k];
+            else next[k] = v;
+          }
+          return next;
+        },
+        replace: false,
+      });
+    },
+    [navigate],
+  );
 }
