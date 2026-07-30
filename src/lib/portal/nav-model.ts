@@ -88,24 +88,6 @@ export function zoneById(id: string | null): Zone | undefined {
 
 /* ── Directions (catalog-driven family list) ─────────────────────────── */
 
-/** Connector brand chip colours (CSS custom properties from index.css). */
-export const CONNECTOR_COLOR: Record<string, string> = {
-  bitbucket: "var(--brand-bitbucket)",
-  jira: "var(--brand-jira)",
-  ci: "var(--chart-2)",
-  cursor: "var(--brand-cursor)",
-  claude: "var(--brand-claude-code)",
-  codex: "var(--brand-codex)",
-  m365: "var(--brand-m365)",
-  slack: "var(--brand-slack)",
-  zoom: "var(--brand-zoom)",
-  zulip: "var(--brand-zulip)",
-  confluence: "var(--brand-confluence)",
-  outline: "var(--brand-outline)",
-  hubspot: "var(--brand-hubspot)",
-  zendesk: "var(--brand-zendesk)",
-};
-
 export type DirectionSource = "semantic" | "bullet";
 
 export interface Direction {
@@ -113,7 +95,6 @@ export interface Direction {
   name: string;
   icon: LucideIcon;
   source: DirectionSource;
-  connectors: readonly string[];
   lenses: readonly string[];
 }
 
@@ -123,7 +104,6 @@ export const DIRECTIONS: readonly Direction[] = [
     name: "Development",
     icon: GitPullRequest,
     source: "semantic",
-    connectors: ["bitbucket", "jira", "ci", "cursor", "claude", "codex"],
     lenses: [
       "Overview",
       "Git output",
@@ -141,7 +121,6 @@ export const DIRECTIONS: readonly Direction[] = [
     name: "Collaboration",
     icon: MessageSquare,
     source: "semantic",
-    connectors: ["m365", "slack", "zoom", "zulip"],
     lenses: ["Overview", "Messaging", "Meetings", "Email", "Focus time", "Files & sharing"],
   },
   {
@@ -149,7 +128,6 @@ export const DIRECTIONS: readonly Direction[] = [
     name: "Knowledge / Wiki",
     icon: BookOpen,
     source: "semantic",
-    connectors: ["confluence", "outline"],
     lenses: ["Overview", "Authoring", "Edits & comments", "Active authors"],
   },
   {
@@ -157,7 +135,6 @@ export const DIRECTIONS: readonly Direction[] = [
     name: "Sales / CRM",
     icon: DollarSign,
     source: "bullet",
-    connectors: ["hubspot"],
     lenses: ["Pipeline", "Deal flow", "Activity", "Velocity & quality"],
   },
   {
@@ -165,7 +142,6 @@ export const DIRECTIONS: readonly Direction[] = [
     name: "Support",
     icon: Ticket,
     source: "bullet",
-    connectors: ["zendesk"],
     lenses: ["Tickets", "CSAT", "Knowledge base", "Comments & updates"],
   },
 ];

@@ -29,7 +29,6 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import {
-  CONNECTOR_COLOR,
   DIRECTIONS,
   MANAGE_ITEMS,
   PEOPLE_ITEMS,
@@ -414,16 +413,6 @@ function DirectionItem({ direction }: { direction: Direction }) {
 
       {expanded ? (
         <>
-          <div className="flex flex-wrap gap-1 px-3 pt-0.5 pb-1 pl-9">
-            {direction.connectors.map((c) => (
-              <span
-                key={c}
-                title={c}
-                className="size-2 rounded-full"
-                style={{ background: CONNECTOR_COLOR[c] ?? "var(--muted-foreground)" }}
-              />
-            ))}
-          </div>
           <SidebarMenuSub>
             {lenses.map((lens) => {
               const entry = lensEntry(direction.id, lens);
