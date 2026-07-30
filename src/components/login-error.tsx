@@ -17,11 +17,11 @@ type LoginErrorProps = {
 export function LoginError({ code }: LoginErrorProps): React.ReactElement {
   const { t } = useTranslation();
   return (
-    <div className="flex min-h-svh w-full items-center justify-center p-6">
+    <main className="flex min-h-svh w-full items-center justify-center p-6">
       <Card className="w-full max-w-sm">
         <CardContent className="flex flex-col items-center gap-4 text-center">
-          <p className="text-sm font-medium">{t("auth.loginFailedTitle")}</p>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-sm font-medium">{t("auth.loginFailedTitle")}</h1>
+          <p className="text-sm text-muted-foreground" role="alert">
             {code === "access_denied"
               ? t("auth.loginFailedAccessDenied")
               : t("auth.loginFailedRetryable")}
@@ -36,6 +36,6 @@ export function LoginError({ code }: LoginErrorProps): React.ReactElement {
           </Button>
         </CardContent>
       </Card>
-    </div>
+    </main>
   );
 }

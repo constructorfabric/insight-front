@@ -33,7 +33,8 @@ export function signIn(returnTo?: string): void {
   if (redirecting) return;
   redirecting = true;
   const dest = safeReturnTo(
-    returnTo ?? window.location.pathname + window.location.search
+    returnTo ??
+      window.location.pathname + window.location.search + window.location.hash
   );
   window.location.assign(`/auth/login?return_to=${encodeURIComponent(dest)}`);
 }
