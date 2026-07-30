@@ -7,10 +7,10 @@ import { ComingSoon } from "@/components/widgets/coming-soon";
 import {
   MembersGrid,
   type MembersGridMember,
-} from "@/components/widgets/v2/members-grid";
+} from "@/components/widgets/dashboard/members-grid";
 import type { MetricGroup } from "@/lib/insight/groups";
 import type { PeerCohortLabel } from "@/lib/peers";
-import { useMemberGridData } from "@/queries/v2/member-grid";
+import { useMemberGridData } from "@/queries/member-grid";
 import type { PeriodValue } from "@/types/insight";
 import { cn } from "@/lib/utils";
 

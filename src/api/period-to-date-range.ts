@@ -175,23 +175,3 @@ export function previousPeriodRange(
   return { from: shift(range.from), to: shift(range.to) };
 }
 
-export function periodScale(period: PeriodValue): number {
-  switch (period) {
-    case "week":
-      return 7;
-    case "month":
-      return 30;
-    case "quarter":
-      return 90;
-    case "year":
-      return 365;
-  }
-}
-
-export function odataDateFilter(range: DateRange): string {
-  return `metric_date ge '${range.from}' and metric_date le '${range.to}'`;
-}
-
-export function odataEscapeValue(value: string): string {
-  return value.replace(/'/g, "''");
-}

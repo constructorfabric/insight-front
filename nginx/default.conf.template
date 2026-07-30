@@ -17,7 +17,7 @@ server {
     # required for React inline styles + recharts; tighten via nonce in a
     # later iteration. The SPA is same-origin only (it calls /api/* and
     # /auth/* through the gateway that fronts this container), so connect-src
-    # and frame-src stay at 'self' — there is no client-side OIDC / IdP origin.
+    # and frame-src stay at 'self'.
     include /etc/nginx/snippets/security-headers.conf;
 
     # MSW service worker ships in dist/ from public/ but is inert without

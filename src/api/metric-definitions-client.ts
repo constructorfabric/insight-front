@@ -18,7 +18,7 @@ import type {
 const BASE =
   (import.meta.env.VITE_API_BASE as string | undefined) ?? "/api/analytics/v1";
 
-export type MetricDefinitionSchemaStatus = "ok" | "error" | "unchecked";
+type MetricDefinitionSchemaStatus = "ok" | "error" | "unchecked";
 
 export interface MetricDefinition {
   metric_key: string;
@@ -38,7 +38,7 @@ export interface MetricDefinition {
   last_observed_date: string | null;
 }
 
-export type MetricSchemaErrorCode =
+type MetricSchemaErrorCode =
   | "table_not_found"
   | "column_not_found"
   | "dimension_not_covered"

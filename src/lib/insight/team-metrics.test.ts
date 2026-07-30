@@ -7,7 +7,7 @@ import {
   teamMetricStandings,
 } from "@/lib/insight/team-metrics";
 import {
-  metricGroups,
+  GROUPS,
   type MetricGroup,
 } from "@/lib/insight/groups";
 import {
@@ -60,7 +60,6 @@ function metricWithPeers(
 
 function defWith(metric: NormalizedMetricResult): MetricGroup {
   return {
-    kind: "metrics",
     id: "ai_adoption",
     title: "AI adoption",
     collection: {
@@ -174,7 +173,7 @@ describe("team request row-limit projection", () => {
     // is split across requests rather than rejected.
     const ROW_LIMIT = 5000;
     const roster = 200;
-    for (const def of metricGroups()) {
+    for (const def of GROUPS) {
       const projected = projectViews(def.collection, ["period", "peer"]);
       // Roster surfaces carry no per-bucket / per-dimension views.
       expect(

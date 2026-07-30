@@ -76,13 +76,13 @@ export function teamMetricStandings(
 }
 
 /**
- * Per-person entries across every unified-metrics group, keyed by member id —
- * the heatmap's member details sheet source for groups the legacy per-member
- * bullet fetch no longer covers. `byGroup` resolves a group id to its fetched
- * result map; groups still loading resolve undefined and contribute nothing.
+ * Per-person entries across every metrics group, keyed by member id — the
+ * source for the heatmap's member details sheet. `byGroup` resolves a group id
+ * to its fetched result map; groups still loading resolve undefined and
+ * contribute nothing.
  */
 export function memberMetricEntries(
-  defs: MetricGroup[],
+  defs: readonly MetricGroup[],
   byGroup: (groupId: string) => Map<string, NormalizedMetricResult> | undefined,
   memberIds: string[],
 ): Map<string, PeerStoryEntry[]> {
@@ -100,8 +100,8 @@ export function memberMetricEntries(
 }
 
 /**
- * Per-member bottom-quartile counts across the collection — merged into the
- * "members needing attention" tally alongside the legacy bullet counts.
+ * Per-member bottom-quartile counts across the collection — feeds the
+ * "members needing attention" tally.
  */
 export function metricBelowCounts(
   def: MetricGroup,

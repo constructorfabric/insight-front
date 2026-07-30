@@ -68,28 +68,3 @@ export function sectionStandingPhrase(counts: RankCounts): string {
   return "on par with peers"
 }
 
-/**
- * Worst-rank-first headline pick: a bottom outranks an in-pack outranks a
- * top, ties broken by declaration order. Surfaces with a severity signal
- * (the unified group card) refine the tiebreak themselves.
- */
-export function pickSectionHeadline<T>(
-  metrics: RankedMetric<T>[]
-): RankedMetric<T> | null {
-  const priority: Record<PeerStatusWithNeutral, number> = {
-    bottom: 3,
-    in_pack: 2,
-    top: 1,
-    neutral: 0,
-  }
-  let best: RankedMetric<T> | null = null
-  let bestPriority = -1
-  for (const m of metrics) {
-    const p = priority[m.rank]
-    if (p > bestPriority) {
-      best = m
-      bestPriority = p
-    }
-  }
-  return best
-}
