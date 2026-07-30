@@ -191,6 +191,10 @@
     "footer": "Insight · what's new · 13 July 2026"
   },
   "auth": {
+    "loginFailedAccessDenied": "Your account is not authorized to access this application. Contact your administrator if you believe this is a mistake.",
+    "loginFailedRetryable": "Your sign-in could not be completed. This can happen when signing in takes too long — please try again.",
+    "loginFailedTitle": "Sign-in failed",
+    "loginFailedTryAgain": "Try again",
     "redirecting": "Redirecting to sign in…"
   },
   "error_boundary": {
