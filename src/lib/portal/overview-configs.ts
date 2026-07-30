@@ -21,7 +21,16 @@ export const OVERVIEW_ITEMS: Record<string, LensConfig> = {
     sections: [
       {
         kind: "headline",
-        metrics: ["git.commits", "git.prs_merged", "collab.messages_sent", "ai.cost"],
+        // Task throughput belongs in a cross-functional headline: without it
+        // the org's top line was three-quarters code and cost, and the work
+        // that never touches a repo went unrepresented.
+        metrics: [
+          "git.commits",
+          "git.prs_merged",
+          "tasks.closed",
+          "collab.messages_sent",
+          "ai.cost",
+        ],
       },
       // The old header's "N using AI" stat, now an honest participation card
       // (count + share + delta). No trend section here → card renders chartless.
