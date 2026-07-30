@@ -7,6 +7,13 @@
  * manager actually reads on screen: per-capita numbers, deltas, honest
  * not-ingested/suppression states, framing copy and roll-up math.
  */
+vi.mock("@tanstack/react-router", async () => {
+  const { portalRouterMock } = await import("@/test/portal-router");
+  return portalRouterMock();
+});
+
+import { portalRouter } from "@/test/portal-router";
+
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -59,8 +66,8 @@ vi.mock("@/queries/metric-results", () => ({
     };
   })(),
 }));
-vi.mock("@/hooks/use-period", () => ({
-  usePeriod: () => ({
+vi.mock("@/hooks/use-portal-period", () => ({
+  usePortalPeriod: () => ({
     period: "week",
     dateRange: { start: "2026-07-20", end: "2026-07-26" },
   }),
@@ -72,11 +79,8 @@ vi.mock("@/components/portal/section-trend", () => ({
     <div data-testid="section-trend" data-series={JSON.stringify(series ?? []).length} />
   ),
 }));
-vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
-}));
 
-import { setPortalScope, setPortalSlice } from "@/lib/portal/portal-store";
+
 import type { LensConfig } from "@/lib/portal/lens-configs";
 import { DomainLensView } from "./domain-lens-view";
 
@@ -151,8 +155,8 @@ beforeEach(() => {
   mocks.grid.isPending = false;
   mocks.grid.isError = false;
   act(() => {
-    setPortalSlice("");
-    setPortalScope({ root: null, directOnly: false });
+    portalRouter.set({ slice: undefined });
+    portalRouter.set({ scope: undefined, direct: false });
   });
 });
 
@@ -381,7 +385,7 @@ describe("by-unit auto-section (rule 7: slice cohorts inside scope)", () => {
 
   it("renders per-active-person unit bars when a slice is active", () => {
     seedSliced();
-    act(() => setPortalSlice("division"));
+    act(() => portalRouter.set({ slice: "division" }));
     render(<DomainLensView config={CONFIG} />);
     expect(screen.getByText(/by Division/)).toBeInTheDocument();
     expect(screen.getByText(/R&D · 4/)).toBeInTheDocument();
@@ -395,7 +399,7 @@ describe("by-unit auto-section (rule 7: slice cohorts inside scope)", () => {
   });
 
   it("explains itself when units are too small to compare (never silent)", () => {
-    act(() => setPortalSlice("division"));
+    act(() => portalRouter.set({ slice: "division" }));
     // default org: 4 people all WITHOUT division values → no comparable units
     render(<DomainLensView config={CONFIG} />);
     expect(screen.getByText(/No comparable units/)).toBeInTheDocument();

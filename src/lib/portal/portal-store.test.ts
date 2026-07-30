@@ -1,39 +1,30 @@
 // @vitest-environment jsdom
+/**
+ * What is left in the store after navigation moved to the URL: the two
+ * PREFERENCES. They belong here precisely because they describe the reader
+ * rather than the view — a shared link must not turn someone else's portal on,
+ * or reveal the scaffolding they never asked to see.
+ */
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
-  setPortalDir,
   setPortalEnabled,
-  setPortalItem,
-  setPortalLens,
-  setPortalScope,
-  setPortalSlice,
-  setPortalZone,
-  usePortalDir,
+  setPortalShowPlanned,
   usePortalEnabled,
-  usePortalItem,
-  usePortalLens,
-  usePortalScope,
-  usePortalSlice,
-  usePortalZone,
+  usePortalShowPlanned,
 } from "./portal-store";
 
 beforeEach(() => {
   act(() => {
     setPortalEnabled(false);
-    setPortalZone(null);
-    setPortalItem(null);
-    setPortalDir("dev");
-    setPortalLens("Delivery");
-    setPortalSlice("");
-    setPortalScope({ root: null, directOnly: false });
+    setPortalShowPlanned(true);
   });
   window.localStorage.clear();
 });
 
-describe("portal store — setters drive subscribed hooks", () => {
-  it("enabled flag round-trips and persists to localStorage", () => {
+describe("portal preferences", () => {
+  it("enabled round-trips and persists", () => {
     const { result } = renderHook(() => usePortalEnabled());
     expect(result.current).toBe(false);
     act(() => setPortalEnabled(true));
@@ -41,59 +32,30 @@ describe("portal store — setters drive subscribed hooks", () => {
     expect(window.localStorage.getItem("insight.portal")).toBe("true");
   });
 
-  it("zone/item/dir/lens/slice update their subscribers", () => {
-    const { result } = renderHook(() => ({
-      zone: usePortalZone(),
-      item: usePortalItem(),
-      dir: usePortalDir(),
-      lens: usePortalLens(),
-      slice: usePortalSlice(),
-    }));
-    act(() => {
-      setPortalZone("overview");
-      setPortalItem("trend");
-      setPortalDir("collab");
-      setPortalLens("Overview");
-      setPortalSlice("division");
-    });
-    expect(result.current).toEqual({
-      zone: "overview",
-      item: "trend",
-      dir: "collab",
-      lens: "Overview",
-      slice: "division",
-    });
-  });
-});
-
-describe("setPortalScope", () => {
-  it("lowercases the root (route params vs identity emails casing)", () => {
-    const { result } = renderHook(() => usePortalScope());
-    act(() => setPortalScope({ root: "Nick.Efremov@T" }));
-    expect(result.current.root).toBe("nick.efremov@t");
+  it("show-planned defaults ON when the key is absent", () => {
+    window.localStorage.removeItem("insight.portal.showPlanned");
+    const { result } = renderHook(() => usePortalShowPlanned());
+    expect(result.current).toBe(true);
   });
 
-  it("patches partially, keeping the other fields", () => {
-    const { result } = renderHook(() => usePortalScope());
-    act(() => setPortalScope({ root: "a@t" }));
-    act(() => setPortalScope({ directOnly: true }));
-    expect(result.current).toMatchObject({ root: "a@t", directOnly: true });
+  it("show-planned round-trips and persists", () => {
+    const { result } = renderHook(() => usePortalShowPlanned());
+    act(() => setPortalShowPlanned(false));
+    expect(result.current).toBe(false);
+    expect(window.localStorage.getItem("insight.portal.showPlanned")).toBe("false");
   });
 
-  it("bails on a no-op patch without notifying subscribers", () => {
-    act(() => setPortalScope({ root: "a@t", directOnly: false }));
-    const { result } = renderHook(() => usePortalScope());
-    const before = result.current;
-    // Same values (different casing for root) → must not emit a new object,
-    // or a route→scope sync effect could loop against a re-rendering writer.
-    act(() => setPortalScope({ root: "A@T", directOnly: false }));
-    expect(result.current).toBe(before);
-  });
-
-  it("clears the root back to null", () => {
-    act(() => setPortalScope({ root: "a@t" }));
-    const { result } = renderHook(() => usePortalScope());
-    act(() => setPortalScope({ root: null }));
-    expect(result.current.root).toBeNull();
+  it("keeps no navigation state — that lives in the URL", async () => {
+    const store = await import("./portal-store");
+    for (const gone of [
+      "setPortalZone",
+      "setPortalItem",
+      "setPortalDir",
+      "setPortalLens",
+      "setPortalSlice",
+      "setPortalScope",
+    ]) {
+      expect(store, gone).not.toHaveProperty(gone);
+    }
   });
 });

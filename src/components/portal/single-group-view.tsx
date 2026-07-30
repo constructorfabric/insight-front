@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { CenteredSpinner } from "@/components/widgets/centered-spinner";
 import { ComingSoon } from "@/components/widgets/coming-soon";
 import { CollectionDrilldown } from "@/components/widgets/metric-views/collection-drilldown";
-import { usePeriod } from "@/hooks/use-period";
+import { usePortalPeriod } from "@/hooks/use-portal-period";
 import { GROUPS, type GroupId } from "@/lib/insight/groups";
 import { injectCohortPeer } from "@/lib/insight/within-team-peer";
 import { type MetricCollectionConfig } from "@/lib/metrics/collection";
@@ -28,7 +28,7 @@ export function SingleGroupView({
   personId: string;
   groupId: GroupId;
 }) {
-  const { dateRange } = usePeriod();
+  const { dateRange } = usePortalPeriod();
   const entityId = normalizePersonId(personId);
   const def = GROUPS.find((d) => d.id === groupId) ?? null;
 

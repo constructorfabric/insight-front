@@ -15,7 +15,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { setPortalZone } from "@/lib/portal/portal-store";
+import {
+  usePortalNavActions,
+} from "@/lib/portal/portal-nav";
 import { useIcPerson } from "@/queries/ic-dashboard";
 import type { IdentityPerson } from "@/types/insight";
 import { cn } from "@/lib/utils";
@@ -63,6 +65,7 @@ function collectEmployees(root: IdentityPerson): EmployeeRow[] {
  * new endpoint: it's a live people index, not a scaffold.
  */
 export function EmployeesView() {
+  const { setZone } = usePortalNavActions();
   const { email: viewerEmail } = useViewer();
   const { data, isPending, isError, refetch } = useIcPerson(viewerEmail ?? "");
   const [query, setQuery] = useState("");
@@ -133,7 +136,7 @@ export function EmployeesView() {
                     params={{ person: e.email }}
                     // Clear the pinned Manage zone so the route-driven Person
                     // zone takes over (same pattern as the rail).
-                    onClick={() => setPortalZone(null)}
+                    onClick={() => setZone(null)}
                     className="font-medium hover:underline"
                   >
                     {e.displayName}

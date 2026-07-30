@@ -3,7 +3,9 @@ import { useEffect } from "react";
 import { EmployeesView } from "@/components/portal/employees-view";
 import { TeamStateView } from "@/components/portal/team-state-view";
 import { ComingSoon } from "@/components/widgets/coming-soon";
-import { setPortalScope } from "@/lib/portal/portal-store";
+import {
+  usePortalNavActions,
+} from "@/lib/portal/portal-nav";
 
 /**
  * Module-scoped, deliberately NOT a ref: the guard must outlive this component.
@@ -31,12 +33,13 @@ export function PeopleView({
   person: string;
   item: string | null;
 }) {
+  const { setScope } = usePortalNavActions();
   // Sync route → scope once per person, not on every render or remount: the
   // effect must not fight a scope the user then changes from the topbar.
   useEffect(() => {
     if (person && lastRouteSync !== person) {
       lastRouteSync = person;
-      setPortalScope({ root: person });
+      setScope({ root: person });
     }
   }, [person]);
 

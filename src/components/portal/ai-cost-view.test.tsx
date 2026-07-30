@@ -5,6 +5,13 @@
  * aggregation from the breakdown view, by-unit rollups under a slice, and
  * honest ComingSoon for unwired pane items.
  */
+vi.mock("@tanstack/react-router", async () => {
+  const { portalRouterMock } = await import("@/test/portal-router");
+  return portalRouterMock();
+});
+
+import { portalRouter } from "@/test/portal-router";
+
 import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -42,14 +49,11 @@ vi.mock("@/queries/team-view", () => ({
 }));
 vi.mock("@/queries/member-grid", () => ({ useMemberGridData: () => mocks.grid }));
 vi.mock("@/queries/metric-results", () => ({ useMetricCollection: () => mocks.tools }));
-vi.mock("@/hooks/use-period", () => ({
-  usePeriod: () => ({ period: "week", dateRange: { start: "2026-07-20", end: "2026-07-26" } }),
-}));
-vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
+vi.mock("@/hooks/use-portal-period", () => ({
+  usePortalPeriod: () => ({ period: "week", dateRange: { start: "2026-07-20", end: "2026-07-26" } }),
 }));
 
-import { setPortalScope, setPortalSlice } from "@/lib/portal/portal-store";
+
 import { AiCostView } from "./ai-cost-view";
 
 const person = (
@@ -121,8 +125,8 @@ beforeEach(() => {
     ])],
   ]);
   act(() => {
-    setPortalSlice("");
-    setPortalScope({ root: null, directOnly: false });
+    portalRouter.set({ slice: undefined });
+    portalRouter.set({ scope: undefined, direct: false });
   });
 });
 
@@ -172,7 +176,7 @@ describe("AiCostView", () => {
       person("c@x", { division: "Sales" } as never),
       person("d@x", { division: "Sales" } as never),
     ]);
-    act(() => setPortalSlice("division"));
+    act(() => portalRouter.set({ slice: "division" }));
     render(<AiCostView item="by-unit-role" />);
     expect(screen.getByText("R&D")).toBeInTheDocument();
     expect(screen.getByText("Sales")).toBeInTheDocument();

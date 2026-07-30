@@ -100,6 +100,19 @@ function getSnapshot(): PersistedState {
   return state;
 }
 
+/** The remembered default for a URL that names no period (see usePortalPeriod). */
+export function readPeriodPreference(): PeriodValue {
+  return readPeriod();
+}
+
+export function writePeriodPreference(period: PeriodValue): void {
+  try {
+    window.localStorage.setItem(PERIOD_KEY, period);
+  } catch {
+    // localStorage may be unavailable (private mode, quota exceeded).
+  }
+}
+
 export function usePeriod(): {
   period: PeriodValue;
   customRange: CustomRange | null;

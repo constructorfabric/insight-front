@@ -1,4 +1,8 @@
 // @vitest-environment jsdom
+vi.mock("@tanstack/react-router", async () => {
+  const { portalRouterMock } = await import("@/test/portal-router");
+  return portalRouterMock();
+});
 /**
  * Employees directory semantics: the org tree flattens into a de-duplicated,
  * sorted roster; search filters across name/title/department; rows link into
@@ -22,11 +26,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/auth", () => ({ useViewer: () => ({ email: mocks.email }) }));
 vi.mock("@/queries/ic-dashboard", () => ({ useIcPerson: () => mocks.ic }));
-vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, params }: { children: React.ReactNode; params: { person: string } }) => (
-    <a href={`/ic/${encodeURIComponent(params.person)}/personal`}>{children}</a>
-  ),
-}));
 
 import { EmployeesView } from "./employees-view";
 

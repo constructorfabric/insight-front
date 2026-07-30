@@ -9,7 +9,10 @@ import {
 } from "@/components/ui/select";
 import type { SliceDim } from "@/lib/insight/slices";
 import { PLANNED_SLICES } from "@/lib/insight/slices";
-import { setPortalSlice, usePortalSlice } from "@/lib/portal/portal-store";
+import {
+  usePortalNavActions,
+  usePortalSlice,
+} from "@/lib/portal/portal-nav";
 
 /**
  * "No slice" — the whole roster is one cohort and views stay per-person. The
@@ -26,6 +29,7 @@ const TEAM_SLICE = { key: TEAM_KEY, label: "Team (all)" };
  * appended (and render ComingSoon in the consuming view).
  */
 export function SliceSelect({ dims }: { dims: SliceDim[] }) {
+  const { setSlice } = usePortalNavActions();
   const slice = usePortalSlice();
   const all = [TEAM_SLICE, ...dims, ...PLANNED_SLICES];
   const current = slice || TEAM_KEY;
@@ -34,7 +38,7 @@ export function SliceSelect({ dims }: { dims: SliceDim[] }) {
   return (
     <Select
       value={value}
-      onValueChange={(v) => setPortalSlice(v && v !== TEAM_KEY ? v : "")}
+      onValueChange={(v) => setSlice(v && v !== TEAM_KEY ? v : "")}
     >
       <SelectTrigger size="sm" aria-label="Slice by" className="w-32 md:w-48">
         <SelectValue>

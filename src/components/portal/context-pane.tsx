@@ -40,14 +40,14 @@ import {
   type PaneItem,
 } from "@/lib/portal/nav-model";
 import {
-  setPortalDir,
-  setPortalItem,
-  setPortalLens,
+  usePortalShowPlanned,
+} from "@/lib/portal/portal-store";
+import {
   usePortalDir,
   usePortalItem,
   usePortalLens,
-  usePortalShowPlanned,
-} from "@/lib/portal/portal-store";
+  usePortalNavActions,
+} from "@/lib/portal/portal-nav";
 import { useActiveZone } from "@/lib/portal/use-active-zone";
 import { cn } from "@/lib/utils";
 
@@ -314,6 +314,7 @@ function ItemButton({
   /** Demoted rendering: same affordance, visibly lighter weight. */
   planned?: boolean;
 }) {
+  const { setItem } = usePortalNavActions();
   const Icon = item.icon;
   const dismiss = useDismissDrawer();
   return (
@@ -321,7 +322,7 @@ function ItemButton({
       <SidebarMenuButton
         isActive={active}
         onClick={() => {
-          setPortalItem(item.id);
+          setItem(item.id);
           dismiss();
         }}
         className={planned ? "text-muted-foreground" : undefined}
@@ -366,6 +367,7 @@ function DirectionsNav() {
 }
 
 function DirectionItem({ direction }: { direction: Direction }) {
+  const { setDir, setItem, setLens } = usePortalNavActions();
   const dismiss = useDismissDrawer();
   const activeDir = usePortalDir();
   const activeLens = usePortalLens();
@@ -383,10 +385,10 @@ function DirectionItem({ direction }: { direction: Direction }) {
 
   function toggle() {
     if (expanded) {
-      setPortalDir("");
+      setDir("");
     } else {
-      setPortalDir(direction.id);
-      setPortalLens(lenses[0] ?? direction.lenses[0]!);
+      setDir(direction.id);
+      setLens(lenses[0] ?? direction.lenses[0]!);
     }
   }
 
@@ -423,8 +425,8 @@ function DirectionItem({ direction }: { direction: Direction }) {
                     isActive={activeLens === lens}
                     className={roadmap ? "text-muted-foreground" : undefined}
                     onClick={() => {
-                      setPortalLens(lens);
-                      setPortalItem(null);
+                      setLens(lens);
+                      setItem(null);
                       dismiss();
                     }}
                   >
@@ -475,6 +477,7 @@ function WorkChart() {
 /* ── Person zone: one person, section switcher (no WorkChart, no modal) ─── */
 
 function PersonSectionsNav() {
+  const { setItem } = usePortalNavActions();
   const dismiss = useDismissDrawer();
   const active = usePortalItem();
   const groups = GROUPS;
@@ -489,7 +492,7 @@ function PersonSectionsNav() {
             <SidebarMenuButton
               isActive={glance}
               onClick={() => {
-                setPortalItem(null);
+                setItem(null);
                 dismiss();
               }}
             >
@@ -502,7 +505,7 @@ function PersonSectionsNav() {
               <SidebarMenuButton
                 isActive={active === g.id}
                 onClick={() => {
-                  setPortalItem(g.id);
+                  setItem(g.id);
                   dismiss();
                 }}
               >

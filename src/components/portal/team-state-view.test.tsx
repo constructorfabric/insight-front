@@ -5,6 +5,13 @@
  * attention wired to the roster, and the org-scope gate in front of it all.
  * Data arrives via the same stubbed query boundary as the real view.
  */
+vi.mock("@tanstack/react-router", async () => {
+  const { portalRouterMock } = await import("@/test/portal-router");
+  return portalRouterMock();
+});
+
+import { portalRouter } from "@/test/portal-router";
+
 import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -29,14 +36,11 @@ vi.mock("@/queries/ic-dashboard", () => ({
   useIcPerson: () => ({ data: mocks.tree, isPending: false, isLoading: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock("@/queries/member-grid", () => ({ useMemberGridData: () => mocks.grid }));
-vi.mock("@/hooks/use-period", () => ({
-  usePeriod: () => ({ period: "week", dateRange: { start: "2026-07-20", end: "2026-07-26" } }),
-}));
-vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
+vi.mock("@/hooks/use-portal-period", () => ({
+  usePortalPeriod: () => ({ period: "week", dateRange: { start: "2026-07-20", end: "2026-07-26" } }),
 }));
 
-import { setPortalScope, setPortalSlice } from "@/lib/portal/portal-store";
+
 import { TeamStateView } from "./team-state-view";
 
 const person = (email: string, subs: IdentityPerson[] = []): IdentityPerson =>
@@ -83,8 +87,8 @@ beforeEach(() => {
   ]);
   mocks.grid.previousByKey = new Map();
   act(() => {
-    setPortalSlice("");
-    setPortalScope({ root: null, directOnly: false });
+    portalRouter.set({ slice: undefined });
+    portalRouter.set({ scope: undefined, direct: false });
   });
 });
 

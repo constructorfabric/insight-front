@@ -5,6 +5,13 @@
  * global slice control. Heavy leaf views are stubbed — their own behavior is
  * covered in their dedicated test files; here we assert the ROUTING.
  */
+vi.mock("@tanstack/react-router", async () => {
+  const { portalRouterMock } = await import("@/test/portal-router");
+  return portalRouterMock();
+});
+
+import { portalRouter } from "@/test/portal-router";
+
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -67,16 +74,10 @@ vi.mock("@/components/portal/portal-topbar", () => ({ PortalTopBar: () => <div /
 vi.mock("@/components/mock-banner", () => ({ MockBanner: () => <div /> }));
 
 import {
-  setPortalDir,
-  setPortalItem,
-  setPortalLens,
-  setPortalScope,
-  setPortalSlice,
-  setPortalZone,
   usePortalScope,
   usePortalSlice,
   usePortalZone,
-} from "@/lib/portal/portal-store";
+} from "@/lib/portal/portal-nav";
 import { renderHook } from "@testing-library/react";
 
 import { DirectionView } from "./direction-view";
@@ -103,12 +104,12 @@ beforeEach(() => {
   mocks.isPending = false;
   mocks.zone = { activeZone: "overview", activePerson: "boss@x" };
   act(() => {
-    setPortalZone(null);
-    setPortalItem(null);
-    setPortalDir("dev");
-    setPortalLens("Delivery");
-    setPortalSlice("");
-    setPortalScope({ root: null, directOnly: false });
+    portalRouter.set({ zone: undefined });
+    portalRouter.set({ item: undefined });
+    portalRouter.set({ dir: "dev" });
+    portalRouter.set({ lens: "Delivery" });
+    portalRouter.set({ slice: undefined });
+    portalRouter.set({ scope: undefined, direct: false });
   });
 });
 
@@ -188,7 +189,7 @@ describe("PersonView", () => {
   });
 
   it("expands a selected metric group inline", () => {
-    act(() => setPortalItem("git_output"));
+    act(() => portalRouter.set({ item: "git_output" }));
     render(<PersonView person="a@x" />);
     expect(screen.getByTestId("single-group")).toHaveTextContent("git_output");
     expect(screen.queryByTestId("metric-groups")).not.toBeInTheDocument();
@@ -210,7 +211,7 @@ describe("PeopleView", () => {
     render(<PeopleView person="p2@x" item={null} />);
     expect(scope.result.current.root).toBe("p2@x");
     // The user re-picks a scope from the topbar…
-    act(() => setPortalScope({ root: "other@x" }));
+    act(() => portalRouter.set({ scope: "other@x" }));
     // …and a remount for the SAME person must NOT revert it.
     render(<PeopleView person="p2@x" item={null} />);
     expect(scope.result.current.root).toBe("other@x");
@@ -232,7 +233,7 @@ describe("PortalLayout landing", () => {
   });
 
   it("never overrides a zone the manager picked while their role resolved", () => {
-    act(() => setPortalZone("directions"));
+    act(() => portalRouter.set({ zone: "directions" }));
     const zone = renderHook(() => usePortalZone());
     render(<PortalLayout />);
     expect(zone.result.current).toBe("directions");
@@ -240,7 +241,7 @@ describe("PortalLayout landing", () => {
 
   it("resets an IC stranded on an org zone (hidden for them) to route-driven", () => {
     mocks.isManager = false;
-    act(() => setPortalZone("overview"));
+    act(() => portalRouter.set({ zone: "overview" }));
     const zone = renderHook(() => usePortalZone());
     render(<PortalLayout />);
     expect(zone.result.current).toBeNull();
@@ -262,7 +263,7 @@ describe("SliceSelect", () => {
   });
 
   it("maps the team sentinel back to an empty slice", async () => {
-    act(() => setPortalSlice("division"));
+    act(() => portalRouter.set({ slice: "division" }));
     render(<SliceSelect dims={[{ key: "division", label: "Division" }]} />);
     const slice = renderHook(() => usePortalSlice());
     await userEvent.click(screen.getByRole("combobox", { name: "Slice by" }));

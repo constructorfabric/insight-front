@@ -8,6 +8,13 @@
  * menu, a zone pick keeps the drawer open while a section pick closes it, and
  * NOTHING of this leaks into the desktop layout.
  */
+vi.mock("@tanstack/react-router", async () => {
+  const { portalRouterMock } = await import("@/test/portal-router");
+  return portalRouterMock();
+});
+
+import { portalRouter } from "@/test/portal-router";
+
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -24,7 +31,7 @@ vi.mock("@/lib/portal/use-active-zone", () => ({ useActiveZone: () => mocks.zone
 vi.mock("@/lib/portal/use-viewer-is-manager", () => ({
   useViewerIsManager: () => ({ isManager: mocks.isManager, isPending: false }),
 }));
-vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }));
+
 vi.mock("@/components/org-tree", () => ({ OrgTree: () => <div /> }));
 vi.mock("@/components/portal/scope-select", () => ({ ScopeSelect: () => <div /> }));
 vi.mock("@/components/portal/slice-select", () => ({ SliceSelect: () => <div /> }));
@@ -34,8 +41,8 @@ vi.mock("@/components/widgets/period-selector-bar", () => ({
 vi.mock("@/queries/ic-dashboard", () => ({
   useIcPerson: () => ({ data: null }),
 }));
-vi.mock("@/hooks/use-period", () => ({
-  usePeriod: () => ({
+vi.mock("@/hooks/use-portal-period", () => ({
+  usePortalPeriod: () => ({
     period: "month",
     customRange: null,
     setPeriod: vi.fn(),
@@ -50,7 +57,10 @@ vi.mock("@/components/app-sidebar-footer", () => ({
 }));
 
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { setPortalItem, usePortalItem, usePortalZone } from "@/lib/portal/portal-store";
+import {
+  usePortalItem,
+  usePortalZone,
+} from "@/lib/portal/portal-nav";
 import { act, renderHook } from "@testing-library/react";
 
 import { ContextPane } from "./context-pane";
@@ -72,7 +82,7 @@ beforeEach(() => {
   mocks.zone = { activeZone: "overview", activePerson: "boss@x" };
   mocks.isManager = true;
   act(() => {
-    setPortalItem(null);
+    portalRouter.set({ item: undefined });
   });
   window.matchMedia ??= ((query: string) => ({
     matches: false,

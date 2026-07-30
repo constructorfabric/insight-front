@@ -4,7 +4,7 @@ import { AttentionList } from "@/components/portal/attention-list";
 import { orgScopeGate } from "@/components/portal/org-scope-gate";
 import { MembersGrid } from "@/components/widgets/dashboard/members-grid";
 import { Card, CardContent } from "@/components/ui/card";
-import { usePeriod } from "@/hooks/use-period";
+import { usePortalPeriod } from "@/hooks/use-portal-period";
 import { formatMetricValue } from "@/lib/format";
 import {
   attentionSummary,
@@ -24,7 +24,9 @@ import {
   type NormalizedMetricResult,
 } from "@/lib/metrics/collection";
 import { normalizePersonId } from "@/lib/metrics/entity";
-import { usePortalSlice } from "@/lib/portal/portal-store";
+import {
+  usePortalSlice,
+} from "@/lib/portal/portal-nav";
 import type { TeamMember } from "@/types/insight";
 import { useOrgScope } from "@/lib/portal/use-org-scope";
 import { useMemberGridData } from "@/queries/member-grid";
@@ -43,7 +45,7 @@ const EMPTY_COLLECTION: MetricCollectionConfig = { metrics: [] };
  * own.
  */
 export function TeamStateView() {
-  const { period, dateRange } = usePeriod();
+  const { period, dateRange } = usePortalPeriod();
 
   const orgScope = useOrgScope();
   const { pivot, roster } = orgScope;

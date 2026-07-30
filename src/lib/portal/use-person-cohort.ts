@@ -3,7 +3,9 @@ import { useMemo } from "react";
 import { useViewer } from "@/auth";
 import { cohortKey, collectRosterAttrs } from "@/lib/insight/slices";
 import { normalizePersonId } from "@/lib/metrics/entity";
-import { usePortalSlice } from "@/lib/portal/portal-store";
+import {
+  usePortalSlice,
+} from "@/lib/portal/portal-nav";
 import { useIcPerson } from "@/queries/ic-dashboard";
 
 /**

@@ -12,7 +12,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useIcPerson } from "@/queries/ic-dashboard";
-import { setPortalScope, setPortalZone } from "@/lib/portal/portal-store";
+import {
+  usePortalNavActions,
+} from "@/lib/portal/portal-nav";
 import { useOrgScope } from "@/lib/portal/use-org-scope";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +30,7 @@ import { cn } from "@/lib/utils";
  * absent fields render nothing.
  */
 export function PersonHeader({ person }: { person: string }) {
+  const { setScope, setZone } = usePortalNavActions();
   const navigate = useNavigate();
   const { data } = useIcPerson(person);
   const supervisorEmail = data?.supervisor_email ?? data?.parent_email ?? null;
@@ -66,14 +69,14 @@ export function PersonHeader({ person }: { person: string }) {
   const hasPeers = peers.length > 1;
 
   function goPerson(email: string) {
-    setPortalZone(null);
+    setZone(null);
     void navigate({ to: "/ic/$person/personal", params: { person: email } });
   }
   function goTeam(email: string) {
-    setPortalZone(null);
+    setZone(null);
     // Jumping to a team makes that node the visible org scope (design §6), so
     // the topbar badge and every org zone agree with where you just landed.
-    setPortalScope({ root: email });
+    setScope({ root: email });
     void navigate({ to: "/ic/$person/team", params: { person: email } });
   }
 

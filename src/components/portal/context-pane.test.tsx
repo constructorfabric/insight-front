@@ -5,6 +5,13 @@
  * items for People, catalog items for Manage), and clicking writes the
  * portal-store selection the content area renders from.
  */
+vi.mock("@tanstack/react-router", async () => {
+  const { portalRouterMock } = await import("@/test/portal-router");
+  return portalRouterMock();
+});
+
+import { portalRouter } from "@/test/portal-router";
+
 import { act, render, renderHook, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -19,14 +26,10 @@ vi.mock("@/components/org-tree", () => ({
 }));
 
 import {
-  setPortalDir,
-  setPortalItem,
-  setPortalLens,
-  setPortalZone,
   usePortalDir,
   usePortalItem,
   usePortalLens,
-} from "@/lib/portal/portal-store";
+} from "@/lib/portal/portal-nav";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { ContextPane } from "./context-pane";
 
@@ -45,10 +48,10 @@ beforeEach(() => {
   })) as unknown as typeof window.matchMedia;
   mocks.zone = { activeZone: "overview", activePerson: "boss@x" };
   act(() => {
-    setPortalZone(null);
-    setPortalItem(null);
-    setPortalDir("dev");
-    setPortalLens("Delivery");
+    portalRouter.set({ zone: undefined });
+    portalRouter.set({ item: undefined });
+    portalRouter.set({ dir: "dev" });
+    portalRouter.set({ lens: "Delivery" });
   });
 });
 

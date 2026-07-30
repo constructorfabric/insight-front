@@ -34,8 +34,8 @@ vi.mock("@/queries/metric-results", () => ({
 vi.mock("@/lib/portal/use-person-cohort", () => ({
   usePersonCohort: () => mocks.cohort,
 }));
-vi.mock("@/hooks/use-period", () => ({
-  usePeriod: () => ({ period: "week", dateRange: { start: "2026-07-20", end: "2026-07-26" } }),
+vi.mock("@/hooks/use-portal-period", () => ({
+  usePortalPeriod: () => ({ period: "week", dateRange: { start: "2026-07-20", end: "2026-07-26" } }),
 }));
 vi.mock("@/hooks/use-settings", () => ({ useSettings: () => ({ focusMode: false }) }));
 vi.mock("@/components/widgets/dashboard/kpi-tile", () => ({

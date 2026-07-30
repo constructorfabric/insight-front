@@ -25,7 +25,7 @@ import {
   YAxis,
   type ChartConfig,
 } from "@/components/ui/chart";
-import { usePeriod } from "@/hooks/use-period";
+import { usePortalPeriod } from "@/hooks/use-portal-period";
 import {
   attentionSummary,
   computeAttentionFlags,
@@ -61,7 +61,10 @@ import {
 } from "@/lib/portal/lens-configs";
 import { DIRECTIONS } from "@/lib/portal/nav-model";
 import { buildTrendData, pickTrendBucket } from "@/lib/portal/trend-data";
-import { setPortalDir, setPortalLens, setPortalZone, usePortalSlice } from "@/lib/portal/portal-store";
+import {
+  usePortalNavActions,
+  usePortalSlice,
+} from "@/lib/portal/portal-nav";
 import type { TeamMember } from "@/types/insight";
 import { useOrgScope } from "@/lib/portal/use-org-scope";
 import { useMetricCollection } from "@/queries/metric-results";
@@ -92,7 +95,7 @@ export function DomainLensView({
    */
   gridKeys?: readonly string[];
 }) {
-  const { period, dateRange } = usePeriod();
+  const { period, dateRange } = usePortalPeriod();
 
   const orgScope = useOrgScope();
   const { pivot, roster } = orgScope;
@@ -972,6 +975,7 @@ function DirectionCardsSection({
   grid: GridData;
   memberIds: readonly string[];
 }) {
+  const { setDir, setLens, setZone } = usePortalNavActions();
   const cards = DIRECTIONS.map((d) => {
     const entry = lensEntry(d.id, "Overview");
     if (!entry || "comingSoon" in entry) return null;
@@ -986,9 +990,9 @@ function DirectionCardsSection({
   if (!cards.length) return null;
 
   const go = (dir: string) => {
-    setPortalDir(dir);
-    setPortalLens("Overview");
-    setPortalZone("directions");
+    setDir(dir);
+    setLens("Overview");
+    setZone("directions");
   };
 
   return (

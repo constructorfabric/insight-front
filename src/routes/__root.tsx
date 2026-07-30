@@ -1,4 +1,4 @@
-import { Outlet, createRootRoute } from "@tanstack/react-router";
+import { Outlet, createRootRoute, useRouterState } from "@tanstack/react-router";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { getPerson } from "@/api/identity-client";
@@ -50,10 +50,18 @@ function RootPending() {
 
 function RootLayout() {
   const portal = usePortalEnabled();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // The portal is a ROUTE now, so it renders through the Outlet like anything
+  // else — otherwise its navigation could never live in the URL. It still owns
+  // the whole shell on the routes it claims (/portal and the person pages);
+  // everywhere else (/metrics, /whats-new) the app chrome stays, which the
+  // old "portal replaces the app" branch used to swallow.
+  const portalRoute =
+    pathname === "/portal" || /^\/ic\/[^/]+\/(personal|team)\/?$/.test(pathname);
   return (
     <TooltipProvider>
       <AuthGate>
-        {portal ? (
+        {portal && portalRoute ? (
           <PortalLayout />
         ) : (
           <SidebarProvider>

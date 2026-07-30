@@ -1,24 +1,20 @@
 // @vitest-environment jsdom
+vi.mock("@tanstack/react-router", async () => {
+  const { portalRouterMock } = await import("@/test/portal-router");
+  return portalRouterMock();
+});
+
+import { portalRouter } from "@/test/portal-router";
+
 import { act, render, renderHook, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AttentionFlag } from "@/lib/insight/attention-flags";
-import { setPortalZone, usePortalZone } from "@/lib/portal/portal-store";
+import {
+  usePortalZone,
+} from "@/lib/portal/portal-nav";
 
-vi.mock("@tanstack/react-router", () => ({
-  // AttentionList renders Link rows; an anchor with the resolved params is
-  // enough to assert the click-through wiring without a real router.
-  Link: ({ to, params, children, onClick, className }: never & Record<string, unknown>) => (
-    <a
-      href={String(to).replace("$person", encodeURIComponent(String((params as { person: string }).person)))}
-      onClick={onClick as never}
-      className={className as string}
-    >
-      {children as never}
-    </a>
-  ),
-}));
 
 import { AttentionList } from "./attention-list";
 
@@ -63,7 +59,7 @@ describe("AttentionList", () => {
   });
 
   it("clears the pinned zone on click so the route-driven Person zone wins", async () => {
-    act(() => setPortalZone("overview"));
+    act(() => portalRouter.set({ zone: "overview" }));
     const { result } = renderZone();
     render(<AttentionList flags={[flag({})]} summary="s" />);
     await userEvent.click(screen.getByRole("link"));

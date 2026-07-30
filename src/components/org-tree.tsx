@@ -8,7 +8,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { setPortalScope } from "@/lib/portal/portal-store";
+import {
+  usePortalNavActions,
+} from "@/lib/portal/portal-nav";
 import { useIcPerson } from "@/queries/ic-dashboard";
 import type { IdentityPerson } from "@/types/insight";
 
@@ -33,6 +35,7 @@ function PersonNode({
   /** Lead (has reports) links to their team roster instead of their own page. */
   leadsToTeam: boolean;
 }) {
+  const { setScope } = usePortalNavActions();
   const hasReports = node.subordinates.length > 0;
   const isActive = activeEmail ? emailEq(activeEmail, node.email) : false;
   const hasActiveDescendant =
@@ -49,7 +52,7 @@ function PersonNode({
       <Link
         to="/ic/$person/team"
         params={{ person: node.email }}
-        onClick={() => setPortalScope({ root: node.email })}
+        onClick={() => setScope({ root: node.email })}
       />
     ) : (
       <Link to="/ic/$person/personal" params={{ person: node.email }} />

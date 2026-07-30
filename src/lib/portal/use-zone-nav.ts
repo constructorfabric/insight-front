@@ -1,7 +1,12 @@
 import { useNavigate } from "@tanstack/react-router";
 
 import { ZONES, type Zone } from "@/lib/portal/nav-model";
-import { setPortalItem, setPortalZone, usePortalShowPlanned } from "@/lib/portal/portal-store";
+import {
+  usePortalShowPlanned,
+} from "@/lib/portal/portal-store";
+import {
+  usePortalNavActions,
+} from "@/lib/portal/portal-nav";
 import { useActiveZone } from "@/lib/portal/use-active-zone";
 import { useViewerIsManager } from "@/lib/portal/use-viewer-is-manager";
 
@@ -23,6 +28,7 @@ export function useZoneNav(): {
   activeZone: string;
   selectZone: (zone: Zone) => void;
 } {
+  const { setItem, setZone } = usePortalNavActions();
   const navigate = useNavigate();
   const { activeZone, activePerson } = useActiveZone();
   const { isManager, isPending: mgrPending } = useViewerIsManager();
@@ -43,17 +49,17 @@ export function useZoneNav(): {
   function selectZone(zone: Zone) {
     // `portal.item` is a per-zone selection; carrying it across zones makes
     // the target view render a fallback while the pane highlights nothing.
-    if (activeZone !== zone.id) setPortalItem(null);
+    if (activeZone !== zone.id) setItem(null);
     if (zone.kind === "person") {
-      setPortalZone(null);
+      setZone(null);
       if (activePerson)
         void navigate({ to: "/ic/$person/personal", params: { person: activePerson } });
     } else if (zone.kind === "people") {
-      setPortalZone(null);
+      setZone(null);
       if (activePerson)
         void navigate({ to: "/ic/$person/team", params: { person: activePerson } });
     } else {
-      setPortalZone(zone.id);
+      setZone(zone.id);
     }
   }
 

@@ -10,6 +10,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { IdentityPerson } from "@/types/insight";
+import { portalRouter } from "@/test/portal-router";
 
 const mocks = vi.hoisted(() => ({
   email: "boss@x" as string | null,
@@ -25,12 +26,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/auth", () => ({ useViewer: () => ({ email: mocks.email }) }));
 vi.mock("@/queries/ic-dashboard", () => ({ useIcPerson: () => mocks.ic }));
-vi.mock("@tanstack/react-router", () => ({
-  useRouterState: ({ select }: { select: (s: unknown) => unknown }) =>
-    select({ location: { pathname: mocks.pathname } }),
-}));
+vi.mock("@tanstack/react-router", async () => {
+  const { portalRouterMock } = await import("@/test/portal-router");
+  return portalRouterMock();
+});
 
-import { setPortalScope, setPortalSlice, setPortalZone } from "./portal-store";
 import { useActiveZone } from "./use-active-zone";
 import { useOrgScope } from "./use-org-scope";
 import { usePersonCohort } from "./use-person-cohort";
@@ -56,15 +56,13 @@ const TREE = person("boss@x", { division: "R&D" }, [
 
 beforeEach(() => {
   mocks.email = "boss@x";
-  mocks.pathname = "/";
+  portalRouter.go("/");
   mocks.ic.data = TREE;
   mocks.ic.isPending = false;
   mocks.ic.isLoading = false;
   mocks.ic.isError = false;
   act(() => {
-    setPortalZone(null);
-    setPortalSlice("");
-    setPortalScope({ root: null, directOnly: false });
+    portalRouter.reset();
   });
 });
 
@@ -72,7 +70,7 @@ afterEach(() => vi.clearAllMocks());
 
 describe("useActiveZone", () => {
   it("follows the route when no zone is pinned: /personal → person", () => {
-    mocks.pathname = "/ic/some.one%40x/personal";
+    portalRouter.go("/ic/some.one%40x/personal");
     const { result } = renderHook(() => useActiveZone());
     expect(result.current).toEqual({
       activeZone: "person",
@@ -81,14 +79,14 @@ describe("useActiveZone", () => {
   });
 
   it("maps /team routes to the people zone", () => {
-    mocks.pathname = "/ic/some.one%40x/team";
+    portalRouter.go("/ic/some.one%40x/team");
     expect(renderHook(() => useActiveZone()).result.current.activeZone).toBe("people");
   });
 
   it("only the /team segment means People — an email starting with 'team' does not", () => {
     // The email lives in the path, so a substring check would hijack the
     // dashboards of team@, teamlead@, … into the People zone.
-    mocks.pathname = "/ic/teamlead%40x/personal";
+    portalRouter.go("/ic/teamlead%40x/personal");
     expect(renderHook(() => useActiveZone()).result.current).toEqual({
       activeZone: "person",
       activePerson: "teamlead@x",
@@ -96,18 +94,28 @@ describe("useActiveZone", () => {
   });
 
   it("tolerates a trailing slash on the team route", () => {
-    mocks.pathname = "/ic/some.one%40x/team/";
+    portalRouter.go("/ic/some.one%40x/team/");
     expect(renderHook(() => useActiveZone()).result.current.activeZone).toBe("people");
   });
 
-  it("a pinned theme zone wins over the route", () => {
-    mocks.pathname = "/ic/some.one%40x/personal";
-    act(() => setPortalZone("overview"));
+  it("the path wins over a stale ?zone= — the URL cannot contradict itself", () => {
+    // The old shell let a pinned zone override the route, so a person link
+    // could navigate while the screen stayed on Overview. With the URL as the
+    // source of truth that state is unrepresentable: on a person path the zone
+    // IS person, whatever an older param says.
+    portalRouter.go("/ic/some.one%40x/personal");
+    act(() => portalRouter.set({ zone: "overview" }));
+    expect(renderHook(() => useActiveZone()).result.current.activeZone).toBe("person");
+  });
+
+  it("uses ?zone= when the path names no zone", () => {
+    portalRouter.go("/portal");
+    act(() => portalRouter.set({ zone: "overview" }));
     expect(renderHook(() => useActiveZone()).result.current.activeZone).toBe("overview");
   });
 
   it("falls back to the viewer for a non-person route", () => {
-    mocks.pathname = "/metrics";
+    portalRouter.go("/metrics");
     expect(renderHook(() => useActiveZone()).result.current.activePerson).toBe("boss@x");
   });
 });
@@ -139,13 +147,13 @@ describe("usePersonCohort", () => {
   });
 
   it("returns everyone sharing the person's slice value", () => {
-    act(() => setPortalSlice("division"));
+    act(() => portalRouter.set({ slice: "division" }));
     const { result } = renderHook(() => usePersonCohort("a@x"));
     expect(result.current.sort()).toEqual(["a@x", "boss@x", "c@x"]);
   });
 
   it("is empty when the person has no value for the slice attribute", () => {
-    act(() => setPortalSlice("title"));
+    act(() => portalRouter.set({ slice: "title" }));
     expect(renderHook(() => usePersonCohort("a@x")).result.current).toEqual([]);
   });
 });
@@ -160,7 +168,7 @@ describe("useOrgScope", () => {
   });
 
   it("narrows to a scoped root inside the subtree", () => {
-    act(() => setPortalScope({ root: "b@x" }));
+    act(() => portalRouter.set({ scope: "b@x" }));
     const { result } = renderHook(() => useOrgScope());
     expect(result.current.pivotEmail).toBe("b@x");
     // a leaf has no reports — org zones will gate on the empty roster

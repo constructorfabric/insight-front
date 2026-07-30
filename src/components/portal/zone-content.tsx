@@ -6,7 +6,11 @@ import { ManageView } from "@/components/portal/manage-view";
 import { PeopleView } from "@/components/portal/people-view";
 import { PersonView } from "@/components/portal/person-view";
 import { zoneById } from "@/lib/portal/nav-model";
-import { usePortalDir, usePortalItem, usePortalLens } from "@/lib/portal/portal-store";
+import {
+  usePortalDir,
+  usePortalItem,
+  usePortalLens,
+} from "@/lib/portal/portal-nav";
 import { useActiveZone } from "@/lib/portal/use-active-zone";
 
 /**

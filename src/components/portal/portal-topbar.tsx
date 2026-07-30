@@ -5,7 +5,7 @@ import { ScopeSelect } from "@/components/portal/scope-select";
 import { SliceSelect } from "@/components/portal/slice-select";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { PeriodSelectorBar } from "@/components/widgets/period-selector-bar";
-import { usePeriod } from "@/hooks/use-period";
+import { usePortalPeriod } from "@/hooks/use-portal-period";
 import { availableSlices } from "@/lib/insight/slices";
 import { collectRosterAttrs } from "@/lib/insight/slices";
 import { normalizePersonId } from "@/lib/metrics/entity";
@@ -19,7 +19,7 @@ import { useIcPerson } from "@/queries/ic-dashboard";
  * org (attributes are org-wide, not per-view), keeping the control universal.
  */
 export function PortalTopBar() {
-  const { period, customRange, setPeriod, setCustomRange } = usePeriod();
+  const { period, customRange, setPeriod, setCustomRange } = usePortalPeriod();
   const { email } = useViewer();
   const tree = useIcPerson(email ?? "").data ?? null;
   const dims = useMemo(

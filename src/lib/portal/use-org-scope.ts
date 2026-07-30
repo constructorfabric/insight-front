@@ -8,7 +8,12 @@ import {
   scopeRosterToDirectReports,
   type RosterEntry,
 } from "@/lib/insight/identity-tree";
-import { usePortalScope, type OrgScope } from "@/lib/portal/portal-store";
+import {
+  type OrgScope,
+} from "@/lib/portal/portal-store";
+import {
+  usePortalScope,
+} from "@/lib/portal/portal-nav";
 import { useIcPerson } from "@/queries/ic-dashboard";
 import type { IdentityPerson } from "@/types/insight";
 

@@ -6,7 +6,7 @@ import { GroupDrilldownSheet } from "@/components/widgets/dashboard/group-drilld
 import { IcNeedsAttention } from "@/components/widgets/dashboard/ic-needs-attention";
 import { KpiTile, KpiTilePlaceholder } from "@/components/widgets/dashboard/kpi-tile";
 import { MetricGroupCard } from "@/components/widgets/metric-views/metric-group-card";
-import { usePeriod } from "@/hooks/use-period";
+import { usePortalPeriod } from "@/hooks/use-portal-period";
 import { useSettings } from "@/hooks/use-settings";
 import { metricAttentionItems } from "@/lib/insight/attention";
 import {
@@ -73,7 +73,7 @@ export function MetricGroupsView({
   onSelectGroup,
   showSections = true,
 }: MetricGroupsViewProps) {
-  const { period, dateRange } = usePeriod();
+  const { period, dateRange } = usePortalPeriod();
   const { focusMode } = useSettings();
   const entityId = normalizePersonId(personId);
   const entity = { type: "person" as const, ids: [entityId] };

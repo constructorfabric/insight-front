@@ -6,7 +6,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
-import { setPortalScope, usePortalScope } from "@/lib/portal/portal-store";
+import {
+  usePortalNavActions,
+  usePortalScope,
+} from "@/lib/portal/portal-nav";
 import { useOrgScope } from "@/lib/portal/use-org-scope";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +23,7 @@ import { cn } from "@/lib/utils";
  * raw casing — a plain `===` is safe without lowercasing.
  */
 export function ScopeSelect() {
+  const { setScope } = usePortalNavActions();
   const scope = usePortalScope();
   const { label, count, managerNodes, pivotEmail, canDirectOnly } = useOrgScope();
   if (!managerNodes.length) return null;
@@ -48,7 +52,7 @@ export function ScopeSelect() {
             <button
               key={m.email}
               type="button"
-              onClick={() => setPortalScope({ root: m.depth === 0 ? null : m.email })}
+              onClick={() => setScope({ root: m.depth === 0 ? null : m.email })}
               className={cn(
                 "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent",
                 m.email === pivotEmail && "bg-accent/60",
@@ -66,7 +70,7 @@ export function ScopeSelect() {
             <span>Direct reports only</span>
             <Switch
               checked={scope.directOnly}
-              onCheckedChange={(v) => setPortalScope({ directOnly: v })}
+              onCheckedChange={(v) => setScope({ directOnly: v })}
             />
           </label>
         ) : null}

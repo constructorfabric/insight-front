@@ -2,7 +2,10 @@ import { MetricGroupsView } from "@/components/portal/metric-groups-view";
 import { PersonHeader } from "@/components/portal/person-header";
 import { SingleGroupView } from "@/components/portal/single-group-view";
 import { GROUPS, type GroupId } from "@/lib/insight/groups";
-import { setPortalItem, usePortalItem } from "@/lib/portal/portal-store";
+import {
+  usePortalItem,
+  usePortalNavActions,
+} from "@/lib/portal/portal-nav";
 
 const PERSON_GROUP_IDS: readonly GroupId[] = GROUPS.map((g) => g.id);
 
@@ -15,6 +18,7 @@ const PERSON_GROUP_IDS: readonly GroupId[] = GROUPS.map((g) => g.id);
  * points straight at its section.
  */
 export function PersonView({ person }: { person: string }) {
+  const { setItem } = usePortalNavActions();
   const item = usePortalItem();
   const isSection = item != null && (PERSON_GROUP_IDS as string[]).includes(item);
 
@@ -31,7 +35,7 @@ export function PersonView({ person }: { person: string }) {
           personId={person}
           groupIds={PERSON_GROUP_IDS}
           showKpis
-          onSelectGroup={(id) => setPortalItem(id)}
+          onSelectGroup={(id) => setItem(id)}
         />
       )}
     </>
