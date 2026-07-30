@@ -59,6 +59,23 @@ describe("consumeAuthErrorParam", () => {
     expect(consumeAuthErrorParam()?.autoRetry).toBe(false);
   });
 
+  it("strips an empty auth_error without counting it", () => {
+    stubLocation("https://insight.test/?auth_error=&tab=stats");
+
+    expect(consumeAuthErrorParam()).toBeNull();
+    expect(replaceState).toHaveBeenCalledWith(null, "", "/?tab=stats");
+    // The budget is untouched: the next real failure still auto-retries.
+    stubLocation("https://insight.test/?auth_error=state_expired");
+    expect(consumeAuthErrorParam()?.autoRetry).toBe(true);
+  });
+
+  it("preserves the hash when stripping the parameter", () => {
+    stubLocation("https://insight.test/board?auth_error=idp_error#section-2");
+
+    expect(consumeAuthErrorParam()?.code).toBe("idp_error");
+    expect(replaceState).toHaveBeenCalledWith(null, "", "/board#section-2");
+  });
+
   it("never auto-retries access_denied", () => {
     stubLocation("https://insight.test/?auth_error=access_denied");
 

@@ -26,10 +26,13 @@ export type AuthError = {
  */
 export function consumeAuthErrorParam(): AuthError | null {
   const url = new URL(window.location.href);
-  const code = url.searchParams.get("auth_error");
-  if (!code) return null;
+  if (!url.searchParams.has("auth_error")) return null;
+  const code = url.searchParams.get("auth_error") ?? "";
   url.searchParams.delete("auth_error");
   window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+  // An empty value (hand-crafted URL — the authenticator always sends a
+  // reason) is stripped but neither counted nor acted on.
+  if (!code) return null;
   const attempts = readAttempts() + 1;
   writeAttempts(attempts);
   return {

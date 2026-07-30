@@ -54,8 +54,9 @@ function bootstrap(): void {
       if (authError?.autoRetry) {
         // A fresh login fixes the retryable reasons (expired state after a
         // slow IdP round-trip, IdP hiccup); the attempt counter halts a
-        // persistent failure on the error screen instead of looping.
-        signIn("/");
+        // persistent failure on the error screen instead of looping. No-arg
+        // signIn: return to the current URL, already stripped of auth_error.
+        signIn();
         return;
       }
       if (authError) {
