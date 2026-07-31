@@ -41,6 +41,23 @@ export interface FlagParams {
  * against their own cohort (Tukey outliers + period declines + collapses).
  * Used by the team-state roster and the org overview so the logic lives once.
  */
+/**
+ * Severity in units of the cohort's own spread.
+ *
+ * One ranked list mixes metrics measured in commits, hours and dollars, so the
+ * number that orders them cannot carry a unit. Dividing an adverse distance by
+ * the cohort's IQR (or |median| when the cohort is flat) makes the result
+ * dimensionless: multiply every value of a metric by 1000 and nothing moves.
+ *
+ * `null` when the cohort offers no scale — a flag that cannot be compared is
+ * not raised, rather than raised with a number that means something else.
+ */
+function severityIn(scale: number | null, adverseDistance: number): number | null {
+  if (scale == null || !(scale > 1e-9)) return null;
+  const sev = adverseDistance / scale;
+  return Number.isFinite(sev) && sev > 0 ? sev : null;
+}
+
 export function computeAttentionFlags({
   headlineKeys,
   byKey,
@@ -70,7 +87,23 @@ export function computeAttentionFlags({
       (byCohort.get(pt.c) ?? byCohort.set(pt.c, []).get(pt.c)!).push(pt.v);
     const stats = new Map<
       string,
-      { p50: number; loFence: number; hiFence: number; iqr: number; denom: number; medianText: string }
+      {
+        p50: number;
+        loFence: number;
+        hiFence: number;
+        iqr: number;
+        denom: number;
+        /**
+         * The unit severity is measured in. IQR first — a robust spread that
+         * carries the metric's own scale, so "two IQRs from the median" means
+         * the same thing for hours and for commits. |median| is the fallback
+         * for a cohort with no dispersion; `null` means the cohort offers no
+         * scale at all (everyone identical AND at zero), and a flag with no
+         * scale cannot be ranked, so it is not raised.
+         */
+        scale: number | null;
+        medianText: string;
+      }
     >();
     for (const [c, vals] of byCohort) {
       if (vals.length < MIN_COHORT) continue;
@@ -85,6 +118,7 @@ export function computeAttentionFlags({
         loFence: p25 - 1.5 * iqr,
         hiFence: p75 + 1.5 * iqr,
         denom: Math.abs(p50) > 1e-9 ? Math.abs(p50) : 1,
+        scale: iqr > 1e-9 ? iqr : Math.abs(p50) > 1e-9 ? Math.abs(p50) : null,
         medianText: formatMetricValue(p50, r.format, r.unit),
       });
     }
@@ -102,11 +136,18 @@ export function computeAttentionFlags({
         : 0;
 
       if (higherIsBetter && v === 0 && st && st.p50 > 0) {
-        out.push({
-          email, name, metricKey: key, metricLabel: label, kind: "collapse",
-          valueText, reason: `no ${label.toLowerCase()} (${cohortLabel} median ${st.medianText})`,
-          severity: 1 + relGap,
-        });
+        // A collapse is the extreme of the same measure, not a separate scale:
+        // how far below the cohort this person sits, in IQRs. Ranking them all
+        // at a constant made every collapse tie and flood the top of the list
+        // — and on a partly-adopted metric everyone at zero is a collapse.
+        const sev = severityIn(st.scale, st.p50 - v);
+        if (sev != null) {
+          out.push({
+            email, name, metricKey: key, metricLabel: label, kind: "collapse",
+            valueText, reason: `no ${label.toLowerCase()} (${cohortLabel} median ${st.medianText})`,
+            severity: sev,
+          });
+        }
         continue;
       }
       if (
@@ -115,12 +156,15 @@ export function computeAttentionFlags({
         (higherIsBetter ? v < st.loFence : v > st.hiFence) &&
         relGap >= OUTLIER_MIN_REL_GAP
       ) {
-        out.push({
-          email, name, metricKey: key, metricLabel: label, kind: "outlier",
-          valueText,
-          reason: `${higherIsBetter ? "unusually low" : "unusually high"} · ${cohortLabel} median ${st.medianText}`,
-          severity: relGap,
-        });
+        const sev = severityIn(st.scale, higherIsBetter ? st.p50 - v : v - st.p50);
+        if (sev != null) {
+          out.push({
+            email, name, metricKey: key, metricLabel: label, kind: "outlier",
+            valueText,
+            reason: `${higherIsBetter ? "unusually low" : "unusually high"} · ${cohortLabel} median ${st.medianText}`,
+            severity: sev,
+          });
+        }
         continue;
       }
       if (prev) {
@@ -129,11 +173,18 @@ export function computeAttentionFlags({
           const change = (v - pv) / Math.abs(pv);
           const adverse = higherIsBetter ? -change : change;
           if (adverse >= DELTA_MIN) {
+            // The trigger stays a percentage of the person's own past — that is
+            // the question a decline answers. Severity converts the MOVE into
+            // cohort IQRs so it can share a ranking with the other two kinds;
+            // without a cohort scale there is nothing to compare against, so
+            // fall back to the fractional change and keep the flag.
+            const moved = higherIsBetter ? pv - v : v - pv;
+            const sev = st ? severityIn(st.scale, moved) : null;
             out.push({
               email, name, metricKey: key, metricLabel: label, kind: "decline",
               valueText,
               reason: `${higherIsBetter ? "down" : "up"} ${Math.round(adverse * 100)}% vs last period`,
-              severity: adverse,
+              severity: sev ?? adverse,
             });
           }
         }

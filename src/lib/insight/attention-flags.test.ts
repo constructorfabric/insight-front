@@ -186,3 +186,55 @@ describe("attentionSummary", () => {
     );
   });
 });
+
+describe("severity is scale-free", () => {
+  /** Flags for a single metric over `values`, every value multiplied by `factor`. */
+  function flagsFor(values: Array<[string, number]>, factor = 1, cohortOf?: (id: string) => string) {
+    const scaled = values.map(([id, v]) => [id, v * factor] as [string, number]);
+    return computeAttentionFlags(
+      params({
+        byKey: new Map([["t.metric", fixture(scaled)]]),
+        memberIds: scaled.map(([id]) => id),
+        ...(cohortOf ? { cohortOf } : {}),
+      }),
+    );
+  }
+
+  // A cohort with real spread and one member at zero.
+  const SPREAD: Array<[string, number]> = [
+    ["m1", 10], ["m2", 11], ["m3", 12], ["m4", 13], ["m5", 14], ["m6", 15], ["x", 0],
+  ];
+
+  it("ranks identically when every value is scaled by 1000", () => {
+    const order = (fs: ReturnType<typeof flagsFor>) => fs.map((f) => f.email).join(",");
+    expect(order(flagsFor(SPREAD, 1000))).toBe(order(flagsFor(SPREAD)));
+  });
+
+  it("gives the same severity for the same shape at any magnitude", () => {
+    const [small] = flagsFor(SPREAD);
+    const [big] = flagsFor(SPREAD, 1000);
+    expect(small).toBeDefined();
+    expect(big!.severity).toBeCloseTo(small!.severity, 6);
+  });
+
+  it("separates collapses instead of tying them at a constant", () => {
+    // Two cohorts, each with a zero. The tight cohort's zero sits further out
+    // in IQRs, so it must outrank the scattered cohort's zero — under the old
+    // constant both scored exactly 2 and the order was arbitrary.
+    const values: Array<[string, number]> = [
+      ["t1", 10], ["t2", 10], ["t3", 10], ["t4", 11], ["t0", 0],
+      ["w1", 2], ["w2", 20], ["w3", 40], ["w4", 60], ["w0", 0],
+    ];
+    const collapses = flagsFor(values, 1, (id) => (id.startsWith("t") ? "tight" : "wide")).filter(
+      (f) => f.kind === "collapse",
+    );
+    expect(collapses.map((f) => f.email)).toEqual(["t0@t", "w0@t"]);
+    expect(collapses[0]!.severity).toBeGreaterThan(collapses[1]!.severity);
+  });
+
+  it("raises nothing for a cohort with no scale at all", () => {
+    // Everyone identical and at zero: nothing is unusual, and no scale exists to
+    // rank by. A flag here would carry a number that means something else.
+    expect(flagsFor([["m1", 0], ["m2", 0], ["m3", 0], ["m4", 0]])).toEqual([]);
+  });
+});
