@@ -300,6 +300,8 @@ jobs:
           private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ vars.AUTOMATION_INSIGHT_UMBRELLA_REPO }}
+          # Least privilege: the token is only used to dispatch a workflow run.
+          permission-actions: write
 
       - name: Dispatch umbrella build-images workflow
         env:
