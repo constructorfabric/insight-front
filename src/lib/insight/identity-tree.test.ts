@@ -1,5 +1,9 @@
 /**
- * Roster derivation from the identity tree (#1724).
+ * Lookups and roster derivation over the identity tree.
+ *
+ * `findIdentityNode` keys on the canonical person id since the cutover;
+ * `findIdentityNodeByEmail` is the one email-keyed lookup left, serving the
+ * legacy-URL redirect.
  *
  * `flattenSubordinates` marks depth-1 reports `is_direct`;
  * `scopeRosterToDirectReports` narrows a roster to those entries when the
@@ -12,18 +16,28 @@ import { describe, expect, it } from "vitest";
 
 import type { IdentityPerson } from "@/types/insight";
 import {
+  findIdentityNode,
+  findIdentityNodeByEmail,
   flattenSubordinates,
   hasIndirectReports,
   scopeRosterToDirectReports,
   type RosterEntry,
 } from "./identity-tree";
 
+// One UUID per persona, derived from the local part so a failure names the
+// person. person_id is deliberately NOT the email: keying them the same would
+// hide a lookup that still matches on the wrong field.
+function personId(email: string): string {
+  const tag = email.split("@")[0]!.padEnd(4, "0").slice(0, 4);
+  return `019e2803-0000-7000-8000-00000000${Buffer.from(tag).toString("hex")}`;
+}
+
 function person(
   email: string,
   subordinates: IdentityPerson[] = [],
 ): IdentityPerson {
   return {
-    person_id: email,
+    person_id: personId(email),
     email,
     display_name: email.split("@")[0]!,
     subordinates,
@@ -34,6 +48,48 @@ const pivot = person("alice@x.io", [
   person("bob@x.io", [person("carol@x.io"), person("dave@x.io")]),
   person("erin@x.io"),
 ]);
+
+describe("findIdentityNode", () => {
+  it("finds the root itself", () => {
+    expect(findIdentityNode(pivot, personId("alice@x.io"))?.email).toBe(
+      "alice@x.io",
+    );
+  });
+
+  it("finds a transitive descendant", () => {
+    expect(findIdentityNode(pivot, personId("carol@x.io"))?.email).toBe(
+      "carol@x.io",
+    );
+  });
+
+  it("matches regardless of UUID casing", () => {
+    const upper = personId("dave@x.io").toUpperCase();
+    expect(findIdentityNode(pivot, upper)?.email).toBe("dave@x.io");
+  });
+
+  it("returns null for someone outside the tree and for no tree at all", () => {
+    expect(findIdentityNode(pivot, personId("zoe@x.io"))).toBeNull();
+    expect(findIdentityNode(null, personId("alice@x.io"))).toBeNull();
+    expect(findIdentityNode(undefined, personId("alice@x.io"))).toBeNull();
+  });
+
+  it("does not match a node by its email", () => {
+    expect(findIdentityNode(pivot, "bob@x.io")).toBeNull();
+  });
+});
+
+describe("findIdentityNodeByEmail", () => {
+  it("finds a descendant by email, case-insensitively", () => {
+    expect(findIdentityNodeByEmail(pivot, "CAROL@X.io")?.person_id).toBe(
+      personId("carol@x.io"),
+    );
+  });
+
+  it("returns null for an unknown email and for no tree at all", () => {
+    expect(findIdentityNodeByEmail(pivot, "zoe@x.io")).toBeNull();
+    expect(findIdentityNodeByEmail(null, "alice@x.io")).toBeNull();
+  });
+});
 
 describe("flattenSubordinates", () => {
   it("marks only depth-1 reports as direct", () => {
