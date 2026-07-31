@@ -63,17 +63,26 @@ function QueryAutoChart({ rows }: { rows: ResultRow[] }) {
   const model = inferChartModel(rows);
   if (!model) return null;
 
-  const colors = seriesColors(model.valueKeys);
+  // Column aliases are arbitrary SQL (e.g. `total sales`), which would produce
+  // an invalid `var(--color-total sales)`. Key each series by a stable
+  // `series-<n>` instead and keep the column name only as the display label.
+  const seriesKeys = model.valueKeys.map((_, index) => `series-${index}`);
+  const colors = seriesColors(seriesKeys);
   const config: ChartConfig = Object.fromEntries(
-    model.valueKeys.map((key) => [key, { label: key, color: colors[key] }])
+    model.valueKeys.map((column, index) => [
+      seriesKeys[index],
+      { label: column, color: colors[seriesKeys[index]] },
+    ])
   );
   const data = rows.map((row) => {
-    const point: Record<string, string | number> = {
+    // Keep a missing value as null (a gap), not 0 — a bar at zero would report
+    // a measured zero the query never returned.
+    const point: Record<string, string | number | null> = {
       label: formatCell(row[model.labelKey]),
     };
-    for (const key of model.valueKeys) {
-      point[key] = toNumber(row[key]) ?? 0;
-    }
+    model.valueKeys.forEach((column, index) => {
+      point[seriesKeys[index]] = toNumber(row[column]);
+    });
     return point;
   });
 
@@ -96,12 +105,12 @@ function QueryAutoChart({ rows }: { rows: ResultRow[] }) {
           width={48}
         />
         <ChartTooltip content={<ChartTooltipContent className="min-w-40" />} />
-        {model.valueKeys.map((key) => (
+        {model.valueKeys.map((column, index) => (
           <ChartBar
-            key={key}
-            dataKey={key}
-            fill={`var(--color-${key})`}
-            name={key}
+            key={seriesKeys[index]}
+            dataKey={seriesKeys[index]}
+            fill={`var(--color-${seriesKeys[index]})`}
+            name={column}
             radius={[2, 2, 0, 0]}
           />
         ))}

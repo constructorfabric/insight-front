@@ -312,6 +312,7 @@
     "no_selection_description": "Pick a saved query on the left, or create a new one.",
     "list_error": "Failed to load saved queries",
     "list_error_description": "Try reloading the page. If the problem persists, contact your administrator.",
+    "delete_error": "Could not delete the query. Try again.",
     "editor": {
       "create_title": "New query",
       "edit_title": "Edit query",

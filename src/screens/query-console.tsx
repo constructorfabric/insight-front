@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { SavedQuerySummary } from "@/api/saved-queries-client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   Empty,
   EmptyDescription,
@@ -78,6 +79,13 @@ export function QueryConsoleScreen() {
             <AlertDescription>
               {t("query_console.list_error_description")}
             </AlertDescription>
+          </Alert>
+        ) : null}
+
+        {deleteQuery.isError ? (
+          <Alert variant="destructive" className="mb-4">
+            <TriangleAlert />
+            <AlertTitle>{t("query_console.delete_error")}</AlertTitle>
           </Alert>
         ) : null}
 
@@ -194,13 +202,31 @@ function EditQueryDialog({
   id: string;
   onClose: () => void;
 }) {
-  const { data: query } = useSavedQuery(id);
+  const { t } = useTranslation();
+  const { data: query, isError } = useSavedQuery(id);
   const updateQuery = useUpdateSavedQuery(id);
 
-  // Wait for the full query (list summaries carry no `sql`) so the form mounts
-  // once with stable prefill values. The detail pane has usually cached it, so
-  // this resolves immediately in practice.
-  if (!query) return null;
+  // The form must mount once with stable prefill values, so wait for the full
+  // query (list summaries carry no `sql`). The detail pane has usually cached
+  // it, but a slow fetch or an error still gets visible feedback rather than a
+  // silent no-op dialog.
+  if (isError) {
+    return (
+      <StatusDialog onClose={onClose}>
+        <Alert variant="destructive">
+          <TriangleAlert />
+          <AlertTitle>{t("query_console.detail.load_error")}</AlertTitle>
+        </Alert>
+      </StatusDialog>
+    );
+  }
+  if (!query) {
+    return (
+      <StatusDialog onClose={onClose}>
+        <CenteredSpinner className="min-h-40" />
+      </StatusDialog>
+    );
+  }
 
   return (
     <QueryEditorDialog
@@ -218,6 +244,21 @@ function EditQueryDialog({
         updateQuery.mutate(toRequest(draft), { onSuccess: onClose })
       }
     />
+  );
+}
+
+/** Minimal modal shell for the edit dialog's loading and error states. */
+function StatusDialog({
+  onClose,
+  children,
+}: {
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Dialog open onOpenChange={(open) => (open ? null : onClose())}>
+      <DialogContent className="sm:max-w-md">{children}</DialogContent>
+    </Dialog>
   );
 }
 

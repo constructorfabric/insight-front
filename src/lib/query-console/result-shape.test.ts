@@ -55,6 +55,14 @@ describe("inferChartModel", () => {
     expect(inferChartModel(rows)).toBeNull();
   });
 
+  it("is not chartable with more than one categorical column (ambiguous axis)", () => {
+    const rows: ResultRow[] = [
+      { team: "alpha", tool: "github", commits: 10 },
+      { team: "beta", tool: "gitlab", commits: 7 },
+    ];
+    expect(inferChartModel(rows)).toBeNull();
+  });
+
   it("is not chartable for zero rows", () => {
     expect(inferChartModel([])).toBeNull();
   });

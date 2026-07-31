@@ -36,17 +36,19 @@ export interface AutoChartModel {
 
 /**
  * A result is chartable when it has at least one row (but not so many that a
- * categorical chart turns to noise), exactly one usable categorical column for
- * the x-axis, and at least one numeric column for the bars. Otherwise the
- * console renders the table alone.
+ * categorical chart turns to noise), *exactly one* categorical column for the
+ * x-axis, and at least one numeric column for the bars. More than one
+ * categorical column is ambiguous (which is the axis?), so the console renders
+ * the table alone.
  */
 export function inferChartModel(rows: ResultRow[]): AutoChartModel | null {
   if (rows.length === 0 || rows.length > MAX_CHART_ROWS) return null;
 
   const columns = inferColumns(rows);
-  const labelKey = columns.find((column) => !isNumericColumn(rows, column));
-  if (labelKey === undefined) return null;
+  const categorical = columns.filter((column) => !isNumericColumn(rows, column));
+  if (categorical.length !== 1) return null;
 
+  const labelKey = categorical[0];
   const valueKeys = columns.filter(
     (column) => column !== labelKey && isNumericColumn(rows, column)
   );
