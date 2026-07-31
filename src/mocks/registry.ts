@@ -57,8 +57,10 @@ function directReports(supervisorPersonId: string): MockPerson[] {
   return PEOPLE.filter((p) => p.supervisor_person_id === supervisorPersonId);
 }
 
+// Keyed by the lowercased email: identity compares case-insensitively, so an
+// exact-case mock would refuse spellings the real service resolves.
 export const PEOPLE_BY_EMAIL: Record<string, MockPerson> = Object.fromEntries(
-  PEOPLE.map((p) => [p.email, p]),
+  PEOPLE.map((p) => [p.email.toLowerCase(), p]),
 );
 
 export type MockIdentityRaw = {

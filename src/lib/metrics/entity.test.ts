@@ -20,6 +20,13 @@ describe("isPersonId", () => {
     expect(isPersonId("alice@example.com")).toBe(false);
   });
 
+  it("rejects the nil UUID, which parses but is never a person", () => {
+    // Both backends reject it. Accepting it here would clear the route guard
+    // and paint a dashboard whose every metric request 400s.
+    expect(isPersonId("00000000-0000-0000-0000-000000000000")).toBe(false);
+    expect(isPersonId(" 00000000-0000-0000-0000-000000000000 ")).toBe(false);
+  });
+
   it.each(["", "   ", "019e27bc", "019e27bc-dec0-7626-81a9-c5524662a6a9-extra"])(
     "rejects malformed value %j",
     (value) => {

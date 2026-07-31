@@ -31,9 +31,14 @@ function isNotFound(error: unknown): boolean {
  */
 export function LegacyPersonRedirect({ email, view }: LegacyPersonRedirectProps) {
   const navigate = useNavigate();
+  // One spelling for both the cache key and the wire: keying on the normalized
+  // form while sending the raw one makes two requests share a cache entry when
+  // the backend may well resolve them differently (it only trims; the rest is
+  // the column's collation).
+  const normalizedEmail = email.trim().toLowerCase();
   const person = useQuery({
-    queryKey: ["identity", "person-by-email", email.trim().toLowerCase()],
-    queryFn: () => getPersonByEmail(email),
+    queryKey: ["identity", "person-by-email", normalizedEmail],
+    queryFn: () => getPersonByEmail(normalizedEmail),
     retry: false,
     throwOnError: (error) => !isNotFound(error),
   });

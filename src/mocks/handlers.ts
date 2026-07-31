@@ -64,15 +64,27 @@ export const handlers = [
       const body = (await request.json().catch(() => null)) as
         | { value_type?: string; value?: string }
         | null;
-      const value = body?.value ?? "";
+      const value = (body?.value ?? "").trim();
       // The service resolves `person_id` (the SPA's key) and `email` (legacy
       // URL migration only); anything else is a client error.
+      if (body?.value_type !== "email" && body?.value_type !== "person_id") {
+        return HttpResponse.json(
+          { type: "urn:insight:error:invalid_argument" },
+          { status: 400 },
+        );
+      }
+      // A malformed person_id is a 400, not a 404 — matching the service, where
+      // "does not parse" and "resolves to nobody" are different answers.
+      if (body.value_type === "person_id" && !isPersonId(value)) {
+        return HttpResponse.json(
+          { type: "urn:insight:error:invalid_argument" },
+          { status: 400 },
+        );
+      }
       const personId =
-        body?.value_type === "email"
-          ? PEOPLE_BY_EMAIL[value]?.person_id
-          : body?.value_type === "person_id"
-            ? value
-            : undefined;
+        body.value_type === "email"
+          ? PEOPLE_BY_EMAIL[value.toLowerCase()]?.person_id
+          : value.toLowerCase();
       if (!personId) {
         return HttpResponse.json(
           { type: "urn:insight:error:person_not_found" },

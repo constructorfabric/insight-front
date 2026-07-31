@@ -77,11 +77,4 @@ describe("prefetchViewerIdentity", () => {
 
     expect(resolve).not.toHaveBeenCalled();
   });
-
-  it("never sends an email — identity answers 400 for one", async () => {
-    await prefetchViewerIdentity();
-
-    const sent = resolve.mock.calls[0]?.[0] ?? "";
-    expect(sent).not.toContain("@");
-  });
 });

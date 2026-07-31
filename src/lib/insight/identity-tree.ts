@@ -16,24 +16,6 @@ export function findIdentityNode(
   return null;
 }
 
-/**
- * Find a node by email — the ONLY email-keyed lookup left, used to migrate a
- * legacy `/ic/<email>` bookmark onto its canonical person-id URL.
- */
-export function findIdentityNodeByEmail(
-  tree: IdentityPerson | null | undefined,
-  email: string,
-): IdentityPerson | null {
-  if (!tree) return null;
-  const target = toLower(email);
-  if (toLower(tree.email) === target) return tree;
-  for (const sub of tree.subordinates) {
-    const found = findIdentityNodeByEmail(sub, target);
-    if (found) return found;
-  }
-  return null;
-}
-
 export interface RosterEntry {
   /** Canonical person id — the key for links, metric ids and React keys. */
   person_id: string;

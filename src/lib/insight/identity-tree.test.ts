@@ -1,9 +1,7 @@
 /**
  * Lookups and roster derivation over the identity tree.
  *
- * `findIdentityNode` keys on the canonical person id since the cutover;
- * `findIdentityNodeByEmail` is the one email-keyed lookup left, serving the
- * legacy-URL redirect.
+ * `findIdentityNode` keys on the canonical person id since the cutover.
  *
  * `flattenSubordinates` marks depth-1 reports `is_direct`;
  * `scopeRosterToDirectReports` narrows a roster to those entries when the
@@ -17,7 +15,6 @@ import { describe, expect, it } from "vitest";
 import type { IdentityPerson } from "@/types/insight";
 import {
   findIdentityNode,
-  findIdentityNodeByEmail,
   flattenSubordinates,
   hasIndirectReports,
   scopeRosterToDirectReports,
@@ -75,19 +72,6 @@ describe("findIdentityNode", () => {
 
   it("does not match a node by its email", () => {
     expect(findIdentityNode(pivot, "bob@x.io")).toBeNull();
-  });
-});
-
-describe("findIdentityNodeByEmail", () => {
-  it("finds a descendant by email, case-insensitively", () => {
-    expect(findIdentityNodeByEmail(pivot, "CAROL@X.io")?.person_id).toBe(
-      personId("carol@x.io"),
-    );
-  });
-
-  it("returns null for an unknown email and for no tree at all", () => {
-    expect(findIdentityNodeByEmail(pivot, "zoe@x.io")).toBeNull();
-    expect(findIdentityNodeByEmail(null, "alice@x.io")).toBeNull();
   });
 });
 

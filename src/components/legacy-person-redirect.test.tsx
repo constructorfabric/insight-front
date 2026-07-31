@@ -77,7 +77,11 @@ describe("LegacyPersonRedirect", () => {
     });
     // `replace`, not a push: the email URL must not sit in the history stack
     // where Back would bounce the user straight back into it.
-    expect(resolve).toHaveBeenCalledWith("Alice@X.io");
+    //
+    // Sent normalized, matching the cache key: keying on one spelling while
+    // sending another lets two requests share an entry the backend might have
+    // resolved differently.
+    expect(resolve).toHaveBeenCalledWith("alice@x.io");
   });
 
   it("routes the personal view to the personal dashboard", async () => {

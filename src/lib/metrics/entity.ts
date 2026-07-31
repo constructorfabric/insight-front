@@ -11,12 +11,18 @@ export function normalizePersonId(personId: string): string {
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
 
 /**
  * Whether a string is a person UUID the metrics API would accept. Guards the
- * route boundary: a legacy email URL must be redirected, not sent to the API
+ * route boundary: an id that fails here must be redirected, not sent to the API
  * where it reads as a 400 the user cannot act on.
+ *
+ * The nil UUID parses as a UUID but is never a person — both analytics and
+ * identity reject it — so it fails here too. Otherwise it would clear the route
+ * guard and paint a dashboard whose every metric request 400s.
  */
 export function isPersonId(value: string): boolean {
-  return UUID_RE.test(normalizePersonId(value));
+  const normalized = normalizePersonId(value);
+  return UUID_RE.test(normalized) && normalized !== NIL_UUID;
 }

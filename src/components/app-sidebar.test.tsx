@@ -227,6 +227,15 @@ describe("AppSidebar", () => {
     expect(buttonFor("alice@x.io")).toBeInTheDocument();
   });
 
+  it("labels a person with neither name nor email so the node stays readable", () => {
+    // The identity contract admits both being absent; an empty node would be an
+    // unclickable sliver.
+    viewerData = person(PERSON_IDS.alice, "", "");
+    render(<AppSidebar />);
+
+    expect(buttonFor("Unnamed person")).toBeInTheDocument();
+  });
+
   it("shows the metric catalog entry, active on its route", () => {
     currentPath = "/metrics";
     render(<AppSidebar />);

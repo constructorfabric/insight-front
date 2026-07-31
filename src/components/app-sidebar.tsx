@@ -29,6 +29,10 @@ import { getInitials } from "@/lib/insight/get-initials";
 import { useIcPerson } from "@/queries/ic-dashboard";
 import type { IdentityPerson } from "@/types/insight";
 
+// The identity contract admits people with no email and no display name (a
+// person whose log carries neither). Their node still has to be clickable.
+const UNNAMED_PERSON = "Unnamed person";
+
 function personIdEq(a: string, b: string): boolean {
   return a.toLowerCase() === b.toLowerCase();
 }
@@ -79,7 +83,9 @@ function PersonNode({
             <span className="w-4 shrink-0" />
           )}
           {hasReports ? <Users /> : <User />}
-          <span className="truncate">{node.display_name || node.email}</span>
+          <span className="truncate">
+            {node.display_name || node.email || UNNAMED_PERSON}
+          </span>
         </SidebarMenuButton>
       </SidebarMenuItem>
       {hasReports && open
