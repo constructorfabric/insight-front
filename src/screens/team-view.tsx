@@ -13,7 +13,6 @@ import { Switch } from "@/components/ui/switch";
 import { usePeriod } from "@/hooks/use-period";
 import {
   flattenSubordinates,
-  findIdentityNode,
   hasIndirectReports,
   scopeRosterToDirectReports,
 } from "@/lib/insight/identity-tree";
@@ -47,10 +46,9 @@ const TEAM_METRIC_COLLECTIONS = GROUPS.map((def) => ({
 export interface TeamViewScreenProps {
   /** Pivot person id whose subtree the table shows. */
   teamId: string;
-  viewerPersonId: string;
 }
 
-export function TeamViewScreen({ teamId, viewerPersonId }: TeamViewScreenProps) {
+export function TeamViewScreen({ teamId }: TeamViewScreenProps) {
   const { period, dateRange, setPeriod } = usePeriod();
   const [openGroup, setOpenGroup] = useState<GroupId | null>(null);
   const [directReportsOnly, setDirectReportsOnly] = useState(true);
@@ -63,15 +61,13 @@ export function TeamViewScreen({ teamId, viewerPersonId }: TeamViewScreenProps) 
     setOpenGroup(null);
   }
 
-  const viewerQ = useIcPerson(viewerPersonId);
-  const viewerTree = viewerQ.data ?? null;
-
-  // The pivot is a person id in the viewer's own tree; a stranger's id simply
-  // does not resolve, which is the same outcome the metrics gate would give.
-  const pivot = useMemo(
-    () => findIdentityNode(viewerTree, teamId),
-    [viewerTree, teamId],
-  );
+  // The pivot is resolved by identity, NOT looked up in the viewer's tree:
+  // visibility also comes from explicit and wildcard grants, so a person the
+  // viewer may legitimately see can sit outside their reporting line. A tree
+  // lookup would render that team empty. The hook still serves the viewer's
+  // cached tree as placeholder data, so the common case paints immediately.
+  const pivotQ = useIcPerson(teamId);
+  const pivot = pivotQ.data ?? null;
 
   const fullRoster = useMemo(
     () => (pivot ? flattenSubordinates(pivot) : null),
@@ -149,10 +145,10 @@ export function TeamViewScreen({ teamId, viewerPersonId }: TeamViewScreenProps) 
   // The one loading gate: a single page spinner while ANY of the screen's
   // queries has no data. A period or scope change mints new query keys, so
   // the same gate re-trips — no per-widget loaders, no partial paints. The
-  // roster query (viewer tree) comes first: every other query derives its
-  // entity ids from it.
+  // roster query (the pivot's own profile) comes first: every other query
+  // derives its entity ids from it.
   const isLoading =
-    viewerQ.isPending ||
+    pivotQ.isPending ||
     heatmapQ.isPending ||
     collectionSetPending(metricGroupData);
   const hasMembers = members.length > 0;

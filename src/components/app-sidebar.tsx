@@ -85,7 +85,7 @@ function PersonNode({
       {hasReports && open
         ? node.subordinates.map((sub) => (
             <PersonNode
-              key={sub.email}
+              key={sub.person_id}
               node={sub}
               depth={depth + 1}
               activePersonId={activePersonId}

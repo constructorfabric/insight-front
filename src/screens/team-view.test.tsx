@@ -85,6 +85,8 @@ const PERSON_IDS = {
   carol: "019e2801-0000-7000-8000-00000000ca01",
   erin: "019e2801-0000-7000-8000-00000000e21e",
   dave: "019e2801-0000-7000-8000-00000000da5e",
+  grace: "019e2801-0000-7000-8000-000000009ace",
+  hana: "019e2801-0000-7000-8000-00000000ba4a",
   fay: "019e2801-0000-7000-8000-00000000fa77",
   gil: "019e2801-0000-7000-8000-000000009117",
 } as const;
@@ -117,20 +119,36 @@ const flatTree = person(PERSON_IDS.dave, "dave@x.io", "Dave", [
   person(PERSON_IDS.gil, "gil@x.io", "Gil"),
 ]);
 
-let currentTree = viewerTree;
+// Grace is nobody's report in the viewer's line — she is reachable only
+// through an explicit visibility grant, which identity honours and a tree walk
+// never would.
+const grantedTree = person(PERSON_IDS.grace, "grace@x.io", "Grace", [
+  person(PERSON_IDS.hana, "hana@x.io", "Hana"),
+]);
+
+// Identity answers per person id: the screen asks for the PIVOT's profile, not
+// the viewer's tree, so a request keyed by anyone else must not resolve here.
+let trees: Record<string, IdentityPerson> = {};
 
 vi.mock("@/queries/ic-dashboard", () => ({
-  useIcPerson: () => ({ ...queryState, data: currentTree }),
+  useIcPerson: (personId: string) => ({
+    ...queryState,
+    data: trees[personId],
+  }),
 }));
 
 import { TeamViewScreen } from "./team-view";
 
 beforeEach(() => {
-  currentTree = viewerTree;
+  trees = {
+    [PERSON_IDS.alice]: viewerTree,
+    [PERSON_IDS.dave]: flatTree,
+    [PERSON_IDS.grace]: grantedTree,
+  };
 });
 
 function renderScreen(teamId: string = PERSON_IDS.alice) {
-  return render(<TeamViewScreen teamId={teamId} viewerPersonId={teamId} />);
+  return render(<TeamViewScreen teamId={teamId} />);
 }
 
 describe("TeamViewScreen direct-reports scoping", () => {
@@ -166,8 +184,17 @@ describe("TeamViewScreen direct-reports scoping", () => {
     ]);
   });
 
+  it("renders a team the viewer reaches by grant, outside their own tree", () => {
+    // The pivot comes from identity, so a person absent from the viewer's
+    // reporting line still gets a populated team instead of an empty one.
+    renderScreen(PERSON_IDS.grace);
+
+    expect(screen.getByText("1 member")).toBeInTheDocument();
+    expect(screen.getByTestId("heatmap")).toHaveTextContent("Hana");
+    expect(heatmapFetchedIds()).toEqual([PERSON_IDS.hana]);
+  });
+
   it("hides the toggle for a team with no subteams (#1756)", () => {
-    currentTree = flatTree;
     renderScreen(PERSON_IDS.dave);
 
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
