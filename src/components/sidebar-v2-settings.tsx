@@ -78,7 +78,7 @@ export function SidebarV2Settings() {
           </SidebarMenuItem>
         </>
       ) : null}
-      <SidebarMenuItem>
+      <SidebarMenuItem className="hidden">
         <SidebarMenuButton
           onClick={() => setMetricsV2Enabled(!v2)}
           aria-pressed={v2}
