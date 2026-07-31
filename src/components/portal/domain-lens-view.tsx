@@ -155,10 +155,15 @@ export function DomainLensView({
   );
   const trendCollection = useMemo<MetricCollectionConfig>(
     () => ({
-      metrics: trendKeys.map((key) => ({
-        key,
-        views: [{ view: "timeseries" as const, bucket: trendBucket }],
-      })),
+      // No bucket fits → no request. Sending one anyway earns a 400 the reader
+      // then has to interpret as "the trend is broken" rather than "this window
+      // is too wide for this many people".
+      metrics: trendBucket
+        ? trendKeys.map((key) => ({
+            key,
+            views: [{ view: "timeseries" as const, bucket: trendBucket }],
+          }))
+        : [],
     }),
     [trendKeys, trendBucket],
   );
@@ -341,7 +346,7 @@ function Section({
   spec: SectionSpec;
   grid: GridData;
   trend: TrendData;
-  trendBucket: MetricBucket;
+  trendBucket: MetricBucket | null;
   compData: Map<string, NormalizedMetricResult>;
   compIsError: boolean;
   compRefetch: () => void;
@@ -362,7 +367,13 @@ function Section({
       );
     case "trend":
       return (
-        <TrendSection metrics={spec.metrics} grid={grid} trend={trend} bucket={trendBucket} memberIds={memberIds} />
+        trendBucket ? (
+          <TrendSection metrics={spec.metrics} grid={grid} trend={trend} bucket={trendBucket} memberIds={memberIds} />
+        ) : (
+          // Say which of the two dials to turn — a bare "no data" would read as
+          // an ingestion gap rather than a request nobody can answer.
+          <Pending label="Trend needs a narrower period or a smaller scope — this many people over this window exceeds one request." />
+        )
       );
     case "distribution":
       return <DistributionSection spec={spec} grid={grid} memberIds={memberIds} />;

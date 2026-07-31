@@ -8,23 +8,33 @@ import {
 
 /**
  * Finest bucket (day → week → month) whose projected rows
- * (members × metrics × buckets) fit the backend's all-or-nothing row limit, so
- * a large org still gets a (coarser) trend rather than a failed request. Small
- * teams keep daily granularity; the org root falls back to weekly/monthly.
- * Shared by every portal trend so no view repeats the org-scope row-limit trap.
+ * (members × metrics × buckets) fit the backend's all-or-nothing row limit —
+ * so a large org still gets a coarser trend rather than a failed request.
+ *
+ * `null` is the fourth outcome and the important one: past a certain
+ * members × metrics × months, even monthly does not fit, and returning "month"
+ * anyway just sends a request the backend is guaranteed to reject. A suppressed
+ * trend with a stated reason beats a 400 the reader has to interpret.
  */
 export function pickTrendBucket(
   members: number,
   metrics: number,
   range: { from: string; to: string },
-): MetricBucket {
+): MetricBucket | null {
   const days = Math.max(1, daysBetween(range.from, range.to));
   const perBucket = Math.max(1, members * Math.max(1, metrics));
   // Headroom below the hard limit so we never sit exactly on the cliff.
-  const maxBuckets = Math.max(1, Math.floor((MAX_PROJECTED_ROWS * 0.85) / perBucket));
+  // NO `Math.max(1, …)` floor here: it used to claim that one bucket always
+  // fits, which is false once the roster alone exceeds the limit — 4000 people
+  // × 2 metrics is 8000 rows in a SINGLE bucket. That floor turned "impossible"
+  // into a confident "week" and a guaranteed 400.
+  const maxBuckets = Math.floor((MAX_PROJECTED_ROWS * 0.85) / perBucket);
+  if (maxBuckets < 1) return null;
   if (days <= maxBuckets) return "day";
   if (Math.ceil(days / 7) <= maxBuckets) return "week";
-  return "month";
+  // ~30.44 days per month: overestimating buckets here is the safe direction.
+  if (Math.ceil(days / 30.44) <= maxBuckets) return "month";
+  return null;
 }
 
 function daysBetween(from: string, to: string): number {
