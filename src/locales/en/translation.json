@@ -302,5 +302,39 @@
       "dimension_not_covered": "A declared dimension is not present on the source rows.",
       "unknown": "The schema check failed for an unknown reason."
     }
+  },
+  "query_console": {
+    "nav_label": "Query console",
+    "title": "Query console",
+    "new_query": "New query",
+    "empty_list": "No saved queries yet. Create one to get started.",
+    "no_selection": "No query selected",
+    "no_selection_description": "Pick a saved query on the left, or create a new one.",
+    "list_error": "Failed to load saved queries",
+    "list_error_description": "Try reloading the page. If the problem persists, contact your administrator.",
+    "editor": {
+      "create_title": "New query",
+      "edit_title": "Edit query",
+      "name_label": "Name",
+      "description_label": "Description",
+      "sql_label": "SQL",
+      "sql_placeholder": "SELECT ... FROM ... WHERE ...",
+      "cancel": "Cancel",
+      "save": "Save",
+      "save_failed": "Could not save the query. Check the SQL and try again."
+    },
+    "detail": {
+      "edit": "Edit",
+      "delete": "Delete",
+      "run": "Run",
+      "period_label": "Period",
+      "period_placeholder": "e.g. 2026-01",
+      "load_error": "Failed to load this query",
+      "run_error": "Query failed",
+      "run_error_generic": "The query could not be run. Check the SQL and any required parameters."
+    },
+    "results": {
+      "empty": "The query returned no rows."
+    }
   }
 }
