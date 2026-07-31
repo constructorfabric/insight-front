@@ -2,6 +2,7 @@ export type PeriodValue = "week" | "month" | "quarter" | "year";
 export type CustomRange = { from: string; to: string };
 
 export interface TeamMember {
+  /** Canonical person id (NOT an email — the identity cutover key). */
   person_id: string;
   name: string;
 }

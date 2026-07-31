@@ -54,12 +54,13 @@ export class IdentityApiError extends Error {
 }
 
 /**
- * Normalize a `ProfileResponse` into the FE `IdentityPerson`. `email` is the UI
- * identity (org-tree sidebar links + React keys), so the top-level profile is
- * guaranteed to carry one by `getPerson`; subordinates the wire returns without
- * an email are dropped rather than projected to `""` — an empty email would make
- * broken sidebar links and collide as duplicate React keys across siblings. Other
- * optional strings default to `""`; omitted parent/supervisor fields stay `null`.
+ * Normalize a `ProfileResponse` into the FE `IdentityPerson`. `person_id` is the
+ * UI identity (route links + React keys), so the top-level profile is guaranteed
+ * to carry one by `getPerson`; subordinates the wire returns without one are
+ * dropped rather than projected to `""` — a keyless node would make broken links
+ * and collide as duplicate React keys across siblings. `email` is display-only
+ * now and may legitimately be absent. Other optional strings default to `""`;
+ * omitted parent/supervisor fields stay `null`.
  */
 function toIdentityPerson(p: ProfileResponse): IdentityPerson {
   return {
@@ -79,17 +80,39 @@ function toIdentityPerson(p: ProfileResponse): IdentityPerson {
     supervisor_email: p.supervisor_email ?? null,
     supervisor_name: p.supervisor_name ?? null,
     subordinates: (p.subordinates ?? [])
-      .filter((s) => Boolean(s.email?.trim()))
+      .filter((s) => Boolean(s.person_id?.trim()))
       .map(toIdentityPerson),
   };
 }
 
-export async function getPerson(email: string): Promise<IdentityPerson> {
+/**
+ * Resolve one profile by email — kept for exactly one caller: migrating a
+ * pre-cutover `/ic/<email>` URL to its canonical person-id form. Nothing else
+ * may key on email; identity itself no longer requires one to exist.
+ */
+export async function getPersonByEmail(email: string): Promise<IdentityPerson> {
+  return resolveProfile({ value_type: "email", value: email });
+}
+
+/**
+ * Resolve one profile by canonical person id — the key the SPA routes on and
+ * the metrics API filters by since the identity cutover. Identity applies the
+ * caller's visible set here, so a person's name and their metrics answer to
+ * one permission: an id outside it is a 404, not a nameless dashboard.
+ */
+export async function getPerson(personId: string): Promise<IdentityPerson> {
+  return resolveProfile({ value_type: "person_id", value: personId });
+}
+
+async function resolveProfile(body: {
+  value_type: "person_id" | "email";
+  value: string;
+}): Promise<IdentityPerson> {
   const url = `${BASE}/profiles`;
   const res = await fetchWithAuth(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ value_type: "email", value: email }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => null);
@@ -101,10 +124,12 @@ export async function getPerson(email: string): Promise<IdentityPerson> {
   } catch {
     throw new IdentityApiError(res.status, { error: "invalid_json" });
   }
-  // `email` is the queried identity + the UI's key; a profile without it is
-  // unusable, so surface it rather than projecting an empty-string person.
-  if (!profile.email?.trim()) {
-    throw new IdentityApiError(res.status, { error: "missing_email" });
+  // `person_id` is the queried identity + the UI's key; a profile without it
+  // is unusable, so surface it rather than projecting a keyless person. The
+  // email is NOT required — identity resolves persons whose observation log
+  // carries no current email, and nothing keys on it any more.
+  if (!profile.person_id?.trim()) {
+    throw new IdentityApiError(res.status, { error: "missing_person_id" });
   }
   return toIdentityPerson(profile);
 }

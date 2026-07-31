@@ -4,11 +4,11 @@ const toLower = (s: string | undefined | null) => (s ?? "").toLowerCase();
 
 export function findIdentityNode(
   tree: IdentityPerson | null | undefined,
-  email: string,
+  personId: string,
 ): IdentityPerson | null {
   if (!tree) return null;
-  const target = toLower(email);
-  if (toLower(tree.email) === target) return tree;
+  const target = toLower(personId);
+  if (toLower(tree.person_id) === target) return tree;
   for (const sub of tree.subordinates) {
     const found = findIdentityNode(sub, target);
     if (found) return found;
@@ -16,10 +16,30 @@ export function findIdentityNode(
   return null;
 }
 
+/**
+ * Find a node by email — the ONLY email-keyed lookup left, used to migrate a
+ * legacy `/ic/<email>` bookmark onto its canonical person-id URL.
+ */
+export function findIdentityNodeByEmail(
+  tree: IdentityPerson | null | undefined,
+  email: string,
+): IdentityPerson | null {
+  if (!tree) return null;
+  const target = toLower(email);
+  if (toLower(tree.email) === target) return tree;
+  for (const sub of tree.subordinates) {
+    const found = findIdentityNodeByEmail(sub, target);
+    if (found) return found;
+  }
+  return null;
+}
+
 export interface RosterEntry {
+  /** Canonical person id — the key for links, metric ids and React keys. */
+  person_id: string;
   email: string;
   display_name: string;
-  supervisor_email: string | null;
+  supervisor_person_id: string | null;
   /** True when the person is a direct report of the pivot (depth 1). */
   is_direct: boolean;
 }
@@ -32,18 +52,23 @@ export interface RosterEntry {
  */
 export function flattenSubordinates(pivot: IdentityPerson): RosterEntry[] {
   const out: RosterEntry[] = [];
-  const walk = (node: IdentityPerson, supervisorEmail: string, isDirect: boolean): void => {
+  const walk = (
+    node: IdentityPerson,
+    supervisorPersonId: string,
+    isDirect: boolean,
+  ): void => {
     for (const sub of node.subordinates) {
       out.push({
+        person_id: sub.person_id,
         email: sub.email,
         display_name: sub.display_name,
-        supervisor_email: supervisorEmail,
+        supervisor_person_id: supervisorPersonId,
         is_direct: isDirect,
       });
-      walk(sub, sub.email, false);
+      walk(sub, sub.person_id, false);
     }
   };
-  walk(pivot, pivot.email, true);
+  walk(pivot, pivot.person_id, true);
   return out;
 }
 
