@@ -63,4 +63,118 @@ export const handlers = [
       return HttpResponse.json(tree);
     },
   ),
+  ...savedQueryHandlers(),
 ];
+
+// ── Saved queries (`/v1/queries`) ────────────────────────────
+// A tiny in-memory store so the console's CRUD + run round-trip in mock,
+// Storybook, and `VITE_ENABLE_MOCKS=true` dev runs. Synthetic data only.
+
+interface MockSavedQuery {
+  id: string;
+  insight_tenant_id: string;
+  name: string;
+  description: string | null;
+  sql: string;
+  created_at: string;
+  updated_at: string;
+}
+
+const QUERIES_BASE = "/api/analytics/v1/queries";
+
+const savedQueryStore = new Map<string, MockSavedQuery>();
+
+(function seedSavedQueries() {
+  const now = "2026-07-01T00:00:00Z";
+  const seed: MockSavedQuery = {
+    id: "11111111-1111-1111-1111-111111111111",
+    insight_tenant_id: MOCK_SESSION.tenant_id,
+    name: "Commits by tool",
+    description: "Synthetic sample over the contract.",
+    sql: "SELECT tool, commits FROM example ORDER BY commits DESC",
+    created_at: now,
+    updated_at: now,
+  };
+  savedQueryStore.set(seed.id, seed);
+})();
+
+function savedQueryHandlers() {
+  return [
+    http.get(QUERIES_BASE, () =>
+      HttpResponse.json({
+        items: [...savedQueryStore.values()].map((q) => ({
+          id: q.id,
+          name: q.name,
+          description: q.description,
+        })),
+      }),
+    ),
+    http.post(QUERIES_BASE, async ({ request }) => {
+      const body = (await request.json().catch(() => null)) as {
+        name?: string;
+        description?: string | null;
+        sql?: string;
+      } | null;
+      if (!body?.name || !body?.sql) {
+        return HttpResponse.json({ error: "invalid_argument" }, { status: 400 });
+      }
+      const now = new Date().toISOString();
+      const created: MockSavedQuery = {
+        id: crypto.randomUUID(),
+        insight_tenant_id: MOCK_SESSION.tenant_id,
+        name: body.name,
+        description: body.description ?? null,
+        sql: body.sql,
+        created_at: now,
+        updated_at: now,
+      };
+      savedQueryStore.set(created.id, created);
+      return HttpResponse.json(created, { status: 201 });
+    }),
+    http.get(`${QUERIES_BASE}/:id`, ({ params }) => {
+      const found = savedQueryStore.get(String(params.id));
+      return found
+        ? HttpResponse.json(found)
+        : HttpResponse.json({ error: "not_found" }, { status: 404 });
+    }),
+    http.put(`${QUERIES_BASE}/:id`, async ({ params, request }) => {
+      const existing = savedQueryStore.get(String(params.id));
+      if (!existing) {
+        return HttpResponse.json({ error: "not_found" }, { status: 404 });
+      }
+      const body = (await request.json().catch(() => ({}))) as {
+        name?: string;
+        description?: string | null;
+        sql?: string;
+      };
+      const updated: MockSavedQuery = {
+        ...existing,
+        name: body.name ?? existing.name,
+        description:
+          body.description === undefined
+            ? existing.description
+            : body.description,
+        sql: body.sql ?? existing.sql,
+        updated_at: new Date().toISOString(),
+      };
+      savedQueryStore.set(updated.id, updated);
+      return HttpResponse.json(updated);
+    }),
+    http.delete(`${QUERIES_BASE}/:id`, ({ params }) => {
+      savedQueryStore.delete(String(params.id));
+      return new HttpResponse(null, { status: 204 });
+    }),
+    http.post(`${QUERIES_BASE}/:id/run`, ({ params }) => {
+      if (!savedQueryStore.has(String(params.id))) {
+        return HttpResponse.json({ error: "not_found" }, { status: 404 });
+      }
+      return HttpResponse.json({
+        rows: [
+          { tool: "github", commits: 128 },
+          { tool: "gitlab", commits: 74 },
+          { tool: "bitbucket_cloud", commits: 39 },
+        ],
+      });
+    }),
+  ];
+}
