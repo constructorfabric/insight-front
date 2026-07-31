@@ -358,7 +358,13 @@ export function AiCostView({ item }: { item: string | null }) {
         <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
           By tool
         </p>
-        {toolData.isPending ? (
+        {toolData.isError ? (
+          // A failed breakdown is not an empty one: reporting "nothing for this
+          // period" would hide exactly the failure the scope gate exists to
+          // surface, and the reader would take a broken request for a fact
+          // about their org.
+          <ComingSoon state="error" label="Unable to load the per-tool breakdown" />
+        ) : toolData.isPending ? (
           <CenteredSpinner className="min-h-32" />
         ) : toolRows.length ? (
           <div className="grid grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-3">

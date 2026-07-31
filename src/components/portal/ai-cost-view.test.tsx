@@ -112,6 +112,7 @@ beforeEach(() => {
   mocks.members = IDS.map(member);
   mocks.grid.isPending = false;
   mocks.grid.isError = false;
+  mocks.tools.isError = false;
   // 3 of 4 use AI; costs are Claude-only.
   mocks.grid.byKey = new Map([
     ["ai.cost", metric("ai.cost", [["a@x", 100], ["b@x", 50], ["c@x", 0], ["d@x", 0]], { format: "currency", unit: "USD" } as never)],
@@ -163,6 +164,17 @@ describe("AiCostView", () => {
     // users days = [1,3,5] → median 3 → active = {3,5} = 2; p75 = 4 → heavy = {5} = 1
     expect(screen.getByText(/Active \(≥3 days · median\)/)).toBeInTheDocument();
     expect(screen.getByText(/Heavy \(≥4 days · top quartile\)/)).toBeInTheDocument();
+  });
+
+  it("surfaces a failed per-tool breakdown instead of calling it empty", () => {
+    // "No per-tool breakdown for this period" over a failed request states a
+    // fact about the org that was never measured.
+    mocks.tools.isError = true;
+    render(<AiCostView item={null} />);
+    expect(screen.getByText("Unable to load the per-tool breakdown")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/No per-tool breakdown for this period/),
+    ).not.toBeInTheDocument();
   });
 
   it("renders an honest ComingSoon for unwired pane items", () => {

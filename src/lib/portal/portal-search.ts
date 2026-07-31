@@ -1,6 +1,7 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useCallback } from "react";
 
+import { validateDateRange } from "@/api/period-to-date-range";
 import type { PeriodValue } from "@/types/insight";
 
 /**
@@ -55,7 +56,17 @@ export function validatePortalSearch(raw: Record<string, unknown>): PortalSearch
   const period = str(raw.period);
   const from = str(raw.from);
   const to = str(raw.to);
-  const custom = from && to && ISO_DATE.test(from) && ISO_DATE.test(to);
+  // Format alone is not enough: `?from=2026-07-30&to=2026-01-01` is
+  // well-formed, inverted, and used to reach `assertDateRange`, which throws
+  // into the error boundary — breaking this validator's own promise to degrade
+  // rather than error. Run the real check (ordering AND maximum span) and drop
+  // the pair when it fails, falling back to the period preset.
+  const custom =
+    from &&
+    to &&
+    ISO_DATE.test(from) &&
+    ISO_DATE.test(to) &&
+    validateDateRange({ from, to }).valid;
   return {
     zone: str(raw.zone),
     item: str(raw.item),
