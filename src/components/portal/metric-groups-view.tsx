@@ -22,6 +22,7 @@ import {
   type MetricCollectionConfig,
 } from "@/lib/metrics/collection";
 import { normalizePersonId } from "@/lib/metrics/entity";
+import { useCohortLabel } from "@/lib/portal/use-cohort-label";
 import { usePersonCohort } from "@/lib/portal/use-person-cohort";
 import {
   collectionSetPending,
@@ -73,6 +74,7 @@ export function MetricGroupsView({
   onSelectGroup,
   showSections = true,
 }: MetricGroupsViewProps) {
+  const cohortLabel = useCohortLabel();
   const { period, dateRange } = usePortalPeriod();
   const { focusMode } = useSettings();
   const entityId = normalizePersonId(personId);
@@ -258,7 +260,7 @@ export function MetricGroupsView({
               }}
               range={dateRange}
               period={period}
-              cohortLabel="department"
+              cohortLabel={cohortLabel}
             />
           ))}
     </>

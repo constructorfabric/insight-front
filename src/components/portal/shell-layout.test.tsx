@@ -33,6 +33,14 @@ vi.mock("@/lib/portal/use-viewer-is-manager", () => ({
 }));
 
 vi.mock("@/components/org-tree", () => ({ OrgTree: () => <div /> }));
+vi.mock("@/components/mock-banner", () => ({ MockBanner: () => <div /> }));
+vi.mock("@/components/view-as-banner", () => ({
+  ViewAsBanner: () => <div data-testid="view-as-banner" />,
+}));
+vi.mock("@/components/portal/zone-content", () => ({ ZoneContent: () => <div /> }));
+vi.mock("@/lib/portal/use-viewer-is-manager", () => ({
+  useViewerIsManager: () => ({ isManager: true, isPending: false }),
+}));
 vi.mock("@/components/portal/scope-select", () => ({ ScopeSelect: () => <div /> }));
 vi.mock("@/components/portal/slice-select", () => ({ SliceSelect: () => <div /> }));
 vi.mock("@/components/widgets/period-selector-bar", () => ({
@@ -263,5 +271,17 @@ describe("the global controls stay reachable while reading", () => {
     expect(bar?.className).toContain("top-0");
     expect(bar?.className).toContain("bg-background");
     expect(bar?.className).toMatch(/z-\d+/);
+  });
+});
+
+describe("what the shell must never drop", () => {
+  it("renders the impersonation banner — a view-as session needs its exit", async () => {
+    // It went missing when the portal became the shell: an operator viewing as
+    // someone else saw no indication whose data was on screen, and no way back.
+    // The banner's own behaviour is covered by its tests; this pins that the
+    // shell still composes it in.
+    const { PortalLayout } = await import("./portal-layout");
+    render(<PortalLayout />);
+    expect(screen.getByTestId("view-as-banner")).toBeInTheDocument();
   });
 });

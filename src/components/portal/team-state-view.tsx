@@ -12,10 +12,8 @@ import {
 } from "@/lib/insight/attention-flags";
 import { headlineMetricKeys, GROUPS } from "@/lib/insight/groups";
 import {
-  availableSlices,
   cohortKey,
   collectRosterAttrs,
-  type SliceDim,
 } from "@/lib/insight/slices";
 import { quantile, withinCohortPeer } from "@/lib/insight/within-team-peer";
 import {
@@ -28,6 +26,7 @@ import {
   usePortalSlice,
 } from "@/lib/portal/portal-nav";
 import type { TeamMember } from "@/types/insight";
+import { useCohortLabel } from "@/lib/portal/use-cohort-label";
 import { useOrgScope } from "@/lib/portal/use-org-scope";
 import { useMemberGridData } from "@/queries/member-grid";
 
@@ -80,18 +79,12 @@ export function TeamStateView() {
     () => collectRosterAttrs(pivot, normalizePersonId),
     [pivot],
   );
-  const sliceDims = useMemo<SliceDim[]>(
-    () => availableSlices(attrByEntity.values()),
-    [attrByEntity],
-  );
   const slice = usePortalSlice();
   const cohortOf = useMemo(
     () => (id: string) => cohortKey(attrByEntity.get(id), slice),
     [attrByEntity, slice],
   );
-  const cohortLabel = slice
-    ? (sliceDims.find((d) => d.key === slice)?.label ?? "cohort").toLowerCase()
-    : "team";
+  const cohortLabel = useCohortLabel();
 
   // Headline metrics only (card.preview): the set a lead scans, and — crucially —
   // small enough to stay under the API's 50-metrics-per-request cap when the full

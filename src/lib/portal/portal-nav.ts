@@ -46,6 +46,9 @@ export function usePortalScope(): OrgScope {
 }
 
 export interface PortalNavActions {
+  /** Correct the URL without adding a history entry (effects, not clicks). */
+  replaceZone: (zone: string | null) => void;
+  replaceScope: (patch: Partial<OrgScope>) => void;
   setZone: (zone: string | null) => void;
   setItem: (item: string | null) => void;
   setDir: (dir: string) => void;
@@ -63,6 +66,13 @@ export function usePortalNavActions(): PortalNavActions {
       // A zone change drops the item with it: `item` is per-zone, and carrying
       // it across renders a fallback view while the pane highlights nothing.
       setZone: (zone) => setSearch({ zone: zone ?? undefined, item: undefined }),
+      replaceZone: (zone) =>
+        setSearch({ zone: zone ?? undefined, item: undefined }, { replace: true }),
+      replaceScope: (patch) =>
+        setSearch(
+          { ...("root" in patch ? { scope: patch.root ?? undefined } : {}) },
+          { replace: true },
+        ),
       setItem: (item) => setSearch({ item: item ?? undefined }),
       setDir: (dir) => setSearch({ dir: dir || undefined }),
       setLens: (lens) => setSearch({ lens: lens || undefined }),

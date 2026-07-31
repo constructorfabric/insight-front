@@ -32,6 +32,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/auth", () => ({ useViewer: () => ({ email: mocks.email }) }));
+vi.mock("@/lib/portal/use-cohort-label", () => ({
+  useCohortLabel: () => "team",
+}));
 vi.mock("@/queries/ic-dashboard", () => ({
   useIcPerson: () => ({ data: mocks.tree, isPending: false, isLoading: false, isError: false, refetch: vi.fn() }),
 }));

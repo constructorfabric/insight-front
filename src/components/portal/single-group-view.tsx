@@ -8,6 +8,7 @@ import { GROUPS, type GroupId } from "@/lib/insight/groups";
 import { injectCohortPeer } from "@/lib/insight/within-team-peer";
 import { type MetricCollectionConfig } from "@/lib/metrics/collection";
 import { normalizePersonId } from "@/lib/metrics/entity";
+import { useCohortLabel } from "@/lib/portal/use-cohort-label";
 import { usePersonCohort } from "@/lib/portal/use-person-cohort";
 import { useMetricCollection } from "@/queries/metric-results";
 
@@ -28,6 +29,7 @@ export function SingleGroupView({
   personId: string;
   groupId: GroupId;
 }) {
+  const cohortLabel = useCohortLabel();
   const { dateRange } = usePortalPeriod();
   const entityId = normalizePersonId(personId);
   const def = GROUPS.find((d) => d.id === groupId) ?? null;
@@ -77,7 +79,7 @@ export function SingleGroupView({
         data={injectedData}
         entityId={entityId}
         range={dateRange}
-        cohortLabel="department"
+        cohortLabel={cohortLabel}
       />
     </div>
   );

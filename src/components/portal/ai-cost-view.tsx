@@ -34,6 +34,7 @@ import {
   usePortalSlice,
 } from "@/lib/portal/portal-nav";
 import type { TeamMember } from "@/types/insight";
+import { useCohortLabel } from "@/lib/portal/use-cohort-label";
 import { useOrgScope } from "@/lib/portal/use-org-scope";
 import { useMemberGridData } from "@/queries/member-grid";
 import { useMetricCollection } from "@/queries/metric-results";
@@ -107,6 +108,7 @@ const PLANNED_KEYS = new Set(PLANNED_SLICES.map((d) => d.key));
  *    billing isn't ingested), so their cost reads "not tracked", never $0.
  */
 export function AiCostView({ item }: { item: string | null }) {
+  const cohortLabel = useCohortLabel();
   const { period, dateRange } = usePortalPeriod();
 
   const orgScope = useOrgScope();
@@ -408,7 +410,7 @@ export function AiCostView({ item }: { item: string | null }) {
               byKey={heatByKey}
               previousByKey={grid.previousByKey}
               caption={`${teamName} — AI usage & cost by person`}
-              cohortLabel="team"
+              cohortLabel={cohortLabel}
             />
           </CardContent>
         </Card>

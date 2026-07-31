@@ -33,15 +33,15 @@ export function PeopleView({
   person: string;
   item: string | null;
 }) {
-  const { setScope } = usePortalNavActions();
+  const { replaceScope } = usePortalNavActions();
   // Sync route → scope once per person, not on every render or remount: the
   // effect must not fight a scope the user then changes from the topbar.
   useEffect(() => {
     if (person && lastRouteSync !== person) {
       lastRouteSync = person;
-      setScope({ root: person });
+      replaceScope({ root: person });
     }
-  }, [person, setScope]);
+  }, [person, replaceScope]);
 
   if (item === "median-by-role") {
     return (

@@ -85,7 +85,7 @@ export const PORTAL_SEARCH_KEYS = [
   "period",
   "from",
   "to",
-] as const satisfies ReadonlyArray<keyof PortalSearch>;
+] satisfies Array<keyof PortalSearch>;
 
 export function usePortalSearch(): PortalSearch {
   // `strict: false` so the same hook serves both portal route families
@@ -102,13 +102,22 @@ export type PortalSearchPatch =
   | Partial<PortalSearch>
   | ((prev: PortalSearch) => Partial<PortalSearch>);
 
-export function useSetPortalSearch(): (patch: PortalSearchPatch) => void {
+/**
+ * `replace` exists because not every write is a navigation the reader made.
+ * An effect that pins the landing zone or syncs the scope from the route is
+ * CORRECTING the URL, not moving through the app — pushing those makes Back
+ * step into a half-built address (bare `/portal`, or a team URL with no scope).
+ */
+export function useSetPortalSearch(): (
+  patch: PortalSearchPatch,
+  opts?: { replace?: boolean },
+) => void {
   const navigate = useNavigate();
   // Stable across renders — `navigate` is, and the patch may be a function of
   // the previous search, so nothing else needs to be captured. Callers put this
   // in effect dependency lists, where a fresh identity per render would loop.
   return useCallback(
-    (patch) => {
+    (patch, opts) => {
       void navigate({
         to: ".",
         search: (prev: Record<string, unknown>) => {
@@ -121,7 +130,7 @@ export function useSetPortalSearch(): (patch: PortalSearchPatch) => void {
           }
           return next;
         },
-        replace: false,
+        replace: opts?.replace ?? false,
       });
     },
     [navigate],

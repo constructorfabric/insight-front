@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 
 import { MockBanner } from "@/components/mock-banner";
+import { ViewAsBanner } from "@/components/view-as-banner";
 import { ContextPane } from "@/components/portal/context-pane";
 import { LensRail } from "@/components/portal/lens-rail";
 import { PortalTopBar } from "@/components/portal/portal-topbar";
@@ -21,7 +22,7 @@ import { useViewerIsManager } from "@/lib/portal/use-viewer-is-manager";
  * Overview / … all portal-native); the route only carries the active person.
  */
 export function PortalLayout() {
-  const { setZone } = usePortalNavActions();
+  const { replaceZone } = usePortalNavActions();
   // Pin the landing zone exactly once, when the viewer's manager status first
   // resolves: a manager lands on the Overview org rollup; an IC has no subtree,
   // so we leave the zone route-driven (null) → their own Person page. The rail
@@ -35,11 +36,11 @@ export function PortalLayout() {
     if (isPending || landed.current) return;
     landed.current = true;
     if (isManager) {
-      if (zone == null) setZone("overview");
+      if (zone == null) replaceZone("overview");
     } else if (zone != null && zone !== "person") {
-      setZone(null);
+      replaceZone(null);
     }
-  }, [isPending, isManager, zone, setZone]);
+  }, [isPending, isManager, zone, replaceZone]);
 
   return (
     <SidebarProvider className="h-svh overflow-hidden">
@@ -48,6 +49,10 @@ export function PortalLayout() {
       <ContextPane />
       <SidebarInset className="min-w-0 overflow-x-clip overflow-y-auto">
         <MockBanner />
+        {/* The impersonation indicator: it names whose data is on screen and
+            carries the way out. Missing it left a view-as operator with no sign
+            they were not looking at their own org, and no exit. */}
+        <ViewAsBanner />
         <PortalTopBar />
         <ZoneContent />
       </SidebarInset>

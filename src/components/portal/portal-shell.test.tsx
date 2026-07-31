@@ -30,6 +30,9 @@ vi.mock("@/lib/portal/use-viewer-is-manager", () => ({
 vi.mock("@/lib/portal/use-active-zone", () => ({
   useActiveZone: () => mocks.zone,
 }));
+vi.mock("@/lib/portal/use-cohort-label", () => ({
+  useCohortLabel: () => "team",
+}));
 vi.mock("@/queries/ic-dashboard", () => ({
   useIcPerson: () => ({ data: undefined, isPending: false, isLoading: false, isError: false, refetch: vi.fn() }),
 }));
@@ -72,6 +75,9 @@ vi.mock("@/components/portal/lens-rail", () => ({ LensRail: () => <div /> }));
 vi.mock("@/components/portal/context-pane", () => ({ ContextPane: () => <div /> }));
 vi.mock("@/components/portal/portal-topbar", () => ({ PortalTopBar: () => <div /> }));
 vi.mock("@/components/mock-banner", () => ({ MockBanner: () => <div /> }));
+vi.mock("@/components/view-as-banner", () => ({
+  ViewAsBanner: () => <div data-testid="view-as-banner" />,
+}));
 
 import {
   usePortalScope,

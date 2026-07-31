@@ -1,4 +1,7 @@
 // @vitest-environment jsdom
+vi.mock("@/lib/portal/use-cohort-label", () => ({
+  useCohortLabel: () => "team",
+}));
 /**
  * MetricGroupsView routing/gating semantics: honest empty + error + loading
  * states, KPI-row gating via showKpis, section-card wiring and the

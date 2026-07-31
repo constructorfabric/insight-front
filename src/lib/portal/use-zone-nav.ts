@@ -4,9 +4,6 @@ import { ZONES, type Zone } from "@/lib/portal/nav-model";
 import {
   usePortalShowPlanned,
 } from "@/lib/portal/portal-store";
-import {
-  usePortalNavActions,
-} from "@/lib/portal/portal-nav";
 import { useActiveZone } from "@/lib/portal/use-active-zone";
 import { useViewerIsManager } from "@/lib/portal/use-viewer-is-manager";
 
@@ -28,7 +25,6 @@ export function useZoneNav(): {
   activeZone: string;
   selectZone: (zone: Zone) => void;
 } {
-  const { setItem, setZone } = usePortalNavActions();
   const navigate = useNavigate();
   const { activeZone, activePerson } = useActiveZone();
   const { isManager, isPending: mgrPending } = useViewerIsManager();
@@ -47,20 +43,27 @@ export function useZoneNav(): {
   );
 
   function selectZone(zone: Zone) {
-    // `portal.item` is a per-zone selection; carrying it across zones makes
-    // the target view render a fallback while the pane highlights nothing.
-    if (activeZone !== zone.id) setItem(null);
-    if (zone.kind === "person") {
-      setZone(null);
-      if (activePerson)
-        void navigate({ to: "/ic/$person/personal", params: { person: activePerson } });
-    } else if (zone.kind === "people") {
-      setZone(null);
-      if (activePerson)
-        void navigate({ to: "/ic/$person/team", params: { person: activePerson } });
-    } else {
-      setZone(zone.id);
-    }
+    // ONE navigation per click. Three separate writes (clear item, clear zone,
+    // change path) meant three history entries, so Back walked through
+    // half-states nobody chose.
+    const entity = zone.kind === "person" || zone.kind === "people";
+    if (entity && !activePerson) return;
+    void navigate({
+      ...(entity
+        ? {
+            to: zone.kind === "person" ? "/ic/$person/personal" : "/ic/$person/team",
+            params: { person: activePerson },
+          }
+        : { to: "/portal" }),
+      // `item` is per-zone: carrying it over renders a fallback view while the
+      // pane highlights nothing. The path carries the zone for entity zones, so
+      // a lingering `?zone=` there would only contradict it.
+      search: (prev: Record<string, unknown>) => ({
+        ...prev,
+        ...(activeZone !== zone.id ? { item: undefined } : {}),
+        zone: entity ? undefined : zone.id,
+      }),
+    });
   }
 
   return { zones, activeZone, selectZone };
