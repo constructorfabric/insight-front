@@ -9,9 +9,10 @@ export const Route = createFileRoute("/")({
 });
 
 function IndexRoute() {
-  const { email } = useViewer();
-  // An authenticated session always carries an email; the loading fallback
-  // only shows in the brief window before the store resolves.
-  if (!email) return <FullScreenLoading />;
-  return <DashboardScreen personId={email} />;
+  const { personId } = useViewer();
+  // An authenticated session always carries the person id (the gateway JWT
+  // `sub`); the loading fallback only shows in the brief window before the
+  // store resolves.
+  if (!personId) return <FullScreenLoading />;
+  return <DashboardScreen personId={personId} />;
 }

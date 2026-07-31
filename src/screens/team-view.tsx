@@ -45,11 +45,12 @@ const TEAM_METRIC_COLLECTIONS = GROUPS.map((def) => ({
 }));
 
 export interface TeamViewScreenProps {
+  /** Pivot person id whose subtree the table shows. */
   teamId: string;
-  viewerEmail: string;
+  viewerPersonId: string;
 }
 
-export function TeamViewScreen({ teamId, viewerEmail }: TeamViewScreenProps) {
+export function TeamViewScreen({ teamId, viewerPersonId }: TeamViewScreenProps) {
   const { period, dateRange, setPeriod } = usePeriod();
   const [openGroup, setOpenGroup] = useState<GroupId | null>(null);
   const [directReportsOnly, setDirectReportsOnly] = useState(true);
@@ -62,14 +63,15 @@ export function TeamViewScreen({ teamId, viewerEmail }: TeamViewScreenProps) {
     setOpenGroup(null);
   }
 
-  const viewerQ = useIcPerson(viewerEmail);
+  const viewerQ = useIcPerson(viewerPersonId);
   const viewerTree = viewerQ.data ?? null;
 
-  const pivot = useMemo(() => {
-    if (!viewerTree) return null;
-    if (teamId.includes("@")) return findIdentityNode(viewerTree, teamId);
-    return null;
-  }, [viewerTree, teamId]);
+  // The pivot is a person id in the viewer's own tree; a stranger's id simply
+  // does not resolve, which is the same outcome the metrics gate would give.
+  const pivot = useMemo(
+    () => findIdentityNode(viewerTree, teamId),
+    [viewerTree, teamId],
+  );
 
   const fullRoster = useMemo(
     () => (pivot ? flattenSubordinates(pivot) : null),
@@ -88,8 +90,8 @@ export function TeamViewScreen({ teamId, viewerEmail }: TeamViewScreenProps) {
       ),
     [fullRoster, canScopeToDirectReports, directReportsOnly],
   );
-  // Never fall back to the raw id (an email) — the shell prefetches the
-  // viewer tree, so the pivot resolves synchronously in practice.
+  // Never fall back to the raw id (a UUID) — the shell prefetches the viewer
+  // tree, so the pivot resolves synchronously in practice.
   const teamName = pivot?.display_name ?? "";
 
   // The roster IS the member list: identity owns who is on the team, and
@@ -98,7 +100,7 @@ export function TeamViewScreen({ teamId, viewerEmail }: TeamViewScreenProps) {
   const members = useMemo<TeamMember[]>(
     () =>
       (roster ?? []).map((entry) => ({
-        person_id: entry.email,
+        person_id: entry.person_id,
         name: entry.display_name,
       })),
     [roster],

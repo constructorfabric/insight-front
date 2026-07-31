@@ -56,11 +56,9 @@ import { applyFocusStatus, STATUS_TEXT_CLASS } from "@/lib/status";
 import { cn } from "@/lib/utils";
 
 export interface MembersGridMember {
-  /** Metric entity id (normalized person id) — keys every lookup. */
+  /** Canonical person id — keys every metric lookup AND the IC link. */
   entityId: string;
   displayName: string;
-  /** Router param for the IC link; defaults to `entityId`. */
-  personId?: string;
 }
 
 export interface MembersGridProps {
@@ -482,7 +480,7 @@ function MemberRow({
           <div className="flex items-center gap-1.5">
             <Link
               to="/ic/$person/personal"
-              params={{ person: member.personId ?? member.entityId }}
+              params={{ person: member.entityId }}
               className="min-w-0 truncate text-sm font-medium leading-tight hover:underline"
             >
               {member.displayName}

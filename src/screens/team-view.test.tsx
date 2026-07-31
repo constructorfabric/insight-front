@@ -79,13 +79,24 @@ vi.mock("@/queries/metric-results", () => ({
   collectionSetPending: () => false,
 }));
 
+const PERSON_IDS = {
+  alice: "019e2801-0000-7000-8000-00000000a11c",
+  bob: "019e2801-0000-7000-8000-00000000b0b0",
+  carol: "019e2801-0000-7000-8000-00000000ca01",
+  erin: "019e2801-0000-7000-8000-00000000e21e",
+  dave: "019e2801-0000-7000-8000-00000000da5e",
+  fay: "019e2801-0000-7000-8000-00000000fa77",
+  gil: "019e2801-0000-7000-8000-000000009117",
+} as const;
+
 function person(
+  personId: string,
   email: string,
   name: string,
   subordinates: IdentityPerson[] = [],
 ): IdentityPerson {
   return {
-    person_id: email,
+    person_id: personId,
     email,
     display_name: name,
     subordinates,
@@ -93,15 +104,17 @@ function person(
 }
 
 // Alice manages Bob and Erin directly; Carol reports to Bob (indirect).
-const viewerTree = person("alice@x.io", "Alice", [
-  person("bob@x.io", "Bob", [person("carol@x.io", "Carol")]),
-  person("erin@x.io", "Erin"),
+const viewerTree = person(PERSON_IDS.alice, "alice@x.io", "Alice", [
+  person(PERSON_IDS.bob, "bob@x.io", "Bob", [
+    person(PERSON_IDS.carol, "carol@x.io", "Carol"),
+  ]),
+  person(PERSON_IDS.erin, "erin@x.io", "Erin"),
 ]);
 
 // Dave's team is flat: every report is direct, so scoping is a no-op (#1756).
-const flatTree = person("dave@x.io", "Dave", [
-  person("fay@x.io", "Fay"),
-  person("gil@x.io", "Gil"),
+const flatTree = person(PERSON_IDS.dave, "dave@x.io", "Dave", [
+  person(PERSON_IDS.fay, "fay@x.io", "Fay"),
+  person(PERSON_IDS.gil, "gil@x.io", "Gil"),
 ]);
 
 let currentTree = viewerTree;
@@ -116,8 +129,8 @@ beforeEach(() => {
   currentTree = viewerTree;
 });
 
-function renderScreen(teamId = "alice@x.io") {
-  return render(<TeamViewScreen teamId={teamId} viewerEmail={teamId} />);
+function renderScreen(teamId: string = PERSON_IDS.alice) {
+  return render(<TeamViewScreen teamId={teamId} viewerPersonId={teamId} />);
 }
 
 describe("TeamViewScreen direct-reports scoping", () => {
@@ -131,7 +144,7 @@ describe("TeamViewScreen direct-reports scoping", () => {
     expect(screen.getByText("(2/3)")).toBeInTheDocument();
     expect(screen.getByTestId("heatmap")).toHaveTextContent("Bob,Erin");
 
-    expect(heatmapFetchedIds()).toEqual(["bob@x.io", "erin@x.io"]);
+    expect(heatmapFetchedIds()).toEqual([PERSON_IDS.bob, PERSON_IDS.erin]);
   });
 
   it("widens to the whole department when toggled off", async () => {
@@ -146,12 +159,16 @@ describe("TeamViewScreen direct-reports scoping", () => {
     expect(screen.getByText("(3/3)")).toBeInTheDocument();
     expect(screen.getByTestId("heatmap")).toHaveTextContent("Bob,Carol,Erin");
 
-    expect(heatmapFetchedIds()).toEqual(["bob@x.io", "carol@x.io", "erin@x.io"]);
+    expect(heatmapFetchedIds()).toEqual([
+      PERSON_IDS.bob,
+      PERSON_IDS.carol,
+      PERSON_IDS.erin,
+    ]);
   });
 
   it("hides the toggle for a team with no subteams (#1756)", () => {
     currentTree = flatTree;
-    renderScreen("dave@x.io");
+    renderScreen(PERSON_IDS.dave);
 
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
     expect(screen.queryByText("Direct reports only")).not.toBeInTheDocument();
@@ -163,6 +180,6 @@ describe("TeamViewScreen direct-reports scoping", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("heatmap")).toHaveTextContent("Fay,Gil");
 
-    expect(heatmapFetchedIds()).toEqual(["fay@x.io", "gil@x.io"]);
+    expect(heatmapFetchedIds()).toEqual([PERSON_IDS.fay, PERSON_IDS.gil]);
   });
 });

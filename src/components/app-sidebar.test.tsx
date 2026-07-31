@@ -7,6 +7,7 @@ import type { IdentityPerson } from "@/types/insight";
 
 let currentPath = "/";
 let viewerEmail: string | null = "alice@x.io";
+let viewerPersonId: string | null = null;
 let viewerData: IdentityPerson | undefined;
 
 vi.mock("@tanstack/react-router", () => ({
@@ -31,7 +32,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 vi.mock("@/auth", () => ({
-  useViewer: () => ({ email: viewerEmail }),
+  useViewer: () => ({ email: viewerEmail, personId: viewerPersonId }),
 }));
 
 vi.mock("@/queries/ic-dashboard", () => ({
@@ -89,13 +90,21 @@ vi.mock("@/components/ui/sidebar", () => {
 
 import { AppSidebar } from "./app-sidebar";
 
+const PERSON_IDS = {
+  alice: "019e2800-0000-7000-8000-00000000a11c",
+  bob: "019e2800-0000-7000-8000-00000000b0b0",
+  carol: "019e2800-0000-7000-8000-00000000ca01",
+  erin: "019e2800-0000-7000-8000-00000000e21e",
+} as const;
+
 function person(
+  personId: string,
   email: string,
   name: string,
   subordinates: IdentityPerson[] = []
 ): IdentityPerson {
   return {
-    person_id: email,
+    person_id: personId,
     email,
     display_name: name,
     subordinates,
@@ -103,9 +112,11 @@ function person(
 }
 
 // Alice manages Bob (who manages Carol) and Erin.
-const tree = person("alice@x.io", "Alice", [
-  person("bob@x.io", "Bob", [person("carol@x.io", "Carol")]),
-  person("erin@x.io", "Erin"),
+const tree = person(PERSON_IDS.alice, "alice@x.io", "Alice", [
+  person(PERSON_IDS.bob, "bob@x.io", "Bob", [
+    person(PERSON_IDS.carol, "carol@x.io", "Carol"),
+  ]),
+  person(PERSON_IDS.erin, "erin@x.io", "Erin"),
 ]);
 
 // Scoped to the tree area: the footer repeats the viewer's name/email.
@@ -118,6 +129,7 @@ function buttonFor(label: string): HTMLElement | null {
 beforeEach(() => {
   currentPath = "/";
   viewerEmail = "alice@x.io";
+  viewerPersonId = PERSON_IDS.alice;
   viewerData = tree;
 });
 
@@ -134,7 +146,7 @@ describe("AppSidebar", () => {
   });
 
   it("activates the person from an /ic/ path and opens their subtree", () => {
-    currentPath = "/ic/bob%40x.io/personal";
+    currentPath = `/ic/${PERSON_IDS.bob}/personal`;
     render(<AppSidebar />);
 
     expect(buttonFor("Bob")).toHaveAttribute("data-active", "true");
@@ -144,7 +156,7 @@ describe("AppSidebar", () => {
   });
 
   it("keeps ancestor chains open when a deep descendant is active", () => {
-    currentPath = "/ic/carol%40x.io/personal";
+    currentPath = `/ic/${PERSON_IDS.carol}/personal`;
     render(<AppSidebar />);
 
     expect(buttonFor("Carol")).toHaveAttribute("data-active", "true");
@@ -154,6 +166,7 @@ describe("AppSidebar", () => {
   it("renders no tree while the viewer query has no data and no footer user without an email", () => {
     viewerData = undefined;
     viewerEmail = null;
+    viewerPersonId = null;
     render(<AppSidebar />);
 
     expect(screen.queryByText("Alice")).not.toBeInTheDocument();
@@ -180,7 +193,7 @@ describe("AppSidebar", () => {
   });
 
   it("links every person node to their personal dashboard", () => {
-    currentPath = "/ic/carol%40x.io/personal";
+    currentPath = `/ic/${PERSON_IDS.carol}/personal`;
     render(<AppSidebar />);
 
     const links = screen.getAllByTestId("link");
@@ -188,10 +201,10 @@ describe("AppSidebar", () => {
       (link) => link.dataset.to === "/ic/$person/personal"
     );
     expect(personLinks.map((link) => link.dataset.person)).toEqual([
-      "alice@x.io",
-      "bob@x.io",
-      "carol@x.io",
-      "erin@x.io",
+      PERSON_IDS.alice,
+      PERSON_IDS.bob,
+      PERSON_IDS.carol,
+      PERSON_IDS.erin,
     ]);
   });
 
@@ -208,7 +221,7 @@ describe("AppSidebar", () => {
   });
 
   it("falls back to the email as the node label when display_name is empty", () => {
-    viewerData = person("alice@x.io", "");
+    viewerData = person(PERSON_IDS.alice, "alice@x.io", "");
     render(<AppSidebar />);
 
     expect(buttonFor("alice@x.io")).toBeInTheDocument();
