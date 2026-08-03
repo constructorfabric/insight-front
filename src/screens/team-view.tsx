@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 
+import { IdentityApiError } from "@/api/identity-client";
 import { ComingSoon } from "@/components/widgets/coming-soon";
 import { DashboardEmptyState } from "@/components/widgets/dashboard/dashboard-empty-state";
 import { DashboardHeader } from "@/components/widgets/dashboard/dashboard-header";
@@ -153,6 +154,13 @@ export function TeamViewScreen({ teamId }: TeamViewScreenProps) {
     collectionSetPending(metricGroupData);
   const hasMembers = members.length > 0;
   const isAllEmpty = !isLoading && !hasMembers;
+  // Identity failing is not an empty team: without the pivot there is no
+  // roster at all, and rendering the empty state over a 404 or a down service
+  // would read as "this team has no members". Same split as the personal
+  // dashboard: a 404 (gone, renamed, or outside the visible set) has nothing
+  // to retry; anything else offers one.
+  const pivotMissing =
+    pivotQ.error instanceof IdentityApiError && pivotQ.error.status === 404;
 
   const memberCountLabel = `${members.length} member${members.length === 1 ? "" : "s"}`;
   const scopeLabel = directReportsOnly
@@ -186,7 +194,18 @@ export function TeamViewScreen({ teamId }: TeamViewScreenProps) {
         }
       />
       <main className="flex flex-1 flex-col gap-8 p-4 md:p-6">
-        {isLoading ? (
+        {pivotQ.isError ? (
+          <ComingSoon
+            variant="card"
+            state="error"
+            label={
+              pivotMissing
+                ? "This person is not available"
+                : "Unable to load this person"
+            }
+            onRetry={pivotMissing ? undefined : () => void pivotQ.refetch()}
+          />
+        ) : isLoading ? (
           <CenteredSpinner className="min-h-[70vh]" />
         ) : isAllEmpty ? (
           <DashboardEmptyState period={period} onSetPeriod={setPeriod} />

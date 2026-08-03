@@ -130,16 +130,24 @@ const grantedTree = person(PERSON_IDS.grace, "grace@x.io", "Grace", [
 // the viewer's tree, so a request keyed by anyone else must not resolve here.
 let trees: Record<string, IdentityPerson> = {};
 
+let pivotError: unknown;
+const pivotRefetch = vi.fn();
+
 vi.mock("@/queries/ic-dashboard", () => ({
   useIcPerson: (personId: string) => ({
     ...queryState,
-    data: trees[personId],
+    data: pivotError === undefined ? trees[personId] : undefined,
+    error: pivotError,
+    isError: pivotError !== undefined,
+    refetch: pivotRefetch,
   }),
 }));
 
 import { TeamViewScreen } from "./team-view";
 
 beforeEach(() => {
+  pivotError = undefined;
+  pivotRefetch.mockReset();
   trees = {
     [PERSON_IDS.alice]: viewerTree,
     [PERSON_IDS.dave]: flatTree,
@@ -150,6 +158,31 @@ beforeEach(() => {
 function renderScreen(teamId: string = PERSON_IDS.alice) {
   return render(<TeamViewScreen teamId={teamId} />);
 }
+
+describe("TeamViewScreen identity failures", () => {
+  it("says the person is unavailable instead of showing an empty team", async () => {
+    // A 404 pivot is not a team with no members: rendering the empty state
+    // over it would report a broken lookup as an empty org.
+    const { IdentityApiError } = await import("@/api/identity-client");
+    pivotError = new IdentityApiError(404, {});
+
+    renderScreen();
+
+    expect(screen.getByText("This person is not available")).toBeInTheDocument();
+    expect(screen.queryByTestId("heatmap")).not.toBeInTheDocument();
+  });
+
+  it("offers a retry when identity itself failed, not the lookup", async () => {
+    const { IdentityApiError } = await import("@/api/identity-client");
+    pivotError = new IdentityApiError(500, {});
+
+    renderScreen();
+
+    expect(screen.getByText("Unable to load this person")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(pivotRefetch).toHaveBeenCalled();
+  });
+});
 
 describe("TeamViewScreen direct-reports scoping", () => {
   it("defaults to direct reports only, scoping the roster before the fetch", () => {

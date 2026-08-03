@@ -13,6 +13,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { IdentityPerson } from "@/types/insight";
+import { isPersonId } from "@/lib/metrics/entity";
 import {
   findIdentityNode,
   flattenSubordinates,
@@ -26,7 +27,7 @@ import {
 // hide a lookup that still matches on the wrong field.
 function personId(email: string): string {
   const tag = email.split("@")[0]!.padEnd(4, "0").slice(0, 4);
-  return `019e2803-0000-7000-8000-00000000${Buffer.from(tag).toString("hex")}`;
+  return `019e2803-0000-7000-8000-0000${Buffer.from(tag).toString("hex")}`;
 }
 
 function person(
@@ -45,6 +46,13 @@ const pivot = person("alice@x.io", [
   person("bob@x.io", [person("carol@x.io"), person("dave@x.io")]),
   person("erin@x.io"),
 ]);
+
+describe("the persona fixture", () => {
+  it("emits ids the route guard would accept — an invalid UUID here would let\
+ these tests pass against ids production rejects", () => {
+    expect(isPersonId(personId("alice@x.io"))).toBe(true);
+  });
+});
 
 describe("findIdentityNode", () => {
   it("finds the root itself", () => {
