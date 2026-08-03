@@ -102,7 +102,7 @@ export async function getPerson(personId: string): Promise<IdentityPerson> {
 }
 
 async function resolveProfile(body: {
-  value_type: "person_id" | "email";
+  value_type: "person_id";
   value: string;
 }): Promise<IdentityPerson> {
   const url = `${BASE}/profiles`;

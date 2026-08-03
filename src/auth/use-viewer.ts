@@ -30,9 +30,6 @@ export function useViewer(): Viewer {
   return resolve();
 }
 
-export function getViewerEmail(): string | null {
-  return resolve().email;
-}
 
 export function getViewerPersonId(): string | null {
   return resolve().personId;

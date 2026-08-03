@@ -9,7 +9,6 @@ export { loadSession } from "./session";
 export { startSessionRefresh } from "./refresh";
 export { useAuth, signIn, signOut } from "./use-auth";
 export {
-  getViewerEmail,
   getViewerPersonId,
   useViewer,
   type Viewer,
