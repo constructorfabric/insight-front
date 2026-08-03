@@ -4,11 +4,7 @@ vi.mock("@/api/fetch-with-auth", () => ({ fetchWithAuth: vi.fn() }));
 
 import { fetchWithAuth } from "@/api/fetch-with-auth";
 
-import {
-  getPerson,
-  getPersonByEmail,
-  IdentityApiError,
-} from "./identity-client";
+import { getPerson, IdentityApiError } from "./identity-client";
 
 const mockFetch = fetchWithAuth as unknown as ReturnType<typeof vi.fn>;
 
@@ -141,22 +137,4 @@ describe("getPerson", () => {
     });
   });
 
-  it("resolves by email ONLY through the legacy-URL helper", async () => {
-    mockFetch.mockResolvedValueOnce(
-      response({
-        person_id: "019e27bc-dec0-7626-81a9-c5524662a6a9",
-        insight_tenant_id: "t-1",
-        email: "bob.park@example.com",
-      }),
-    );
-
-    const person = await getPersonByEmail("bob.park@example.com");
-
-    const [, init] = mockFetch.mock.calls[0];
-    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
-      value_type: "email",
-      value: "bob.park@example.com",
-    });
-    expect(person.person_id).toBe("019e27bc-dec0-7626-81a9-c5524662a6a9");
-  });
 });

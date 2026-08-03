@@ -13,6 +13,7 @@
  */
 
 import { fetchWithAuth } from "@/api/fetch-with-auth";
+import { normalizePersonId } from "@/lib/metrics/entity";
 import type { IdentityPerson } from "@/types/insight";
 
 const BASE =
@@ -86,22 +87,18 @@ function toIdentityPerson(p: ProfileResponse): IdentityPerson {
 }
 
 /**
- * Resolve one profile by email — kept for exactly one caller: migrating a
- * pre-cutover `/ic/<email>` URL to its canonical person-id form. Nothing else
- * may key on email; identity itself no longer requires one to exist.
- */
-export async function getPersonByEmail(email: string): Promise<IdentityPerson> {
-  return resolveProfile({ value_type: "email", value: email });
-}
-
-/**
  * Resolve one profile by canonical person id — the key the SPA routes on and
  * the metrics API filters by since the identity cutover. Identity applies the
  * caller's visible set here, so a person's name and their metrics answer to
  * one permission: an id outside it is a 404, not a nameless dashboard.
  */
 export async function getPerson(personId: string): Promise<IdentityPerson> {
-  return resolveProfile({ value_type: "person_id", value: personId });
+  // Normalized on the way out, matching the query key: one spelling of an id
+  // must not become two requests, or two cache entries for one person.
+  return resolveProfile({
+    value_type: "person_id",
+    value: normalizePersonId(personId),
+  });
 }
 
 async function resolveProfile(body: {
