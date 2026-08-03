@@ -62,9 +62,9 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.1",
-    "@vitest/browser-playwright": "4.1.9",
-    "@vitest/coverage-v8": "4.1.9",
-    "@vitest/ui": "4.1.9",
+    "@vitest/browser-playwright": "4.1.10",
+    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/ui": "4.1.10",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "10.3.0",
     "eslint-plugin-react-hooks": "7.1.1",
@@ -80,7 +80,7 @@
     "typescript": "6.0.3",
     "typescript-eslint": "8.59.2",
     "vite": "8.0.11",
-    "vitest": "4.1.9"
+    "vitest": "4.1.10"
   },
   "pnpm": {
     "overrides": {
