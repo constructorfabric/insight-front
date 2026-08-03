@@ -14,12 +14,20 @@ const kpiState = {
   refetch: vi.fn(),
 };
 let personData: { display_name?: string } | undefined;
+let personError: unknown;
 let tilesReturn: Array<{ key: string }> = [];
 let attentionPerGroup: Array<{ key: string }> = [];
 let omitGroupId: string | null = null;
 
+const personRefetch = vi.fn();
+
 vi.mock("@/queries/ic-dashboard", () => ({
-  useIcPerson: () => ({ data: personData }),
+  useIcPerson: () => ({
+    data: personData,
+    error: personError,
+    isError: personError !== undefined,
+    refetch: personRefetch,
+  }),
 }));
 
 vi.mock("@/hooks/use-period", () => ({
@@ -87,9 +95,9 @@ vi.mock("@/components/widgets/dashboard/kpi-tile", () => ({
 }));
 
 vi.mock("@/components/widgets/coming-soon", () => ({
-  ComingSoon: ({ onRetry }: { onRetry?: () => void }) => (
-    <button data-testid="kpi-error" onClick={onRetry}>
-      retry
+  ComingSoon: ({ onRetry, label }: { onRetry?: () => void; label?: string }) => (
+    <button data-testid="kpi-error" onClick={onRetry} disabled={!onRetry}>
+      {label ?? "retry"}
     </button>
   ),
 }));
@@ -135,6 +143,40 @@ beforeEach(() => {
   attentionPerGroup = [];
   omitGroupId = null;
   personData = undefined;
+  personError = undefined;
+  personRefetch.mockReset();
+});
+
+describe("DashboardScreen identity failures", () => {
+  const PERSON_ID = "019e2805-0000-7000-8000-00000000a11c";
+
+  it("says the person is unavailable instead of painting a nameless dashboard", async () => {
+    // A valid UUID outside the viewer's visible set is a 404: without a person
+    // there is no name and the metrics below are unauthorized anyway.
+    const { IdentityApiError } = await import("@/api/identity-client");
+    personError = new IdentityApiError(404, {});
+    tilesReturn = METRIC_KEYS.map((key) => ({ key }));
+
+    render(<DashboardScreen personId={PERSON_ID} />);
+
+    const state = screen.getByTestId("kpi-error");
+    expect(state).toHaveTextContent("This person is not available");
+    // Nothing to retry — the answer will not change.
+    expect(state).toBeDisabled();
+    expect(screen.queryByTestId("kpi-tile")).not.toBeInTheDocument();
+  });
+
+  it("offers a retry when identity itself failed, not the lookup", async () => {
+    const { IdentityApiError } = await import("@/api/identity-client");
+    personError = new IdentityApiError(500, {});
+
+    render(<DashboardScreen personId={PERSON_ID} />);
+
+    const state = screen.getByTestId("kpi-error");
+    expect(state).toHaveTextContent("Unable to load this person");
+    await userEvent.click(state);
+    expect(personRefetch).toHaveBeenCalled();
+  });
 });
 
 describe("DashboardScreen", () => {

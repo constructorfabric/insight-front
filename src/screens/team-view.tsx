@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 
+import { IdentityApiError } from "@/api/identity-client";
 import { ComingSoon } from "@/components/widgets/coming-soon";
 import { DashboardEmptyState } from "@/components/widgets/dashboard/dashboard-empty-state";
 import { DashboardHeader } from "@/components/widgets/dashboard/dashboard-header";
@@ -13,7 +14,6 @@ import { Switch } from "@/components/ui/switch";
 import { usePeriod } from "@/hooks/use-period";
 import {
   flattenSubordinates,
-  findIdentityNode,
   hasIndirectReports,
   scopeRosterToDirectReports,
 } from "@/lib/insight/identity-tree";
@@ -45,11 +45,11 @@ const TEAM_METRIC_COLLECTIONS = GROUPS.map((def) => ({
 }));
 
 export interface TeamViewScreenProps {
+  /** Pivot person id whose subtree the table shows. */
   teamId: string;
-  viewerEmail: string;
 }
 
-export function TeamViewScreen({ teamId, viewerEmail }: TeamViewScreenProps) {
+export function TeamViewScreen({ teamId }: TeamViewScreenProps) {
   const { period, dateRange, setPeriod } = usePeriod();
   const [openGroup, setOpenGroup] = useState<GroupId | null>(null);
   const [directReportsOnly, setDirectReportsOnly] = useState(true);
@@ -62,14 +62,13 @@ export function TeamViewScreen({ teamId, viewerEmail }: TeamViewScreenProps) {
     setOpenGroup(null);
   }
 
-  const viewerQ = useIcPerson(viewerEmail);
-  const viewerTree = viewerQ.data ?? null;
-
-  const pivot = useMemo(() => {
-    if (!viewerTree) return null;
-    if (teamId.includes("@")) return findIdentityNode(viewerTree, teamId);
-    return null;
-  }, [viewerTree, teamId]);
+  // The pivot is resolved by identity, NOT looked up in the viewer's tree:
+  // visibility also comes from explicit and wildcard grants, so a person the
+  // viewer may legitimately see can sit outside their reporting line. A tree
+  // lookup would render that team empty. The hook still serves the viewer's
+  // cached tree as placeholder data, so the common case paints immediately.
+  const pivotQ = useIcPerson(teamId);
+  const pivot = pivotQ.data ?? null;
 
   const fullRoster = useMemo(
     () => (pivot ? flattenSubordinates(pivot) : null),
@@ -88,8 +87,8 @@ export function TeamViewScreen({ teamId, viewerEmail }: TeamViewScreenProps) {
       ),
     [fullRoster, canScopeToDirectReports, directReportsOnly],
   );
-  // Never fall back to the raw id (an email) — the shell prefetches the
-  // viewer tree, so the pivot resolves synchronously in practice.
+  // Never fall back to the raw id (a UUID) — the shell prefetches the viewer
+  // tree, so the pivot resolves synchronously in practice.
   const teamName = pivot?.display_name ?? "";
 
   // The roster IS the member list: identity owns who is on the team, and
@@ -98,7 +97,7 @@ export function TeamViewScreen({ teamId, viewerEmail }: TeamViewScreenProps) {
   const members = useMemo<TeamMember[]>(
     () =>
       (roster ?? []).map((entry) => ({
-        person_id: entry.email,
+        person_id: entry.person_id,
         name: entry.display_name,
       })),
     [roster],
@@ -147,14 +146,21 @@ export function TeamViewScreen({ teamId, viewerEmail }: TeamViewScreenProps) {
   // The one loading gate: a single page spinner while ANY of the screen's
   // queries has no data. A period or scope change mints new query keys, so
   // the same gate re-trips — no per-widget loaders, no partial paints. The
-  // roster query (viewer tree) comes first: every other query derives its
-  // entity ids from it.
+  // roster query (the pivot's own profile) comes first: every other query
+  // derives its entity ids from it.
   const isLoading =
-    viewerQ.isPending ||
+    pivotQ.isPending ||
     heatmapQ.isPending ||
     collectionSetPending(metricGroupData);
   const hasMembers = members.length > 0;
   const isAllEmpty = !isLoading && !hasMembers;
+  // Identity failing is not an empty team: without the pivot there is no
+  // roster at all, and rendering the empty state over a 404 or a down service
+  // would read as "this team has no members". Same split as the personal
+  // dashboard: a 404 (gone, renamed, or outside the visible set) has nothing
+  // to retry; anything else offers one.
+  const pivotMissing =
+    pivotQ.error instanceof IdentityApiError && pivotQ.error.status === 404;
 
   const memberCountLabel = `${members.length} member${members.length === 1 ? "" : "s"}`;
   const scopeLabel = directReportsOnly
@@ -188,7 +194,18 @@ export function TeamViewScreen({ teamId, viewerEmail }: TeamViewScreenProps) {
         }
       />
       <main className="flex flex-1 flex-col gap-8 p-4 md:p-6">
-        {isLoading ? (
+        {pivotQ.isError ? (
+          <ComingSoon
+            variant="card"
+            state="error"
+            label={
+              pivotMissing
+                ? "This person is not available"
+                : "Unable to load this person"
+            }
+            onRetry={pivotMissing ? undefined : () => void pivotQ.refetch()}
+          />
+        ) : isLoading ? (
           <CenteredSpinner className="min-h-[70vh]" />
         ) : isAllEmpty ? (
           <DashboardEmptyState period={period} onSetPeriod={setPeriod} />

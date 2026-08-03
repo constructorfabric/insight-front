@@ -51,7 +51,6 @@ export function MembersOverview({
       members.map((member) => ({
         entityId: normalizePersonId(member.person_id),
         displayName: member.name,
-        personId: member.person_id,
       })),
     [members],
   );

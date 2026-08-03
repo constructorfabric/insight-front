@@ -79,13 +79,26 @@ vi.mock("@/queries/metric-results", () => ({
   collectionSetPending: () => false,
 }));
 
+const PERSON_IDS = {
+  alice: "019e2801-0000-7000-8000-00000000a11c",
+  bob: "019e2801-0000-7000-8000-00000000b0b0",
+  carol: "019e2801-0000-7000-8000-00000000ca01",
+  erin: "019e2801-0000-7000-8000-00000000e21e",
+  dave: "019e2801-0000-7000-8000-00000000da5e",
+  grace: "019e2801-0000-7000-8000-000000009ace",
+  hana: "019e2801-0000-7000-8000-00000000ba4a",
+  fay: "019e2801-0000-7000-8000-00000000fa77",
+  gil: "019e2801-0000-7000-8000-000000009117",
+} as const;
+
 function person(
+  personId: string,
   email: string,
   name: string,
   subordinates: IdentityPerson[] = [],
 ): IdentityPerson {
   return {
-    person_id: email,
+    person_id: personId,
     email,
     display_name: name,
     subordinates,
@@ -93,32 +106,83 @@ function person(
 }
 
 // Alice manages Bob and Erin directly; Carol reports to Bob (indirect).
-const viewerTree = person("alice@x.io", "Alice", [
-  person("bob@x.io", "Bob", [person("carol@x.io", "Carol")]),
-  person("erin@x.io", "Erin"),
+const viewerTree = person(PERSON_IDS.alice, "alice@x.io", "Alice", [
+  person(PERSON_IDS.bob, "bob@x.io", "Bob", [
+    person(PERSON_IDS.carol, "carol@x.io", "Carol"),
+  ]),
+  person(PERSON_IDS.erin, "erin@x.io", "Erin"),
 ]);
 
 // Dave's team is flat: every report is direct, so scoping is a no-op (#1756).
-const flatTree = person("dave@x.io", "Dave", [
-  person("fay@x.io", "Fay"),
-  person("gil@x.io", "Gil"),
+const flatTree = person(PERSON_IDS.dave, "dave@x.io", "Dave", [
+  person(PERSON_IDS.fay, "fay@x.io", "Fay"),
+  person(PERSON_IDS.gil, "gil@x.io", "Gil"),
 ]);
 
-let currentTree = viewerTree;
+// Grace is nobody's report in the viewer's line — she is reachable only
+// through an explicit visibility grant, which identity honours and a tree walk
+// never would.
+const grantedTree = person(PERSON_IDS.grace, "grace@x.io", "Grace", [
+  person(PERSON_IDS.hana, "hana@x.io", "Hana"),
+]);
+
+// Identity answers per person id: the screen asks for the PIVOT's profile, not
+// the viewer's tree, so a request keyed by anyone else must not resolve here.
+let trees: Record<string, IdentityPerson> = {};
+
+let pivotError: unknown;
+const pivotRefetch = vi.fn();
 
 vi.mock("@/queries/ic-dashboard", () => ({
-  useIcPerson: () => ({ ...queryState, data: currentTree }),
+  useIcPerson: (personId: string) => ({
+    ...queryState,
+    data: pivotError === undefined ? trees[personId] : undefined,
+    error: pivotError,
+    isError: pivotError !== undefined,
+    refetch: pivotRefetch,
+  }),
 }));
 
 import { TeamViewScreen } from "./team-view";
 
 beforeEach(() => {
-  currentTree = viewerTree;
+  pivotError = undefined;
+  pivotRefetch.mockReset();
+  trees = {
+    [PERSON_IDS.alice]: viewerTree,
+    [PERSON_IDS.dave]: flatTree,
+    [PERSON_IDS.grace]: grantedTree,
+  };
 });
 
-function renderScreen(teamId = "alice@x.io") {
-  return render(<TeamViewScreen teamId={teamId} viewerEmail={teamId} />);
+function renderScreen(teamId: string = PERSON_IDS.alice) {
+  return render(<TeamViewScreen teamId={teamId} />);
 }
+
+describe("TeamViewScreen identity failures", () => {
+  it("says the person is unavailable instead of showing an empty team", async () => {
+    // A 404 pivot is not a team with no members: rendering the empty state
+    // over it would report a broken lookup as an empty org.
+    const { IdentityApiError } = await import("@/api/identity-client");
+    pivotError = new IdentityApiError(404, {});
+
+    renderScreen();
+
+    expect(screen.getByText("This person is not available")).toBeInTheDocument();
+    expect(screen.queryByTestId("heatmap")).not.toBeInTheDocument();
+  });
+
+  it("offers a retry when identity itself failed, not the lookup", async () => {
+    const { IdentityApiError } = await import("@/api/identity-client");
+    pivotError = new IdentityApiError(500, {});
+
+    renderScreen();
+
+    expect(screen.getByText("Unable to load this person")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(pivotRefetch).toHaveBeenCalled();
+  });
+});
 
 describe("TeamViewScreen direct-reports scoping", () => {
   it("defaults to direct reports only, scoping the roster before the fetch", () => {
@@ -131,7 +195,7 @@ describe("TeamViewScreen direct-reports scoping", () => {
     expect(screen.getByText("(2/3)")).toBeInTheDocument();
     expect(screen.getByTestId("heatmap")).toHaveTextContent("Bob,Erin");
 
-    expect(heatmapFetchedIds()).toEqual(["bob@x.io", "erin@x.io"]);
+    expect(heatmapFetchedIds()).toEqual([PERSON_IDS.bob, PERSON_IDS.erin]);
   });
 
   it("widens to the whole department when toggled off", async () => {
@@ -146,12 +210,25 @@ describe("TeamViewScreen direct-reports scoping", () => {
     expect(screen.getByText("(3/3)")).toBeInTheDocument();
     expect(screen.getByTestId("heatmap")).toHaveTextContent("Bob,Carol,Erin");
 
-    expect(heatmapFetchedIds()).toEqual(["bob@x.io", "carol@x.io", "erin@x.io"]);
+    expect(heatmapFetchedIds()).toEqual([
+      PERSON_IDS.bob,
+      PERSON_IDS.carol,
+      PERSON_IDS.erin,
+    ]);
+  });
+
+  it("renders a team the viewer reaches by grant, outside their own tree", () => {
+    // The pivot comes from identity, so a person absent from the viewer's
+    // reporting line still gets a populated team instead of an empty one.
+    renderScreen(PERSON_IDS.grace);
+
+    expect(screen.getByText("1 member")).toBeInTheDocument();
+    expect(screen.getByTestId("heatmap")).toHaveTextContent("Hana");
+    expect(heatmapFetchedIds()).toEqual([PERSON_IDS.hana]);
   });
 
   it("hides the toggle for a team with no subteams (#1756)", () => {
-    currentTree = flatTree;
-    renderScreen("dave@x.io");
+    renderScreen(PERSON_IDS.dave);
 
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
     expect(screen.queryByText("Direct reports only")).not.toBeInTheDocument();
@@ -163,6 +240,6 @@ describe("TeamViewScreen direct-reports scoping", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("heatmap")).toHaveTextContent("Fay,Gil");
 
-    expect(heatmapFetchedIds()).toEqual(["fay@x.io", "gil@x.io"]);
+    expect(heatmapFetchedIds()).toEqual([PERSON_IDS.fay, PERSON_IDS.gil]);
   });
 });
