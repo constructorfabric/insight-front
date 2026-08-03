@@ -163,7 +163,9 @@ jobs:
       # --- Code-coverage gate (diff): pull requests only (needs a base to diff against) ---
       - name: Fetch base branch
         if: github.event_name == 'pull_request'
-        run: git fetch --no-tags origin "${{ github.base_ref }}"
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: git fetch --no-tags origin "$BASE_REF"
 
       - name: Install diff-cover
         if: github.event_name == 'pull_request'
