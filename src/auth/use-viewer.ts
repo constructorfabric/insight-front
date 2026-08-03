@@ -3,9 +3,10 @@ import { useSyncExternalStore } from "react";
 import { authStore } from "./auth-store";
 
 /**
- * The current viewer, derived from the session summary (`/auth/me`). The SPA is
- * email-keyed (org tree, IC routes), so `email` is the primary handle;
- * `personId` (the gateway JWT `sub`) is exposed for callers that need the UUID.
+ * The current viewer, derived from the session summary (`/auth/me`).
+ * `personId` (the gateway JWT `sub`) is the SPA's person key since the identity
+ * cutover — routes, metric requests and profile lookups all use it. `email`
+ * stays for display and for the email-shaped protocols (`__override`).
  */
 export type Viewer = {
   email: string | null;
@@ -29,6 +30,7 @@ export function useViewer(): Viewer {
   return resolve();
 }
 
-export function getViewerEmail(): string | null {
-  return resolve().email;
+
+export function getViewerPersonId(): string | null {
+  return resolve().personId;
 }

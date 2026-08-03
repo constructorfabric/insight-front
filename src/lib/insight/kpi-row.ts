@@ -8,7 +8,7 @@ import {
   forEntity,
   type NormalizedMetricResult,
 } from "@/lib/metrics/collection";
-import { peerStatusToStatus } from "@/lib/insight/v2/peer-status";
+import { peerStatusToStatus } from "@/lib/insight/peer-status";
 import { formatGapMagnitude } from "@/lib/metrics/gap";
 import { derivePeerStanding } from "@/lib/metrics/peer-standing";
 import {
@@ -49,9 +49,8 @@ export function metricKpiTiles(
   entityId: string,
   focusMode: FocusMode
 ): KpiTileData[] {
-  return KPI_ROW.flatMap((source) => {
-    if (source.kind !== "metric") return [];
-    const metric = byKey.get(source.metricKey);
+  return KPI_ROW.flatMap((metricKey) => {
+    const metric = byKey.get(metricKey);
     if (!metric) return [];
 
     const data = forEntity(metric, entityId);
@@ -67,7 +66,7 @@ export function metricKpiTiles(
       focusMode
     );
 
-    const previousMetric = previousByKey?.get(source.metricKey) ?? null;
+    const previousMetric = previousByKey?.get(metricKey) ?? null;
     const previousValue = previousMetric
       ? forEntity(previousMetric, entityId).value
       : null;

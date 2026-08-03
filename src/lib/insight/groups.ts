@@ -23,8 +23,8 @@ import type { MetricTimeseriesChartConfig } from "@/lib/metrics/timeseries-chart
  * dashboard composition, so they live here.
  */
 
-export type BreakdownChartKind = "bars" | "summary-card";
-export type HistogramChartKind = "histogram";
+type BreakdownChartKind = "bars" | "summary-card";
+type HistogramChartKind = "histogram";
 
 /**
  * One chart in a group's drilldown. Blocks compose: a multi-metric chart
@@ -52,22 +52,12 @@ export type DrilldownBlock =
   | { view: "histogram"; chart: HistogramChartKind; metrics: string[] };
 
 export interface MetricGroup {
-  kind: "metrics";
   id: GroupId;
   title: string;
   collection: MetricCollectionConfig;
   card: { preview: string[] };
   drilldown: DrilldownBlock[];
 }
-
-/** A group still rendered by the legacy data path; dies with it. */
-export interface LegacyGroup {
-  kind: "legacy";
-  id: GroupId;
-  title: string;
-}
-
-export type GroupDef = MetricGroup | LegacyGroup;
 
 export type GroupId =
   | "task_delivery"
@@ -325,9 +315,8 @@ const WIKI_COLLECTION: MetricCollectionConfig = {
   ],
 };
 
-export const GROUPS: readonly GroupDef[] = [
+export const GROUPS: readonly MetricGroup[] = [
   {
-    kind: "metrics",
     id: "task_delivery",
     title: "Task delivery",
     collection: TASK_DELIVERY_COLLECTION,
@@ -355,7 +344,6 @@ export const GROUPS: readonly GroupDef[] = [
     ],
   },
   {
-    kind: "metrics",
     id: "git_output",
     title: "Git output",
     collection: GIT_OUTPUT_COLLECTION,
@@ -412,7 +400,6 @@ export const GROUPS: readonly GroupDef[] = [
     ],
   },
   {
-    kind: "metrics",
     id: "collaboration",
     title: "Collaboration",
     collection: COLLABORATION_COLLECTION,
@@ -441,7 +428,6 @@ export const GROUPS: readonly GroupDef[] = [
     ],
   },
   {
-    kind: "metrics",
     id: "ai_adoption",
     title: "AI adoption",
     collection: AI_ADOPTION_COLLECTION,
@@ -458,7 +444,6 @@ export const GROUPS: readonly GroupDef[] = [
     ],
   },
   {
-    kind: "metrics",
     id: "wiki",
     title: "Wiki",
     collection: WIKI_COLLECTION,
@@ -506,51 +491,29 @@ export const HEATMAP_COLLECTION: MetricCollectionConfig = {
   })),
 };
 
-export function groupById(id: GroupId): GroupDef {
-  const def = GROUPS.find((g) => g.id === id);
-  if (!def) throw new Error(`Unknown group: ${id}`);
-  return def;
-}
-
-export function metricGroups(): MetricGroup[] {
-  return GROUPS.filter((g): g is MetricGroup => g.kind === "metrics");
-}
-
-export function legacyGroups(): LegacyGroup[] {
-  return GROUPS.filter((g): g is LegacyGroup => g.kind === "legacy");
-}
-
 /**
- * The "At a glance" KPI row: array order is display order. `legacy` tiles
- * come from the legacy KPI batch; `metric` tiles come from the derived
- * KPI collection below. Both render through the same display-ready tile
- * intermediate — selectors own formatting and scoring.
+ * The "At a glance" KPI row: array order is display order. Tiles are metric
+ * keys resolved against the KPI collection below and render through the
+ * display-ready tile intermediate — selectors own formatting and scoring.
  */
-export type KpiTileSource =
-  | { kind: "legacy"; key: string; groupId: GroupId }
-  | { kind: "metric"; metricKey: string };
-
-export const KPI_ROW: readonly KpiTileSource[] = [
-  { kind: "metric", metricKey: "tasks.closed" },
-  { kind: "metric", metricKey: "collab.focus_time_pct" },
-  { kind: "metric", metricKey: "git.prs_merged" },
-  { kind: "metric", metricKey: "ai.active_days" },
-  { kind: "metric", metricKey: "ai.accepted_lines" },
+export const KPI_ROW: readonly string[] = [
+  "tasks.closed",
+  "collab.focus_time_pct",
+  "git.prs_merged",
+  "ai.active_days",
+  "ai.accepted_lines",
 ];
 
 export const KPI_ROW_COLLECTION: MetricCollectionConfig = {
-  metrics: KPI_ROW.filter(
-    (t): t is Extract<KpiTileSource, { kind: "metric" }> => t.kind === "metric"
-  ).map((t) => ({
-    key: t.metricKey,
+  metrics: KPI_ROW.map((key) => ({
+    key,
     views: [{ view: "period" }, { view: "peer" }],
   })),
 };
 
-/** Metrics-backed KPI tiles navigate to the group that owns their metric. */
+/** KPI tiles navigate to the group that owns their metric. */
 export function groupIdForMetricKey(metricKey: string): GroupId | null {
   for (const def of GROUPS) {
-    if (def.kind !== "metrics") continue;
     if (def.collection.metrics.some((m) => m.key === metricKey)) return def.id;
   }
   return null;

@@ -22,7 +22,7 @@ import {
   type NormalizedMetricResult,
 } from "@/lib/metrics/collection";
 
-export interface MetricTimeseriesColumn {
+interface MetricTimeseriesColumn {
   key: string;
   colorSeed: string;
   label: string;
@@ -55,7 +55,7 @@ function parseDate(value: string): Date | null {
     : null;
 }
 
-export function bucketStarts(range: DateRange, bucket: MetricBucket): string[] {
+function bucketStarts(range: DateRange, bucket: MetricBucket): string[] {
   const from = parseDate(range.from);
   const to = parseDate(range.to);
   if (!from || !to || from > to) return [];

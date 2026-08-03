@@ -1,227 +1,190 @@
 import { useMemo, useState } from "react";
 
-import { AttentionNeeded } from "@/components/widgets/attention-needed";
-import { DrillModal } from "@/components/widgets/drill-modal";
-import { IcViewToggle } from "@/components/ic-view-toggle";
-import { MembersTable } from "@/components/widgets/members-table";
-import { TeamMetricsModal } from "@/components/widgets/team-metrics-modal";
-import { PeriodSelectorBar } from "@/components/widgets/period-selector-bar";
-import { TeamBulletSections } from "@/components/widgets/team-bullet-sections";
-import { TeamHeroStrip } from "@/components/widgets/team-hero-strip";
-import { ViewModeToggle } from "@/components/widgets/view-mode-toggle";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { IdentityApiError } from "@/api/identity-client";
+import { ComingSoon } from "@/components/widgets/coming-soon";
+import { DashboardEmptyState } from "@/components/widgets/dashboard/dashboard-empty-state";
+import { DashboardHeader } from "@/components/widgets/dashboard/dashboard-header";
+import { GroupDrilldownSheet } from "@/components/widgets/dashboard/group-drilldown-sheet";
+import { MembersOverview } from "@/components/widgets/dashboard/members-overview";
+import { TeamMembersAttention } from "@/components/widgets/dashboard/team-members-attention";
+import { TeamMetricGroupCard } from "@/components/widgets/metric-views/team-metric-group-card";
+import type { TeamMemberRef } from "@/components/widgets/metric-views/team-collection-drilldown";
+import { CenteredSpinner } from "@/components/widgets/centered-spinner";
 import { Switch } from "@/components/ui/switch";
-import { useTeamViewConfig } from "@/api/view-configs";
-import { usePeriod, useViewMode } from "@/hooks/use-period";
+import { usePeriod } from "@/hooks/use-period";
 import {
   flattenSubordinates,
-  findIdentityNode,
   hasIndirectReports,
+  scopeRosterToDirectReports,
 } from "@/lib/insight/identity-tree";
-import { getInitials } from "@/lib/insight/get-initials";
-import { useTeamKpis } from "@/lib/insight/team-kpis";
+import {
+  GROUPS,
+  HEATMAP_COLLECTION,
+  type GroupId,
+} from "@/lib/insight/groups";
+import {
+  memberMetricEntries,
+  metricBelowCounts,
+} from "@/lib/insight/team-metrics";
+import { projectViews } from "@/lib/metrics/collection";
+import { normalizePersonId } from "@/lib/metrics/entity";
 import { useIcPerson } from "@/queries/ic-dashboard";
 import {
-  useTeamBulletSection,
-  useTeamDrill,
-  useTeamMembers,
-  type TeamBulletSectionId,
-  type TeamDrillTarget,
-} from "@/queries/team-view";
-import type { BulletMetric, TeamMember } from "@/types/insight";
+  collectionSetPending,
+  useMetricCollectionSet,
+} from "@/queries/metric-results";
+import { useMemberGridData } from "@/queries/member-grid";
+import type { TeamMember } from "@/types/insight";
+
+// Team surfaces request period + peer only: a per-member timeseries over a
+// large roster would exceed the backend's all-or-nothing row limit and fail
+// the whole request.
+const TEAM_METRIC_COLLECTIONS = GROUPS.map((def) => ({
+  key: def.id,
+  collection: projectViews(def.collection, ["period", "peer"]),
+}));
 
 export interface TeamViewScreenProps {
-  /** Email of the team owner — the IR node whose subordinates form the roster. */
+  /** Pivot person id whose subtree the table shows. */
   teamId: string;
-  /** Email of the viewer signed into the app — used to walk identity tree. */
-  viewerEmail: string;
 }
 
-type BulletStatus = "loading" | "loaded" | "errored";
-type BulletQ = ReturnType<typeof useTeamBulletSection>;
-
-function bulletStatus(q: BulletQ): BulletStatus {
-  if (q.isPending) return "loading";
-  if (q.isError) return "errored";
-  return "loaded";
-}
-
-function scopeAiBullets(
-  metrics: BulletMetric[],
-  members: TeamMember[],
-): BulletMetric[] {
-  const teamSize = members.length;
-  const recompute: Record<string, number> = {
-    active_ai_members: members.filter((m) => m.ai_tools.length > 0).length,
-    cursor_active: members.filter((m) => m.ai_tools.includes("Cursor")).length,
-    cc_active: members.filter((m) => m.ai_tools.includes("Claude Code")).length,
-    codex_active: members.filter((m) => m.ai_tools.includes("Codex")).length,
+export function TeamViewScreen({ teamId }: TeamViewScreenProps) {
+  const { period, dateRange, setPeriod } = usePeriod();
+  const [openGroup, setOpenGroup] = useState<GroupId | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const openDetails = (group: GroupId) => {
+    setOpenGroup(group);
+    setDetailsOpen(true);
   };
-  return metrics.map((m) => {
-    if (!(m.metric_key in recompute)) return m;
-    const value = recompute[m.metric_key]!;
-    const valuePct =
-      teamSize > 0 ? Math.min(100, (value / teamSize) * 100) : 0;
-    return {
-      ...m,
-      value: String(value),
-      unit: `/ ${teamSize}`,
-      range_min: "0",
-      range_max: String(teamSize),
-      median: "—",
-      median_label: "",
-      median_left_pct: 0,
-      bar_left_pct: 0,
-      bar_width_pct: valuePct,
-    };
-  });
-}
-
-export function TeamViewScreen({ teamId, viewerEmail }: TeamViewScreenProps) {
-  const { period, customRange, dateRange, setPeriod, setCustomRange } =
-    usePeriod();
-  const { viewMode, setViewMode } = useViewMode();
   const [directReportsOnly, setDirectReportsOnly] = useState(true);
-  const [drillTarget, setDrillTarget] = useState<TeamDrillTarget | null>(null);
-  const [metricsModalOpen, setMetricsModalOpen] = useState(false);
 
-  const viewerQ = useIcPerson(viewerEmail);
-  const viewerTree = viewerQ.data ?? null;
+  // Close any open drilldown when the viewed team changes. Render-phase
+  // reset against the previous id rather than an effect (no cascading commit).
+  const [prevTeamId, setPrevTeamId] = useState(teamId);
+  if (teamId !== prevTeamId) {
+    setPrevTeamId(teamId);
+    setOpenGroup(null);
+  }
 
-  const pivot = useMemo(() => {
-    if (!viewerTree) return null;
-    if (teamId.includes("@")) return findIdentityNode(viewerTree, teamId);
-    return null;
-  }, [viewerTree, teamId]);
+  // The pivot is resolved by identity, NOT looked up in the viewer's tree:
+  // visibility also comes from explicit and wildcard grants, so a person the
+  // viewer may legitimately see can sit outside their reporting line. A tree
+  // lookup would render that team empty. The hook still serves the viewer's
+  // cached tree as placeholder data, so the common case paints immediately.
+  const pivotQ = useIcPerson(teamId);
+  const pivot = pivotQ.data ?? null;
 
-  const roster = useMemo(
+  const fullRoster = useMemo(
     () => (pivot ? flattenSubordinates(pivot) : null),
     [pivot],
   );
-
-  const teamName = pivot?.display_name ?? teamId;
-
-  const membersQ = useTeamMembers(teamId, roster, period, dateRange);
-  const allMembers = membersQ.data ?? [];
-
-  const hasRoster = roster !== null;
-  // Only offer the direct-reports filter when it can change the roster —
-  // with no subteams every report is direct and the toggle is a no-op (#1756).
-  const canFilterDirectReports = hasIndirectReports(roster);
-  const directReportEmails = useMemo(() => {
-    if (!roster) return null;
-    return new Set(
-      roster.filter((r) => r.is_direct).map((r) => r.email.toLowerCase()),
-    );
-  }, [roster]);
-  const members =
-    canFilterDirectReports && directReportsOnly && directReportEmails
-      ? allMembers.filter((m) =>
-          directReportEmails.has(m.person_id.toLowerCase()),
-        )
-      : allMembers;
-
-  const teamViewConfig = useTeamViewConfig();
-  const teamKpis = useTeamKpis(members, period);
-
-  const teamSize = roster?.length;
-  const taskQ = useTeamBulletSection(
-    "task_delivery",
-    teamId,
-    teamSize,
-    period,
-    dateRange,
-    { roster },
+  // With no indirect reports, direct reports == the whole team, so the
+  // toggle could never change the roster — hide it (#1756).
+  const canScopeToDirectReports = hasIndirectReports(fullRoster);
+  // Scoping the roster scopes everything downstream — members, the heatmap,
+  // and metric collections all derive from it.
+  const roster = useMemo(
+    () =>
+      scopeRosterToDirectReports(
+        fullRoster,
+        canScopeToDirectReports && directReportsOnly,
+      ),
+    [fullRoster, canScopeToDirectReports, directReportsOnly],
   );
-  const qualityQ = useTeamBulletSection(
-    "code_quality",
-    teamId,
-    teamSize,
-    period,
-    dateRange,
-    { roster },
+  // Never fall back to the raw id (a UUID) — the shell prefetches the viewer
+  // tree, so the pivot resolves synchronously in practice.
+  const teamName = pivot?.display_name ?? "";
+
+  // The roster IS the member list: identity owns who is on the team, and
+  // every metric for them comes from `/v1/metric-results` below. There is no
+  // second source to reconcile.
+  const members = useMemo<TeamMember[]>(
+    () =>
+      (roster ?? []).map((entry) => ({
+        person_id: entry.person_id,
+        name: entry.display_name,
+      })),
+    [roster],
   );
-  const estimationQ = useTeamBulletSection(
-    "estimation",
-    teamId,
-    teamSize,
-    period,
+  const memberEntityIds = members.map((m) => normalizePersonId(m.person_id));
+  const memberRefs: TeamMemberRef[] = members.map((m) => ({
+    entityId: normalizePersonId(m.person_id),
+    displayName: m.name,
+  }));
+  const heatmapQ = useMemberGridData(
+    HEATMAP_COLLECTION,
+    { type: "person", ids: memberEntityIds },
     dateRange,
-    { roster },
-  );
-  const collabQ = useTeamBulletSection(
-    "collaboration",
-    teamId,
-    teamSize,
     period,
-    dateRange,
-    { roster },
-  );
-  const aiQ = useTeamBulletSection(
-    "ai_adoption",
-    teamId,
-    teamSize,
-    period,
-    dateRange,
-    { roster },
   );
 
-  const drillQ = useTeamDrill(drillTarget, dateRange);
+  const metricGroupData = useMetricCollectionSet(
+    TEAM_METRIC_COLLECTIONS,
+    { type: "person", ids: memberEntityIds },
+    dateRange,
+  );
 
-  const scopingActive =
-    canFilterDirectReports &&
-    directReportsOnly &&
-    members.length !== allMembers.length;
+  const metricBelowByMember = new Map<string, number>();
+  for (const def of GROUPS) {
+    const byKey = metricGroupData.get(def.id)?.byKey;
+    if (!byKey) continue;
+    for (const [memberId, count] of metricBelowCounts(
+      def,
+      byKey,
+      memberEntityIds,
+    )) {
+      metricBelowByMember.set(
+        memberId,
+        (metricBelowByMember.get(memberId) ?? 0) + count,
+      );
+    }
+  }
 
-  const aiMetrics = aiQ.data
-    ? scopingActive
-      ? scopeAiBullets(aiQ.data, members)
-      : aiQ.data
-    : undefined;
+  // Per-person entries (git/ai) feed the heatmap's member details sheet.
+  const metricEntriesByPerson = memberMetricEntries(
+    GROUPS,
+    (id) => metricGroupData.get(id)?.byKey,
+    memberEntityIds,
+  );
 
-  const scopedBulletNote = scopingActive
-    ? `AI Adoption is scoped to direct reports (${members.length} of ${allMembers.length} members). Other sections still reflect the whole team.`
-    : null;
+  // The one loading gate: a single page spinner while ANY of the screen's
+  // queries has no data. A period or scope change mints new query keys, so
+  // the same gate re-trips — no per-widget loaders, no partial paints. The
+  // roster query (the pivot's own profile) comes first: every other query
+  // derives its entity ids from it.
+  const isLoading =
+    pivotQ.isPending ||
+    heatmapQ.isPending ||
+    collectionSetPending(metricGroupData);
+  const hasMembers = members.length > 0;
+  const isAllEmpty = !isLoading && !hasMembers;
+  // Identity failing is not an empty team: without the pivot there is no
+  // roster at all, and rendering the empty state over a 404 or a down service
+  // would read as "this team has no members". Same split as the personal
+  // dashboard: a 404 (gone, renamed, or outside the visible set) has nothing
+  // to retry; anything else offers one.
+  const pivotMissing =
+    pivotQ.error instanceof IdentityApiError && pivotQ.error.status === 404;
 
-  const handleCellDrill = (personId: string, drillId: string): void => {
-    setDrillTarget({ kind: "cell", personId, drillId });
-  };
-
-  const retrySection = (sid: TeamBulletSectionId): void => {
-    if (sid === "task_delivery") void taskQ.refetch();
-    else if (sid === "code_quality") void qualityQ.refetch();
-    else if (sid === "estimation") void estimationQ.refetch();
-    else if (sid === "collaboration") void collabQ.refetch();
-    else void aiQ.refetch();
-  };
+  const memberCountLabel = `${members.length} member${members.length === 1 ? "" : "s"}`;
+  const scopeLabel = directReportsOnly
+    ? `Direct reports of ${teamName}`
+    : `${teamName}'s department`;
 
   return (
-    <div className="flex flex-col gap-4 p-6">
-      <div className="bg-background/95 border-border/60 sticky top-0 z-20 -mx-6 -mt-6 flex flex-wrap items-center justify-between gap-3 border-b px-6 pt-6 pb-3 backdrop-blur-sm">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <SidebarTrigger className="md:hidden" />
-          <Avatar className="size-10 shrink-0">
-            <AvatarFallback className="bg-primary/10 text-primary text-base font-extrabold">
-              {getInitials(teamName)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0">
-            <div className="text-foreground truncate text-lg leading-tight font-bold">
-              {teamName}
-            </div>
-            <div className="text-muted-foreground truncate text-sm">
-              {canFilterDirectReports && directReportsOnly
-                ? `Direct reports of ${pivot?.display_name ?? teamName}`
-                : `${pivot?.display_name ?? teamName}'s department`}
-            </div>
-          </div>
-          <div className="shrink-0">
-            <IcViewToggle person={teamId} hasReports={hasRoster} />
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {canFilterDirectReports ? (
+    <div className="flex flex-col">
+      <DashboardHeader
+        title={teamName ? `Team of ${teamName}` : ""}
+        subtitle={
+          canScopeToDirectReports
+            ? `${scopeLabel} · ${memberCountLabel}`
+            : memberCountLabel
+        }
+        person={teamId}
+        hasReports
+        actions={
+          canScopeToDirectReports && fullRoster ? (
             <label className="text-foreground flex cursor-pointer items-center gap-2 text-sm select-none">
               <Switch
                 checked={directReportsOnly}
@@ -229,77 +192,92 @@ export function TeamViewScreen({ teamId, viewerEmail }: TeamViewScreenProps) {
               />
               <span>Direct reports only</span>
               <span className="text-muted-foreground text-xs">
-                ({members.length}/{allMembers.length})
+                ({roster?.length ?? 0}/{fullRoster.length})
               </span>
             </label>
-          ) : null}
-          <PeriodSelectorBar
-            period={period}
-            customRange={customRange}
-            onPeriodChange={setPeriod}
-            onRangeChange={setCustomRange}
-          />
-          <ViewModeToggle mode={viewMode} onChange={setViewMode} />
-        </div>
-      </div>
-
-      <TeamHeroStrip teamKpis={teamKpis} />
-
-      <AttentionNeeded
-        members={members}
-        alertThresholds={teamViewConfig.alert_thresholds}
-      />
-
-      <MembersTable
-        members={members}
-        columnThresholds={teamViewConfig.column_thresholds}
-        loading={membersQ.isPending}
-        onCellDrill={handleCellDrill}
-        onViewAllStats={
-          members.length > 0 ? () => setMetricsModalOpen(true) : undefined
+          ) : null
         }
       />
+      <main className="flex flex-1 flex-col gap-8 p-4 md:p-6">
+        {pivotQ.isError ? (
+          <ComingSoon
+            variant="card"
+            state="error"
+            label={
+              pivotMissing
+                ? "This person is not available"
+                : "Unable to load this person"
+            }
+            onRetry={pivotMissing ? undefined : () => void pivotQ.refetch()}
+          />
+        ) : isLoading ? (
+          <CenteredSpinner className="min-h-[70vh]" />
+        ) : isAllEmpty ? (
+          <DashboardEmptyState period={period} onSetPeriod={setPeriod} />
+        ) : (
+          <div className="flex flex-col gap-8">
+            <TeamMembersAttention
+              members={members}
+              metricBelowByMember={metricBelowByMember}
+              metricEntriesByPerson={metricEntriesByPerson}
+            />
 
-      {scopedBulletNote ? (
-        <div className="border-warning/30 bg-warning/10 text-warning rounded-md border px-3 py-2 text-xs">
-          {scopedBulletNote}
-        </div>
-      ) : null}
+            {heatmapQ.isError ? (
+              <ComingSoon
+                state="error"
+                label="Heatmap — unable to load"
+                onRetry={() => heatmapQ.refetch()}
+              />
+            ) : (
+              <MembersOverview
+                members={members}
+                heatmapByKey={heatmapQ.byKey}
+                previousHeatmapByKey={heatmapQ.previousByKey}
+                metricBelowByMember={metricBelowByMember}
+                metricEntriesByPerson={metricEntriesByPerson}
+              />
+            )}
 
-      <TeamBulletSections
-        sections={{
-          task_delivery: taskQ.data,
-          code_quality: qualityQ.data,
-          estimation: estimationQ.data,
-          ai_adoption: aiMetrics,
-          collaboration: collabQ.data,
-        }}
-        status={{
-          task_delivery: bulletStatus(taskQ),
-          code_quality: bulletStatus(qualityQ),
-          estimation: bulletStatus(estimationQ),
-          ai_adoption: bulletStatus(aiQ),
-          collaboration: bulletStatus(collabQ),
-        }}
-        viewMode={viewMode}
-        onRetry={retrySection}
-      />
+            <section className="flex flex-col gap-3">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Sections
+              </p>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+                {GROUPS.map((def) => {
+                  const result = metricGroupData.get(def.id);
+                  if (!result) return null;
+                  return (
+                    <TeamMetricGroupCard
+                      key={def.id}
+                      def={def}
+                      data={result}
+                      memberIds={memberEntityIds}
+                      onOpen={() => openDetails(def.id)}
+                      subtitle="vs department peers"
+                    />
+                  );
+                })}
+              </div>
+            </section>
+          </div>
+        )}
+      </main>
 
-      <DrillModal
-        drill={drillQ.data ?? null}
-        open={Boolean(drillTarget)}
-        loading={drillQ.isPending && Boolean(drillTarget)}
-        errored={drillQ.isError}
-        onClose={() => setDrillTarget(null)}
-        onRetry={() => drillQ.refetch()}
-      />
-
-      <TeamMetricsModal
-        open={metricsModalOpen}
-        onClose={() => setMetricsModalOpen(false)}
-        members={members}
-        range={dateRange}
-      />
+      {GROUPS.map((def) => (
+        <GroupDrilldownSheet
+          key={def.id}
+          open={detailsOpen && openGroup === def.id}
+          onOpenChange={setDetailsOpen}
+          onOpenChangeComplete={(open) => {
+            if (!open && openGroup === def.id) setOpenGroup(null);
+          }}
+          def={def}
+          metricTarget={{ kind: "team", members: memberRefs }}
+          range={dateRange}
+          period={period}
+          cohortLabel="department"
+        />
+      ))}
     </div>
   );
 }

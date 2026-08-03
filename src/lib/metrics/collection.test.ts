@@ -9,7 +9,6 @@ import {
   buildMetricCollectionRequest,
   chunkEntityIds,
   entityChunkSize,
-  entityObserved,
   forEntity,
   mergeNormalizedResults,
   normalizeMetricResult,
@@ -116,20 +115,6 @@ describe("normalizeMetricResult forward-compat", () => {
     const normalized = normalizeMetricResult(withUnknown);
     expect(normalized.period).toBeDefined();
     expect(normalized.peer).toBeDefined();
-  });
-});
-
-describe("entityObserved", () => {
-  it("distinguishes observed from zero-filled entities", () => {
-    const metric = normalizeMetricResults([SUM_METRIC_FIXTURE]).get(
-      "ai.accepted_lines"
-    )!;
-    // alice: peer row with a target_value → observed.
-    expect(entityObserved(metric, "alice@example.com")).toBe(true);
-    // bob: zero-filled period value, no peer row → unobserved.
-    expect(entityObserved(metric, "bob@example.com")).toBe(false);
-    // nobody: absent everywhere → unobserved.
-    expect(entityObserved(metric, "nobody@example.com")).toBe(false);
   });
 });
 

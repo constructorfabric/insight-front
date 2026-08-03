@@ -5,6 +5,15 @@ import type { AuthSnapshot } from "./types";
 
 let redirecting = false;
 
+// A bfcache restore (browser Back from the IdP) revives this module with
+// `redirecting` still true, which would turn every later signIn — e.g. the
+// login-error screen's "Try again" button — into a silent no-op.
+if (typeof window !== "undefined") {
+  window.addEventListener("pageshow", (event) => {
+    if (event.persisted) redirecting = false;
+  });
+}
+
 /**
  * Sanitize a return-to into a site-relative path (mirrors the backend guard).
  * `/auth/*` paths collapse to `/` — a return-to pointing back into the login
@@ -17,14 +26,15 @@ function safeReturnTo(path: string): string {
 
 /**
  * Redirect the whole page into the login flow. The gateway + authenticator own
- * the OIDC dance; we only hand them a `return_to`. Guarded so multiple 401s in
- * flight don't stack redirects.
+ * the provider handshake; we only hand them a `return_to`. Guarded so multiple
+ * 401s in flight don't stack redirects.
  */
 export function signIn(returnTo?: string): void {
   if (redirecting) return;
   redirecting = true;
   const dest = safeReturnTo(
-    returnTo ?? window.location.pathname + window.location.search
+    returnTo ??
+      window.location.pathname + window.location.search + window.location.hash
   );
   window.location.assign(`/auth/login?return_to=${encodeURIComponent(dest)}`);
 }

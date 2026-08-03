@@ -3,7 +3,7 @@ import type { MetricTimeseriesModel } from "@/components/widgets/metric-views/me
 import type { NormalizedMetricResult } from "@/lib/metrics/collection";
 import type { MetricTimeseriesChartConfig } from "@/lib/metrics/timeseries-chart";
 
-export interface MetricTimeseriesChartSeries {
+interface MetricTimeseriesChartSeries {
   key: string;
   metricKey: string;
   columnKey: string;

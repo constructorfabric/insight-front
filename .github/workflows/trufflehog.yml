@@ -1,0 +1,227 @@
+name: TruffleHog Secrets
+
+# Secret detection over the full git history (constructorfabric/insight-front#231).
+#
+# Report-only, like every other security check here: findings render in the job summary and the
+# run stays green. The baseline is empty — a full-history scan over all 62 refs returns 0
+# findings and 0 detector hits — so there is nothing to triage, and making this blocking is a
+# one-line change tracked separately. Until then the zero-leak policy is a convention, not an
+# enforced one: a committed credential must be revoked and rotated, and rewriting history is
+# not remediation.
+#
+# `--results` is the load-bearing flag. TruffleHog's default (`verified,unknown`) HIDES
+# findings whose live verification failed, so an already-revoked or inactive key in the
+# history produces a green run — for a public repository that is still a leak. All four
+# result kinds are requested so the scan sees what the default would drop.
+#
+# Raw secret values are never printed to the log or the job summary, and no report artifact
+# is uploaded: Actions artifacts and logs on a public repository are world-readable, so
+# echoing a hit would publish the very value this scan exists to surface. The summary carries
+# detector name, commit and path — enough to locate and rotate.
+#
+# Scope note: this scans commits reachable from refs. Objects left unreachable by a force
+# push or a deleted branch still live on the remote and are NOT covered here; auditing those
+# needs a GitHub-source scan (`trufflehog github --repo`) against the API.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # Nightly sweep over every branch, 03:13 UTC (ahead of the Semgrep baseline at 03:27).
+    - cron: "13 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    name: secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          # Full history, not the tip: a secret deleted in a later commit is still a leak.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch every branch (nightly / manual sweep)
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        # PR and push runs scan the history behind the ref under test — that is the merge
+        # gate. The sweep additionally pulls every other live branch so a secret parked on a
+        # long-lived feature branch is caught before it reaches main. Explicit authenticated
+        # URL because `persist-credentials: false` leaves no credential on `origin`; the
+        # token is masked in logs by Actions.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --prune \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            '+refs/heads/*:refs/remotes/origin/*'
+
+      - name: TruffleHog scan (git history)
+        # Digest-pinned image via `docker run`, matching semgrep.yml. stdout (JSON findings,
+        # one object per line, containing raw secret values) is redirected to a file that
+        # stays on the runner; stderr (progress + the scan summary) is the only thing that
+        # reaches the log. `--fail` is deliberately NOT used: the summary step below decides
+        # the exit code, so a failing run still renders a readable report first.
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/src:ro" \
+            trufflesecurity/trufflehog:3.96.0@sha256:aa821cf4ace8861c7d096d83818cdf7bb9719028a52d37a52eaad44086a52577 \
+            git file:///src \
+              --json \
+              --no-update \
+              --results=verified,unknown,unverified,filtered_unverified \
+            > trufflehog-findings.jsonl
+
+      - name: Summarize (redacted)
+        if: always()
+        # Null-guarded append (repo convention, cf. ci.yml). Prints detector / commit / path
+        # only — never `Raw`, `RawV2` or the surrounding line.
+        run: |
+          [ -f trufflehog-findings.jsonl ] || exit 0
+          python3 - trufflehog-findings.jsonl "${GITHUB_STEP_SUMMARY:-/dev/null}" <<'PY'
+          import json, sys, collections
+          rows, unparsable, skipped = [], 0, 0
+          with open(sys.argv[1], encoding="utf-8") as fh:
+              for line in fh:
+                  line = line.strip()
+                  if not line:
+                      continue
+                  try:
+                      d = json.loads(line)
+                  except json.JSONDecodeError:
+                      # A truncated or non-JSON line must not take the whole summary down with
+                      # it; it is counted and reported instead.
+                      unparsable += 1
+                      continue
+                  if "DetectorName" not in d:
+                      # Only findings carry a detector. Anything else on stdout is not a finding
+                      # and must not inflate the count.
+                      skipped += 1
+                      continue
+                  git = (d.get("SourceMetadata") or {}).get("Data", {}).get("Git", {})
+                  rows.append({
+                      "detector": d.get("DetectorName", "?"),
+                      "verified": bool(d.get("Verified")),
+                      "commit": (git.get("commit") or "")[:8],
+                      "file": git.get("file") or "?",
+                      "line": git.get("line") or "",
+                  })
+          out = open(sys.argv[2], "a", encoding="utf-8")
+          w = out.write
+          w("## TruffleHog secret scan\n\n")
+          if unparsable or skipped:
+              w(f"_{unparsable} unparsable line(s), {skipped} non-finding record(s) skipped._\n\n")
+          if not rows:
+              w("No secrets detected in the scanned history (all result kinds enabled).\n")
+              sys.exit(0)
+          ver = sum(1 for r in rows if r["verified"])
+          w(f"**{len(rows)}** finding(s) — {ver} live-verified, {len(rows) - ver} unverified. "
+            "Values are redacted here on purpose; read them from the source commit.\n\n")
+          w("| Detector | Verified | Commit | Path |\n|---|---|---|---|\n")
+          for r in sorted(rows, key=lambda r: (not r["verified"], r["detector"])):
+              w(f"| `{r['detector']}` | {'yes' if r['verified'] else 'no'} | `{r['commit']}` | `{r['file']}`{':' + str(r['line']) if r['line'] else ''} |\n")
+          by_det = collections.Counter(r["detector"] for r in rows)
+          w(f"\nBy detector: {', '.join(f'{k} x{v}' for k, v in by_det.most_common())}\n")
+          w("\n**Revoke and rotate every credential listed above.** Removing the commit is not "
+            "remediation — assume the value is compromised the moment it was pushed.\n")
+          out.close()
+          PY
+
+  # The git scan above only reaches commits that some ref still points at. Two classes of leak
+  # sit outside it, and only the GitHub API can see them: objects orphaned by a force push or a
+  # deleted branch, which remain fetchable by SHA, and secrets pasted into pull request or issue
+  # comments, where they arrive more often than in code.
+  #
+  # Off pull requests because it depends on API availability and rate limits, and a transient
+  # outage should not colour a pull request at all.
+  secrets-api:
+    name: secrets (GitHub API)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: TruffleHog scan (GitHub API — comments, wikis, unreachable objects)
+        # Deliberately unauthenticated, and it must stay that way: TruffleHog's GitHub source
+        # calls `GET /user`, which an installation token cannot read — passing `GITHUB_TOKEN`
+        # fails the job with 403. The repository is public, so no token is needed.
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            trufflesecurity/trufflehog:3.96.0@sha256:aa821cf4ace8861c7d096d83818cdf7bb9719028a52d37a52eaad44086a52577 \
+            github \
+              --repo "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+              --issue-comments \
+              --pr-comments \
+              --include-wikis \
+              --json \
+              --no-update \
+              --results=verified,unknown,unverified,filtered_unverified \
+            > trufflehog-api-findings.jsonl
+
+      - name: Summarize (redacted) — report only
+        if: always()
+        run: |
+          [ -f trufflehog-api-findings.jsonl ] || exit 0
+          python3 - trufflehog-api-findings.jsonl "${GITHUB_STEP_SUMMARY:-/dev/null}" <<'PY'
+          import json, sys, collections
+          rows, unparsable, skipped = [], 0, 0
+          with open(sys.argv[1], encoding="utf-8") as fh:
+              for line in fh:
+                  line = line.strip()
+                  if not line:
+                      continue
+                  try:
+                      d = json.loads(line)
+                  except json.JSONDecodeError:
+                      # A truncated or non-JSON line must not take the whole summary down with
+                      # it; it is counted and reported instead.
+                      unparsable += 1
+                      continue
+                  if "DetectorName" not in d:
+                      # Only findings carry a detector. Anything else on stdout is not a finding
+                      # and must not inflate the count.
+                      skipped += 1
+                      continue
+                  meta = (d.get("SourceMetadata") or {}).get("Data", {})
+                  # The GitHub source reports under Github for commits and comments alike.
+                  loc = meta.get("Github") or meta.get("Git") or {}
+                  rows.append({
+                      "detector": d.get("DetectorName", "?"),
+                      "verified": bool(d.get("Verified")),
+                      # A comment hit carries a link instead of a path.
+                      "where": loc.get("file") or loc.get("link") or "?",
+                  })
+          out = open(sys.argv[2], "a", encoding="utf-8")
+          w = out.write
+          w("## TruffleHog — GitHub API source (report-only)\n\n")
+          if unparsable or skipped:
+              w(f"_{unparsable} unparsable line(s), {skipped} non-finding record(s) skipped._\n\n")
+          if not rows:
+              w("No secrets detected in commits, pull request and issue comments, or wikis "
+                "(all result kinds enabled).\n")
+              sys.exit(0)
+          ver = sum(1 for r in rows if r["verified"])
+          w(f"**{len(rows)}** finding(s) — {ver} live-verified, {len(rows) - ver} unverified. "
+            "Values are redacted; open the linked location to read them.\n\n")
+          w("| Detector | Verified | Where |\n|---|---|---|\n")
+          for r in sorted(rows, key=lambda r: (not r["verified"], r["detector"])):
+              w(f"| `{r['detector']}` | {'yes' if r['verified'] else 'no'} | `{r['where']}` |\n")
+          by_det = collections.Counter(r["detector"] for r in rows)
+          w(f"\nBy detector: {', '.join(f'{k} x{v}' for k, v in by_det.most_common())}\n")
+          w("\nA hit here that the git scan did not report means the value lives outside the "
+            "current refs — an orphaned commit or a comment. **Rotate it; deleting the comment "
+            "does not.**\n")
+          out.close()
+          PY

@@ -1,0 +1,28 @@
+# Semgrep scan exclusions — build outputs and vendored dependencies only.
+# Application AND test source stay in scope (constructorfabric/insight#1478).
+# Syntax is .gitignore-style. Point/path/rule-class waivers live elsewhere:
+#   - per-finding:  inline `// nosemgrep: <rule-id>` / `# nosemgrep: <rule-id>` + issue link
+#   - per-rule:     `--exclude-rule` in .github/workflows/semgrep.yml (e.g. the TruffleHog boundary)
+
+# --- Node / frontend build & deps ---
+node_modules/
+.pnpm-store/
+dist/
+dist-ssr/
+storybook-static/
+coverage/
+.vite/
+.tanstack/
+
+# --- Vendored agent tooling (upstream cypilot kit, not ours to patch) ---
+cypilot/
+
+# --- Generated vendor code (MSW writes this file, `msw.workerDirectory`) ---
+public/mockServiceWorker.js
+
+# --- Python caches (scripts/ci) ---
+__pycache__/
+*.pyc
+
+# --- VCS / editor noise ---
+.git/

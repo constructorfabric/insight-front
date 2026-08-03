@@ -7,7 +7,7 @@ import {
   dimensionLabel,
   dimensionSeriesKey,
 } from "@/components/widgets/metric-views/dimension-series";
-import { MetricSublabel } from "@/components/widgets/v2/metric-sublabel";
+import { MetricSublabel } from "@/components/widgets/dashboard/metric-sublabel";
 import { MetricCardActions } from "@/components/widgets/metric-views/metric-card-actions";
 import { useSettings } from "@/hooks/use-settings";
 import {
@@ -15,7 +15,7 @@ import {
   formatMetricValue,
   metricDisplayUnit,
 } from "@/lib/format";
-import { peerStatusToStatus } from "@/lib/insight/v2/peer-status";
+import { peerStatusToStatus } from "@/lib/insight/peer-status";
 import {
   forEntity,
   type NormalizedMetricResult,

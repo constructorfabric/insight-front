@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import type { PeerStatusWithNeutral } from "@/lib/peers";
 import {
   gradeSectionStanding,
-  pickSectionHeadline,
   rankCounts,
   rankableCount,
   sectionStandingPhrase,
@@ -90,23 +89,3 @@ describe("sectionStandingPhrase", () => {
   });
 });
 
-describe("pickSectionHeadline", () => {
-  it("returns null for an empty section", () => {
-    expect(pickSectionHeadline([])).toBeNull();
-  });
-
-  it("prefers bottom over in_pack over top over neutral", () => {
-    const metrics = [
-      ranked("neutral", "n"),
-      ranked("top", "t"),
-      ranked("in_pack", "p"),
-      ranked("bottom", "b"),
-    ];
-    expect(pickSectionHeadline(metrics)?.row).toBe("b");
-  });
-
-  it("breaks ties by declaration order", () => {
-    const metrics = [ranked("bottom", "first"), ranked("bottom", "second")];
-    expect(pickSectionHeadline(metrics)?.row).toBe("first");
-  });
-});

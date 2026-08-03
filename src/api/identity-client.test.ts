@@ -21,10 +21,10 @@ beforeEach(() => {
 });
 
 describe("getPerson", () => {
-  it("POSTs /profiles with an {email} body and maps the profile", async () => {
+  it("POSTs /profiles with a person_id body and maps the profile", async () => {
     mockFetch.mockResolvedValueOnce(
       response({
-        person_id: "p-1",
+        person_id: "019e27bc-dec0-7626-81a9-c5524662a6a9",
         insight_tenant_id: "t-1",
         email: "bob.park@example.com",
         display_name: "Bob Park",
@@ -33,17 +33,17 @@ describe("getPerson", () => {
       }),
     );
 
-    const person = await getPerson("bob.park@example.com");
+    const person = await getPerson("019e27bc-dec0-7626-81a9-c5524662a6a9");
 
     const [url, init] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/identity/v1/profiles");
     expect(init).toMatchObject({ method: "POST" });
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
-      value_type: "email",
-      value: "bob.park@example.com",
+      value_type: "person_id",
+      value: "019e27bc-dec0-7626-81a9-c5524662a6a9",
     });
 
-    expect(person.person_id).toBe("p-1");
+    expect(person.person_id).toBe("019e27bc-dec0-7626-81a9-c5524662a6a9");
     expect(person.email).toBe("bob.park@example.com");
     expect(person.job_title).toBe("Lead");
     expect(person.supervisor_email).toBe("ceo@example.com");
@@ -53,24 +53,49 @@ describe("getPerson", () => {
     expect(person.parent_email).toBeNull();
   });
 
-  it("maps subordinates recursively and drops any without an email", async () => {
+  it("keeps subordinates without an email — person_id is the key now", async () => {
     mockFetch.mockResolvedValueOnce(
       response({
-        person_id: "p-lead",
+        person_id: "019e27bc-dec0-7626-81a9-c5524662a6aa",
         insight_tenant_id: "t-1",
         email: "lead@example.com",
         subordinates: [
-          { person_id: "p-2", insight_tenant_id: "t-1", email: "ic1@example.com" },
-          // no email -> dropped (would be a broken link + duplicate "" key)
-          { person_id: "p-3", insight_tenant_id: "t-1" },
-          { person_id: "p-4", insight_tenant_id: "t-1", email: "  " },
+          { person_id: "019e27bc-dec0-7626-81a9-c5524662a6ab", insight_tenant_id: "t-1", email: "ic1@example.com" },
+          // No email is legitimate: identity serves persons whose log carries
+          // none, and links/keys read person_id.
+          { person_id: "019e27bc-dec0-7626-81a9-c5524662a6a9", insight_tenant_id: "t-1" },
         ],
       }),
     );
 
-    const person = await getPerson("lead@example.com");
+    const person = await getPerson("019e27bc-dec0-7626-81a9-c5524662a6aa");
 
-    expect(person.subordinates.map((s) => s.email)).toEqual(["ic1@example.com"]);
+    expect(person.subordinates.map((s) => s.person_id)).toEqual([
+      "019e27bc-dec0-7626-81a9-c5524662a6ab",
+      "019e27bc-dec0-7626-81a9-c5524662a6a9",
+    ]);
+    expect(person.subordinates.map((s) => s.email)).toEqual([
+      "ic1@example.com",
+      "",
+    ]);
+  });
+
+  it("drops a subordinate without a person_id — a keyless node breaks links and React keys", async () => {
+    mockFetch.mockResolvedValueOnce(
+      response({
+        person_id: "019e27bc-dec0-7626-81a9-c5524662a6aa",
+        insight_tenant_id: "t-1",
+        subordinates: [
+          { person_id: "019e27bc-dec0-7626-81a9-c5524662a6ab", insight_tenant_id: "t-1" },
+          { insight_tenant_id: "t-1", email: "keyless@example.com" },
+          { person_id: "  ", insight_tenant_id: "t-1" },
+        ],
+      } as never),
+    );
+
+    const person = await getPerson("019e27bc-dec0-7626-81a9-c5524662a6aa");
+
+    expect(person.subordinates.map((s) => s.person_id)).toEqual(["019e27bc-dec0-7626-81a9-c5524662a6ab"]);
   });
 
   it("throws IdentityApiError with the status + body on a non-ok response", async () => {
@@ -100,13 +125,16 @@ describe("getPerson", () => {
     });
   });
 
-  it("rejects a profile missing the required email", async () => {
+  it("rejects a profile missing the required person_id", async () => {
     mockFetch.mockResolvedValueOnce(
-      response({ person_id: "p-1", insight_tenant_id: "t-1" }),
+      response({ insight_tenant_id: "t-1", email: "bob@example.com" } as never),
     );
 
-    const err = await getPerson("bob@example.com").catch((e: unknown) => e);
+    const err = await getPerson("019e27bc-dec0-7626-81a9-c5524662a6a9").catch((e: unknown) => e);
     expect(err).toBeInstanceOf(IdentityApiError);
-    expect((err as IdentityApiError).body).toEqual({ error: "missing_email" });
+    expect((err as IdentityApiError).body).toEqual({
+      error: "missing_person_id",
+    });
   });
+
 });

@@ -52,7 +52,7 @@ import {
   useMetricCollectionSet,
 } from "@/queries/metric-results";
 
-export interface MetricTimeseriesGroupBy {
+interface MetricTimeseriesGroupBy {
   default: string;
   options?: string[];
   limits?: Record<string, MetricTimeseriesGroupLimitConfig>;
