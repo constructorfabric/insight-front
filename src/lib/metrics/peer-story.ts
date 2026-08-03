@@ -6,11 +6,11 @@ import {
   type NormalizedMetricResult,
 } from "@/lib/metrics/collection";
 import { derivePeerStanding } from "@/lib/metrics/peer-standing";
-import type {
-  FocusMode,
-  PeerStats,
-  PeerStatusWithNeutral,
-} from "@/lib/peers";
+import type { FocusMode, PeerStats, PeerStatusWithNeutral } from "@/lib/peers";
+import {
+  evidenceSelection,
+  type MetricEvidenceSelection,
+} from "@/api/metric-drilldown-client";
 
 /**
  * The peer story ranks a collection's metrics by how far the person sits
@@ -34,12 +34,14 @@ export type PeerStoryEntry = {
   gapPct: number | null;
   gapDelta: number;
   severity: number;
+  evidence?: MetricEvidenceSelection | null;
 };
 
 function toStoryEntry(
   metric: NormalizedMetricResult,
   value: number,
   data: Pick<EntityMetricData, "value" | "peer">,
+  entityId: string
 ): PeerStoryEntry {
   const standing = derivePeerStanding(metric.direction, data);
   return {
@@ -57,6 +59,9 @@ function toStoryEntry(
     gapPct: standing.gapPct,
     gapDelta: standing.gapDelta,
     severity: standing.severity,
+    evidence: metric.drilldown
+      ? evidenceSelection(metric.selection, entityId)
+      : null,
   };
 }
 
@@ -69,14 +74,14 @@ function toStoryEntry(
 export function buildPeerStoryEntries(
   collection: MetricCollectionConfig,
   byKey: Map<string, NormalizedMetricResult>,
-  entityId: string,
+  entityId: string
 ): PeerStoryEntry[] {
   return collection.metrics.flatMap((metricConfig) => {
     const metric = byKey.get(metricConfig.key);
     if (!metric) return [];
     const data = forEntity(metric, entityId);
     if (data.value == null || !Number.isFinite(data.value)) return [];
-    return [toStoryEntry(metric, data.value, data)];
+    return [toStoryEntry(metric, data.value, data, entityId)];
   });
 }
 
@@ -104,7 +109,7 @@ export interface PeerStoryPartition {
 
 export function partitionPeerStory(
   entries: PeerStoryEntry[],
-  focusMode: FocusMode,
+  focusMode: FocusMode
 ): PeerStoryPartition {
   const bottom = entries
     .filter((entry) => entry.status === "bottom")

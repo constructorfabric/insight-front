@@ -2,10 +2,12 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { EvidenceDialogContext } from "@/components/metric-evidence-context";
 import { MetricTimeseriesView } from "@/components/widgets/metric-views/metric-timeseries-view";
 import {
   ENTITY_ID,
   RANGE,
+  groupedTimeseriesModel,
   timeseriesByKey,
 } from "@/components/widgets/metric-views/metric-timeseries.test-fixtures";
 
@@ -14,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   collectionSet: vi.fn(),
   csv: vi.fn(),
   xlsx: vi.fn(),
+  evidenceColumn: "total",
 }));
 
 vi.mock("@/queries/metric-results", () => ({
@@ -22,7 +25,27 @@ vi.mock("@/queries/metric-results", () => ({
 }));
 
 vi.mock("@/components/widgets/metric-views/metric-timeseries-chart", () => ({
-  MetricTimeseriesChart: () => <div>chart presentation</div>,
+  MetricTimeseriesChart: ({
+    onEvidence,
+  }: {
+    onEvidence?: (
+      metricKey: string,
+      columnKey: string,
+      bucketStart: string | null
+    ) => void;
+  }) => (
+    <div>
+      chart presentation
+      <button
+        type="button"
+        onClick={() =>
+          onEvidence?.("git.commits", mocks.evidenceColumn, "2026-04-20")
+        }
+      >
+        drill point
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock("@/components/widgets/metric-views/metric-timeseries-table", () => ({
@@ -338,5 +361,104 @@ describe("MetricTimeseriesView", () => {
     expect(screen.getByText("chart presentation")).toBeInTheDocument();
     // The export action is disabled while fetching.
     expect(screen.getByRole("button", { name: "Export" })).toBeDisabled();
+  });
+
+  it("opens all targets for a combined chart", async () => {
+    const user = userEvent.setup();
+    const byKey = timeseriesByKey();
+    for (const metric of byKey.values()) {
+      metric.drilldown = { granularity: ["event"] };
+      metric.unit = "commits";
+      metric.selection = {
+        metric_key: metric.metric_key,
+        entity: { type: "person", ids: [ENTITY_ID] },
+        period: RANGE,
+        filters: [],
+      };
+    }
+    mocks.collection.mockReturnValue({ ...ready, byKey });
+    mocks.evidenceColumn = "total";
+    const openEvidence = vi.fn();
+    const openEvidenceTargets = vi.fn();
+    render(
+      <EvidenceDialogContext.Provider
+        value={{ openEvidence, openEvidenceTargets }}
+      >
+        <MetricTimeseriesView
+          id="evidence"
+          entityId={ENTITY_ID}
+          range={RANGE}
+          metricKeys={["git.commits", "git.lines_added"]}
+          chart={{ multiMetric: "combined" }}
+        />
+      </EvidenceDialogContext.Provider>
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "View supporting data" })
+    );
+    expect(openEvidenceTargets).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          selection: expect.objectContaining({
+            metric_key: "git.commits",
+            display_dimensions: [],
+          }),
+        }),
+        expect.objectContaining({
+          selection: expect.objectContaining({
+            metric_key: "git.lines_added",
+            display_dimensions: [],
+          }),
+        }),
+      ]),
+      "Commits & Lines added"
+    );
+  });
+
+  it("opens a grouped point with its exact period and dimensions", async () => {
+    const user = userEvent.setup();
+    const byKey = timeseriesByKey();
+    const metric = byKey.get("git.commits");
+    if (!metric) throw new Error("missing fixture metric");
+    metric.drilldown = { granularity: ["event"] };
+    metric.selection = {
+      metric_key: metric.metric_key,
+      entity: { type: "person", ids: [ENTITY_ID] },
+      period: RANGE,
+      filters: [],
+    };
+    mocks.collection.mockReturnValue({ ...ready, byKey });
+    mocks.evidenceColumn = groupedTimeseriesModel().columns[0]?.key ?? "";
+    const openEvidence = vi.fn();
+    render(
+      <EvidenceDialogContext.Provider
+        value={{ openEvidence, openEvidenceTargets: vi.fn() }}
+      >
+        <MetricTimeseriesView
+          id="point-evidence"
+          entityId={ENTITY_ID}
+          range={RANGE}
+          metricKeys={["git.commits"]}
+          groupBy={{ default: "repository" }}
+        />
+      </EvidenceDialogContext.Provider>
+    );
+
+    await user.click(screen.getByRole("button", { name: "drill point" }));
+    expect(openEvidence).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metric_key: "git.commits",
+        period: { from: "2026-04-20", to: "2026-04-26" },
+        filters: [
+          {
+            dimension: "repository",
+            values: ["org/repo-a"],
+          },
+        ],
+        display_dimensions: ["repository"],
+      }),
+      "Commits"
+    );
   });
 });

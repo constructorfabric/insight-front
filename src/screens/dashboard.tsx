@@ -75,6 +75,11 @@ export function DashboardScreen({ personId }: DashboardScreenProps) {
   );
 
   const [openGroup, setOpenGroup] = useState<GroupId | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const openDetails = (group: GroupId) => {
+    setOpenGroup(group);
+    setDetailsOpen(true);
+  };
 
   // Full collection for the open metrics group only (drives the drilldown's
   // chart blocks + peer story). Disabled while nothing is open — empty ids
@@ -130,6 +135,7 @@ export function DashboardScreen({ personId }: DashboardScreenProps) {
   if (personId !== prevPersonId) {
     setPrevPersonId(personId);
     setOpenGroup(null);
+    setDetailsOpen(false);
   }
 
   return (
@@ -168,7 +174,7 @@ export function DashboardScreen({ personId }: DashboardScreenProps) {
                       <KpiTile
                         key={key}
                         tile={tile}
-                        onOpenGroup={setOpenGroup}
+                        onOpenGroup={openDetails}
                       />
                     );
                   }
@@ -189,7 +195,7 @@ export function DashboardScreen({ personId }: DashboardScreenProps) {
 
             <IcNeedsAttention
               items={attentionItems}
-              onOpenGroup={setOpenGroup}
+              onOpenGroup={openDetails}
             />
 
             <section className="flex flex-col gap-3">
@@ -206,7 +212,7 @@ export function DashboardScreen({ personId }: DashboardScreenProps) {
                       def={def}
                       data={result}
                       entityId={entityId}
-                      onOpen={() => setOpenGroup(def.id)}
+                      onOpen={() => openDetails(def.id)}
                     />
                   );
                 })}
@@ -219,8 +225,11 @@ export function DashboardScreen({ personId }: DashboardScreenProps) {
       {GROUPS.map((def) => (
         <GroupDrilldownSheet
           key={def.id}
-          open={openGroup === def.id}
-          onOpenChange={(o) => setOpenGroup(o ? def.id : null)}
+          open={detailsOpen && openGroup === def.id}
+          onOpenChange={setDetailsOpen}
+          onOpenChangeComplete={(open) => {
+            if (!open && openGroup === def.id) setOpenGroup(null);
+          }}
           def={def}
           metricTarget={{
             kind: "person",

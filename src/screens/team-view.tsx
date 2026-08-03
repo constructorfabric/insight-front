@@ -52,6 +52,11 @@ export interface TeamViewScreenProps {
 export function TeamViewScreen({ teamId }: TeamViewScreenProps) {
   const { period, dateRange, setPeriod } = usePeriod();
   const [openGroup, setOpenGroup] = useState<GroupId | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const openDetails = (group: GroupId) => {
+    setOpenGroup(group);
+    setDetailsOpen(true);
+  };
   const [directReportsOnly, setDirectReportsOnly] = useState(true);
 
   // Close any open drilldown when the viewed team changes. Render-phase
@@ -247,7 +252,7 @@ export function TeamViewScreen({ teamId }: TeamViewScreenProps) {
                       def={def}
                       data={result}
                       memberIds={memberEntityIds}
-                      onOpen={() => setOpenGroup(def.id)}
+                      onOpen={() => openDetails(def.id)}
                       subtitle="vs department peers"
                     />
                   );
@@ -261,8 +266,11 @@ export function TeamViewScreen({ teamId }: TeamViewScreenProps) {
       {GROUPS.map((def) => (
         <GroupDrilldownSheet
           key={def.id}
-          open={openGroup === def.id}
-          onOpenChange={(o) => setOpenGroup(o ? def.id : null)}
+          open={detailsOpen && openGroup === def.id}
+          onOpenChange={setDetailsOpen}
+          onOpenChangeComplete={(open) => {
+            if (!open && openGroup === def.id) setOpenGroup(null);
+          }}
           def={def}
           metricTarget={{ kind: "team", members: memberRefs }}
           range={dateRange}

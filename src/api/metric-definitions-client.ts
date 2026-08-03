@@ -11,6 +11,7 @@
 import { AnalyticsApiError } from "@/api/analytics-client";
 import { fetchWithAuth } from "@/api/fetch-with-auth";
 import type {
+  MetricDrilldownCapability,
   MetricDirection,
   MetricFormat,
 } from "@/api/metric-results-client";
@@ -36,6 +37,7 @@ export interface MetricDefinition {
   schema_error_code: MetricSchemaErrorCode | null;
   /** ISO date of the newest observation ever seen; null = no data yet. */
   last_observed_date: string | null;
+  drilldown?: MetricDrilldownCapability;
 }
 
 type MetricSchemaErrorCode =

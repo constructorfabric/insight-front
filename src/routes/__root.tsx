@@ -11,6 +11,7 @@ import { ViewAsBanner } from "@/components/view-as-banner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { normalizePersonId } from "@/lib/metrics/entity";
 import { queryClient } from "@/query-client";
+import { MetricEvidenceDialogProvider } from "@/components/metric-evidence-dialog-provider";
 
 // Warms the exact key `useIcPerson` reads, so the shell mounts with the
 // viewer's tree already cached. Keyed by person_id since the identity cutover:
@@ -52,16 +53,18 @@ function RootPending() {
 function RootLayout() {
   return (
     <TooltipProvider>
-      <AuthGate>
-        <SidebarProvider>
-          <AppSidebar />
-          <SidebarInset className="min-w-0 overflow-x-clip">
-            <MockBanner />
-            <ViewAsBanner />
-            <Outlet />
-          </SidebarInset>
-        </SidebarProvider>
-      </AuthGate>
+      <MetricEvidenceDialogProvider>
+        <AuthGate>
+          <SidebarProvider>
+            <AppSidebar />
+            <SidebarInset className="min-w-0 overflow-x-clip">
+              <MockBanner />
+              <ViewAsBanner />
+              <Outlet />
+            </SidebarInset>
+          </SidebarProvider>
+        </AuthGate>
+      </MetricEvidenceDialogProvider>
     </TooltipProvider>
   );
 }

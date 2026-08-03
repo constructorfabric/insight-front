@@ -11,7 +11,11 @@ import {
 import { peerStatusToStatus } from "@/lib/insight/peer-status";
 import { formatGapMagnitude } from "@/lib/metrics/gap";
 import { derivePeerStanding } from "@/lib/metrics/peer-standing";
-import { computeDelta, deltaStatus, formatTileDelta } from "@/lib/metrics/delta";
+import {
+  computeDelta,
+  deltaStatus,
+  formatTileDelta,
+} from "@/lib/metrics/delta";
 import type { FocusMode } from "@/lib/peers";
 import { applyFocusStatus, type Status } from "@/lib/status";
 
@@ -37,7 +41,6 @@ export interface KpiTileData {
   context: string | null;
   groupId: GroupId | null;
 }
-
 
 /** Metric-collection results → tiles, in `KPI_ROW` order. */
 export function metricKpiTiles(
