@@ -45,7 +45,7 @@ jobs:
       contents: read # checkout
       security-events: write # upload SARIF to Code Scanning
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
@@ -112,7 +112,7 @@ jobs:
         # Skip on fork PRs: they receive a read-only token and cannot upload to Code Scanning,
         # which would otherwise red-X this report-only job.
         if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-        uses: github/codeql-action/upload-sarif@fb0994ef1c058010acf1efccff928b0a83b1ed54 # v4.32.6
+        uses: github/codeql-action/upload-sarif@0d579ffd059c29b07949a3cce3983f0780820c98 # v4.32.6
         with:
           sarif_file: semgrep.sarif
           category: semgrep
