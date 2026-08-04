@@ -6,17 +6,17 @@ import {
   type TeamMemberRef,
 } from "@/components/widgets/metric-views/team-collection-drilldown";
 import type { MetricGroup } from "@/lib/insight/groups";
-import type { MemberGridData } from "@/queries/v2/member-grid";
+import type { MemberGridData } from "@/queries/member-grid";
 
 const mocks = vi.hoisted(() => ({
   gridData: vi.fn(),
 }));
 
-vi.mock("@/queries/v2/member-grid", () => ({
+vi.mock("@/queries/member-grid", () => ({
   useMemberGridData: mocks.gridData,
 }));
 
-vi.mock("@/components/widgets/v2/members-grid", () => ({
+vi.mock("@/components/widgets/dashboard/members-grid", () => ({
   MembersGrid: ({
     metricKeys,
     members,
@@ -33,7 +33,6 @@ vi.mock("@/components/widgets/v2/members-grid", () => ({
 const RANGE = { from: "2026-04-20", to: "2026-05-04" };
 
 const DEF: MetricGroup = {
-  kind: "metrics",
   id: "ai_adoption",
   title: "AI adoption",
   collection: {

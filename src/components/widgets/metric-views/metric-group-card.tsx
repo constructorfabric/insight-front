@@ -11,7 +11,7 @@ import { GroupCardEmpty } from "@/components/widgets/group-card-empty";
 import { useSettings } from "@/hooks/use-settings";
 import { formatMetricValue } from "@/lib/format";
 import type { MetricGroup } from "@/lib/insight/groups";
-import { peerStatusToStatus } from "@/lib/insight/v2/peer-status";
+import { peerStatusToStatus } from "@/lib/insight/peer-status";
 import { forEntity, type NormalizedMetricResult } from "@/lib/metrics/collection";
 import { formatGapMagnitude } from "@/lib/metrics/gap";
 import {

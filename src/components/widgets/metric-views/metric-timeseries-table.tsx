@@ -19,6 +19,11 @@ import type { MetricTimeseriesTableConfig } from "@/lib/metrics/timeseries-table
 export interface MetricTimeseriesTableProps {
   model: MetricTimeseriesModel;
   config?: MetricTimeseriesTableConfig;
+  onEvidence?: (
+    metricKey: string,
+    columnKey: string,
+    bucketStart: string | null
+  ) => void;
 }
 
 const BUCKET_LABEL = {
@@ -37,21 +42,24 @@ const TONE_CLASS = {
 function MetricTableValue({
   column,
   valueFor,
+  onMetricClick,
 }: {
   column: MetricTimeseriesTableColumn;
   valueFor: (metricKey: string) => number | null | undefined;
+  onMetricClick?: (metricKey: string) => void;
 }) {
-  const hasMetric = column.parts.some(
-    (part) => part.kind === "metric" && part.metric != null
+  const hasValue = column.parts.some(
+    (part) => part.kind === "metric" && valueFor(part.metricKey) != null
   );
-  if (!hasMetric) return <>—</>;
+  if (!hasValue) return <>—</>;
 
   return (
     <span>
       {column.parts.map((part, index) => {
         if (part.kind === "text") return <span key={index}>{part.text}</span>;
+        const value = valueFor(part.metricKey);
         const metric = part.metric;
-        if (!metric) {
+        if (value == null || !metric) {
           return (
             <span
               key={`${part.metricKey}-${index}`}
@@ -61,13 +69,27 @@ function MetricTableValue({
             </span>
           );
         }
-        return (
+        const content = (
+          <>
+            {part.prefix}
+            {formatMetricNumber(value, metric.format)}
+          </>
+        );
+        return onMetricClick ? (
+          <button
+            key={`${part.metricKey}-${index}`}
+            type="button"
+            className={cn(TONE_CLASS[part.tone], "hover:underline")}
+            onClick={() => onMetricClick(part.metricKey)}
+          >
+            {content}
+          </button>
+        ) : (
           <span
             key={`${part.metricKey}-${index}`}
             className={TONE_CLASS[part.tone]}
           >
-            {part.prefix}
-            {formatMetricNumber(valueFor(part.metricKey) ?? 0, metric.format)}
+            {content}
           </span>
         );
       })}
@@ -78,6 +100,7 @@ function MetricTableValue({
 export function MetricTimeseriesTable({
   model,
   config,
+  onEvidence,
 }: MetricTimeseriesTableProps) {
   const tableColumns = resolveMetricTimeseriesTableColumns(model, config);
   const grandTotals = new Map(
@@ -86,7 +109,12 @@ export function MetricTimeseriesTable({
       model.grandTotals[index],
     ])
   );
-  const hasGrandTotal = tableColumns.length > 0;
+  const hasGrandTotal = tableColumns.some((column) =>
+    column.parts.some(
+      (part) =>
+        part.kind === "metric" && grandTotals.get(part.metricKey) != null
+    )
+  );
 
   return (
     <Table
@@ -194,6 +222,12 @@ export function MetricTimeseriesTable({
                       valueFor={(metricKey) =>
                         column.points.get(metricKey)?.get(bucketStart)
                       }
+                      onMetricClick={
+                        column.remainder || !onEvidence
+                          ? undefined
+                          : (metricKey) =>
+                              onEvidence(metricKey, column.key, bucketStart)
+                      }
                     />
                   </TableCell>
                 );
@@ -220,6 +254,11 @@ export function MetricTimeseriesTable({
                   <MetricTableValue
                     column={tableColumn}
                     valueFor={(metricKey) => column.totals.get(metricKey)}
+                    onMetricClick={
+                      column.remainder || !onEvidence
+                        ? undefined
+                        : (metricKey) => onEvidence(metricKey, column.key, null)
+                    }
                   />
                 </TableCell>
               );

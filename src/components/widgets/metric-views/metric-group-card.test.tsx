@@ -46,7 +46,6 @@ function aiMetric(
 }
 
 const DEF: MetricGroup = {
-  kind: "metrics",
   id: "ai_adoption",
   title: "AI adoption",
   collection: {

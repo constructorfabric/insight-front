@@ -1,6 +1,8 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { EvidenceDialogContext } from "@/components/metric-evidence-context";
 import { PeerStory } from "@/components/widgets/metric-views/peer-story";
 import {
   buildPeerStoryEntries,
@@ -27,6 +29,13 @@ function metric(key: string, value: number): MetricResult {
     format: "integer",
     direction: "higher_is_better",
     computation: "sum",
+    drilldown: { granularity: ["event"] },
+    selection: {
+      metric_key: key,
+      entity: { type: "person", ids: ["me@x.com"] },
+      period: { from: "2026-07-01", to: "2026-07-31" },
+      filters: [],
+    },
     views: [
       { view: "period", values: [{ entity_id: "me@x.com", value }] },
       {
@@ -75,7 +84,7 @@ describe("PeerStory", () => {
           ["win", 30],
           ["par", 10],
         ])}
-      />,
+      />
     );
     expect(screen.getByText("Top issue")).toBeInTheDocument();
     // The in-pack metric lands in the supporting fold toggle.
@@ -84,25 +93,62 @@ describe("PeerStory", () => {
 
   it("critical focus shows only the issue hero", () => {
     settings.focusMode = "critical";
-    render(<PeerStory entries={entriesFrom([["issue", 1], ["win", 30]])} />);
+    render(
+      <PeerStory
+        entries={entriesFrom([
+          ["issue", 1],
+          ["win", 30],
+        ])}
+      />
+    );
     expect(screen.getByText("Top issue")).toBeInTheDocument();
     expect(screen.queryByText("Top win")).not.toBeInTheDocument();
   });
 
   it("rewards focus shows the win hero", () => {
     settings.focusMode = "rewards";
-    render(<PeerStory entries={entriesFrom([["issue", 1], ["win", 30]])} />);
+    render(
+      <PeerStory
+        entries={entriesFrom([
+          ["issue", 1],
+          ["win", 30],
+        ])}
+      />
+    );
     expect(screen.getByText("Top win")).toBeInTheDocument();
     expect(screen.queryByText("Top issue")).not.toBeInTheDocument();
   });
 
-  it("neutral focus renders a flat grid with no hero", () => {
+  it("neutral focus renders flat-grid supporting-data actions", async () => {
+    const user = userEvent.setup();
+    const openEvidence = vi.fn();
     settings.focusMode = "neutral";
-    render(<PeerStory entries={entriesFrom([["issue", 1], ["win", 30]])} />);
+    render(
+      <EvidenceDialogContext.Provider
+        value={{ openEvidence, openEvidenceTargets: vi.fn() }}
+      >
+        <PeerStory
+          entries={entriesFrom([
+            ["issue", 1],
+            ["win", 30],
+          ])}
+        />
+      </EvidenceDialogContext.Provider>
+    );
     expect(screen.queryByText("Top issue")).not.toBeInTheDocument();
     expect(screen.queryByText("Top win")).not.toBeInTheDocument();
     expect(screen.getByText("issue")).toBeInTheDocument();
     expect(screen.getByText("win")).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "More actions for issue" })
+    );
+    await user.click(
+      await screen.findByRole("menuitem", { name: "View supporting data" })
+    );
+    expect(openEvidence).toHaveBeenCalledWith(
+      expect.objectContaining({ metric_key: "issue" }),
+      "issue"
+    );
   });
 
   it("shows a multiple for a gap at/above 2× the median", () => {
@@ -132,7 +178,7 @@ describe("PeerStory", () => {
           ["i5", 1],
           ["i6", 1],
         ])}
-      />,
+      />
     );
     // hero (1) + side cards (3) leaves 2 as chips; the 6th label renders once.
     expect(screen.getByText("i6")).toBeInTheDocument();

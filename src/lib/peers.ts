@@ -42,7 +42,6 @@ export const PEER_TEXT: Record<PeerStatusWithNeutral, string> = {
   neutral: "text-muted-foreground",
 }
 
-
 export const PEER_LABEL: Record<PeerStatusWithNeutral, string> = {
   top: "Top 25%",
   in_pack: "On par",
@@ -55,30 +54,6 @@ export const PEER_FILL: Record<PeerStatusWithNeutral, string> = {
   bottom: "bg-destructive",
   in_pack: "bg-muted-foreground/40",
   neutral: "bg-muted-foreground/20",
-}
-
-function percentile(sorted: number[], q: number): number {
-  if (sorted.length === 0) return 0
-  if (sorted.length === 1) return sorted[0]
-  const pos = (sorted.length - 1) * q
-  const lo = Math.floor(pos)
-  const hi = Math.ceil(pos)
-  if (lo === hi) return sorted[lo]
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo)
-}
-
-export function peerStatsFor(values: number[]): PeerStats | null {
-  const filtered = values.filter((v) => Number.isFinite(v))
-  if (filtered.length === 0) return null
-  const sorted = [...filtered].sort((a, b) => a - b)
-  return {
-    p25: percentile(sorted, 0.25),
-    p50: percentile(sorted, 0.5),
-    p75: percentile(sorted, 0.75),
-    min: sorted[0],
-    max: sorted[sorted.length - 1],
-    n: sorted.length,
-  }
 }
 
 export function peerStatusVsQuartiles(

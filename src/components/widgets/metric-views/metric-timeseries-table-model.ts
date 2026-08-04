@@ -5,7 +5,7 @@ import type {
 } from "@/lib/metrics/timeseries-table";
 import type { MetricTimeseriesModel } from "@/components/widgets/metric-views/metric-timeseries-model";
 
-export type MetricTimeseriesTablePart =
+type MetricTimeseriesTablePart =
   | {
       kind: "metric";
       metricKey: string;

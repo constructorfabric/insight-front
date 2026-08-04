@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applyFocus, peerStatsFor, peerStatusVsQuartiles } from "@/lib/peers";
+import { applyFocus, peerStatusVsQuartiles } from "@/lib/peers";
 
 describe("peerStatusVsQuartiles", () => {
   it("keeps inclusive quartile boundaries when they sit beyond the median", () => {
@@ -68,45 +68,3 @@ describe("applyFocus", () => {
   });
 });
 
-describe("peerStatsFor", () => {
-  it("returns null when no finite values remain", () => {
-    expect(peerStatsFor([])).toBeNull();
-    expect(peerStatsFor([Number.NaN, Number.POSITIVE_INFINITY])).toBeNull();
-  });
-
-  it("collapses a single value onto every quantile", () => {
-    expect(peerStatsFor([7])).toEqual({
-      p25: 7,
-      p50: 7,
-      p75: 7,
-      min: 7,
-      max: 7,
-      n: 1,
-    });
-  });
-
-  it("interpolates quartiles over a sorted pool", () => {
-    expect(peerStatsFor([4, 1, 3, 2])).toEqual({
-      p25: 1.75,
-      p50: 2.5,
-      p75: 3.25,
-      min: 1,
-      max: 4,
-      n: 4,
-    });
-  });
-
-  it("filters non-finite values before ranking", () => {
-    const stats = peerStatsFor([3, Number.NaN, 1, 2]);
-    expect(stats).not.toBeNull();
-    expect(stats!.n).toBe(3);
-    expect(stats!.p50).toBe(2);
-    expect(stats!.min).toBe(1);
-    expect(stats!.max).toBe(3);
-  });
-
-  it("lands exactly on a sample when the quantile position is integral", () => {
-    // 5 samples → p50 position is exactly index 2.
-    expect(peerStatsFor([10, 20, 30, 40, 50])!.p50).toBe(30);
-  });
-});

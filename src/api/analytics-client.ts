@@ -1,11 +1,8 @@
-import { fetchWithAuth } from "@/api/fetch-with-auth";
-import { andFilters, odataDateFilter } from "@/api/odata";
-import type { DateRange } from "@/api/period-to-date-range";
-import type { ODataParams, ODataResponse, ProblemDetails } from "@/types/insight";
-
-const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ??
-  "/api/analytics/v1";
-
+/**
+ * Shared error type for the Analytics API clients (`metric-results-client`,
+ * `metric-definitions-client`). Each client owns its own request/parse path;
+ * this carries the HTTP status and the parsed problem body across them.
+ */
 export class AnalyticsApiError extends Error {
   status: number;
   body: unknown;
@@ -16,107 +13,4 @@ export class AnalyticsApiError extends Error {
     this.status = status;
     this.body = body;
   }
-}
-
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetchWithAuth(`${BASE}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new AnalyticsApiError(res.status, body);
-  }
-  try {
-    return (await res.json()) as T;
-  } catch {
-    throw new AnalyticsApiError(res.status, { error: "invalid_json" });
-  }
-}
-
-/**
- * Execute a metric query bound to a period. Every dashboard-facing metric is
- * period-aware: the gold bullet/aggregate views aggregate over a time window,
- * so a query without a `metric_date` filter implicitly returns "all-time" —
- * almost never what a screen wants. This method makes the period mandatory
- * and ANDs it with any caller-supplied `$filter`.
- */
-export async function queryMetric<T>(
-  metricId: string,
-  range: DateRange,
-  params?: ODataParams,
-): Promise<ODataResponse<T>> {
-  const filter = andFilters(odataDateFilter(range), params?.$filter);
-  return request<ODataResponse<T>>(`/metrics/${metricId}/query`, {
-    method: "POST",
-    body: JSON.stringify({ ...params, $filter: filter }),
-  });
-}
-
-/**
- * Escape hatch for period-independent metric queries. Prefer `queryMetric`
- * for every dashboard call — forgetting the period silently returns all-time
- * data and breaks any "this week / month" expectation on the UI.
- */
-export async function queryMetricRaw<T>(
-  metricId: string,
-  params: ODataParams,
-): Promise<ODataResponse<T>> {
-  return request<ODataResponse<T>>(`/metrics/${metricId}/query`, {
-    method: "POST",
-    body: JSON.stringify(params),
-  });
-}
-
-export interface BatchQueryItem extends ODataParams {
-  id?: string;
-  metric_id: string;
-}
-
-export type BatchQueryResult<T> =
-  | {
-      status: "ok";
-      id?: string;
-      metric_id: string;
-      items: T[];
-      page_info: { has_next: boolean; cursor: string | null };
-    }
-  | {
-      status: "error";
-      id?: string;
-      metric_id: string;
-      error: ProblemDetails;
-    };
-
-export interface BatchQueryResponse<T> {
-  results: BatchQueryResult<T>[];
-}
-
-export async function queryBatch<T>(
-  items: BatchQueryItem[],
-): Promise<BatchQueryResponse<T>> {
-  return request<BatchQueryResponse<T>>("/metrics/queries", {
-    method: "POST",
-    body: JSON.stringify({ queries: items }),
-  });
-}
-
-/**
- * Period-aware batch query. ANDs `odataDateFilter(range)` into every item's
- * `$filter`, matching `queryMetric`'s contract — prefer this over `queryBatch`
- * for dashboard calls so the period boundary cannot be silently dropped.
- */
-export async function queryBatchWithRange<T>(
-  range: DateRange,
-  items: BatchQueryItem[],
-): Promise<BatchQueryResponse<T>> {
-  const dateFilter = odataDateFilter(range);
-  const scoped = items.map((it) => ({
-    ...it,
-    $filter: andFilters(dateFilter, it.$filter),
-  }));
-  return queryBatch<T>(scoped);
 }

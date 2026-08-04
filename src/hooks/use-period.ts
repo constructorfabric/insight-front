@@ -5,10 +5,9 @@ import {
   type DateRange,
   validateDateRange,
 } from "@/api/period-to-date-range";
-import type { CustomRange, PeriodValue, ViewMode } from "@/types/insight";
+import type { CustomRange, PeriodValue } from "@/types/insight";
 
 const PERIOD_KEY = "insight.period";
-const VIEW_MODE_KEY = "insight.view-mode";
 
 const VALID_PERIODS: ReadonlySet<PeriodValue> = new Set([
   "week",
@@ -16,18 +15,14 @@ const VALID_PERIODS: ReadonlySet<PeriodValue> = new Set([
   "quarter",
   "year",
 ]);
-const VALID_VIEW_MODES: ReadonlySet<ViewMode> = new Set(["chart", "tile"]);
-
 type PersistedState = {
   period: PeriodValue;
   customRange: CustomRange | null;
-  viewMode: ViewMode;
 };
 
 const DEFAULT_STATE: PersistedState = {
   period: "month",
   customRange: null,
-  viewMode: "chart",
 };
 
 function readPeriod(): PeriodValue {
@@ -62,19 +57,9 @@ function readCustomRange(): CustomRange | null {
   return null;
 }
 
-function readViewMode(): ViewMode {
-  if (typeof window === "undefined") return DEFAULT_STATE.viewMode;
-  const raw = window.localStorage.getItem(VIEW_MODE_KEY);
-  if (raw && VALID_VIEW_MODES.has(raw as ViewMode)) {
-    return raw as ViewMode;
-  }
-  return DEFAULT_STATE.viewMode;
-}
-
 let state: PersistedState = {
   period: readPeriod(),
   customRange: readCustomRange(),
-  viewMode: readViewMode(),
 };
 
 const listeners = new Set<() => void>();
@@ -103,7 +88,6 @@ function setState(next: Partial<PersistedState>): void {
       } else {
         window.localStorage.removeItem(`${PERIOD_KEY}.custom`);
       }
-      window.localStorage.setItem(VIEW_MODE_KEY, state.viewMode);
     } catch {
       // localStorage may be unavailable (private mode, quota exceeded).
       // The in-memory state already mutated, so persistence is best-effort.
@@ -114,22 +98,6 @@ function setState(next: Partial<PersistedState>): void {
 
 function getSnapshot(): PersistedState {
   return state;
-}
-
-export function currentPeriod(): PeriodValue {
-  return state.period;
-}
-
-export function currentCustomRange(): CustomRange | null {
-  return state.customRange;
-}
-
-export function currentDateRange(): DateRange {
-  return resolveDateRange(state.period, state.customRange);
-}
-
-export function currentViewMode(): ViewMode {
-  return state.viewMode;
 }
 
 export function usePeriod(): {
@@ -153,16 +121,5 @@ export function usePeriod(): {
       }
       setState({ customRange });
     },
-  };
-}
-
-export function useViewMode(): {
-  viewMode: ViewMode;
-  setViewMode: (mode: ViewMode) => void;
-} {
-  const snap = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-  return {
-    viewMode: snap.viewMode,
-    setViewMode: (viewMode) => setState({ viewMode }),
   };
 }

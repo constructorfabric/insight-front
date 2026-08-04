@@ -36,6 +36,17 @@ export interface MetricDimensionFilter {
   values: string[];
 }
 
+export interface MetricDrilldownCapability {
+  granularity: Array<"event" | "source_summary" | "derived_population">;
+}
+
+export interface MetricCanonicalSelection {
+  metric_key: string;
+  entity: { type: MetricEntityType; ids: string[] };
+  period: { from: string; to: string };
+  filters: MetricDimensionFilter[];
+}
+
 export interface MetricGroupLimit {
   count: number;
   rank_by_metric?: string;
@@ -80,6 +91,8 @@ interface MetricResultBase {
   format: MetricFormat;
   direction: MetricDirection;
   views: MetricResultView[];
+  drilldown?: MetricDrilldownCapability;
+  selection?: MetricCanonicalSelection;
 }
 
 export interface SumMetricResult extends MetricResultBase {
@@ -95,7 +108,7 @@ export interface MedianMetricResult extends MetricResultBase {
   computation: "median";
 }
 
-export interface DistinctCountMetricResult extends MetricResultBase {
+interface DistinctCountMetricResult extends MetricResultBase {
   computation: "distinct_count";
 }
 
@@ -149,7 +162,7 @@ export interface BreakdownView {
   }>;
 }
 
-export interface HistogramBin {
+interface HistogramBin {
   lo: number;
   hi: number;
   count: number;

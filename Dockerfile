@@ -10,7 +10,17 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY . .
 RUN pnpm run build
 
-FROM nginx:1.27-alpine
+# Runtime base: keep this on a currently-maintained nginx line. The 1.27 tag
+# stopped getting Alpine package refreshes, so the published image accumulated
+# fixable OS CVEs that no code change could clear (insight#2021). Floating minor
+# tag on purpose — Docker Official Images rebuild it when Alpine ships package
+# updates, so routine rebuilds pick the fixes up.
+FROM nginxinc/nginx-unprivileged:1.31-alpine
+
+# The base image already drops to an unprivileged user; the build steps below
+# need to write under /etc/nginx, so root is restored for them and dropped again
+# before the runtime stage.
+USER root
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY docker-entrypoint.sh /docker-entrypoint.sh
@@ -25,7 +35,9 @@ RUN mkdir -p /etc/nginx/snippets
 COPY nginx/security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
 
-EXPOSE 80
+USER nginx
+
+EXPOSE 8080
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["nginx", "-g", "daemon off;"]

@@ -16,7 +16,6 @@ vi.mock("@/hooks/use-settings", () => ({
 }));
 
 const DEF: MetricGroup = {
-  kind: "metrics",
   id: "ai_adoption",
   title: "AI adoption",
   collection: {
@@ -82,7 +81,6 @@ describe("CollectionDrilldown", () => {
 
   it("dispatches a histogram block to the histogram renderer", () => {
     const histogramDef: MetricGroup = {
-      kind: "metrics",
       id: "git_output",
       title: "Git output",
       collection: {
@@ -123,7 +121,6 @@ describe("CollectionDrilldown", () => {
 
   it("renders a summary-card block as headline cards", () => {
     const summaryDef: MetricGroup = {
-      kind: "metrics",
       id: "collaboration",
       title: "Collaboration",
       collection: {

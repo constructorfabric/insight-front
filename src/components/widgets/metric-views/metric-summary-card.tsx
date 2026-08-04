@@ -7,15 +7,19 @@ import {
   dimensionLabel,
   dimensionSeriesKey,
 } from "@/components/widgets/metric-views/dimension-series";
-import { MetricSublabel } from "@/components/widgets/v2/metric-sublabel";
+import { MetricSublabel } from "@/components/widgets/dashboard/metric-sublabel";
+import { MetricCardActions } from "@/components/widgets/metric-views/metric-card-actions";
 import { useSettings } from "@/hooks/use-settings";
 import {
   formatMetricNumber,
   formatMetricValue,
   metricDisplayUnit,
 } from "@/lib/format";
-import { peerStatusToStatus } from "@/lib/insight/v2/peer-status";
-import { forEntity, type NormalizedMetricResult } from "@/lib/metrics/collection";
+import { peerStatusToStatus } from "@/lib/insight/peer-status";
+import {
+  forEntity,
+  type NormalizedMetricResult,
+} from "@/lib/metrics/collection";
 import { derivePeerStanding } from "@/lib/metrics/peer-standing";
 import { seriesColors } from "@/lib/series-colors";
 import {
@@ -24,12 +28,12 @@ import {
   applyFocusStatus,
 } from "@/lib/status";
 import { cn } from "@/lib/utils";
+import { evidenceSelection } from "@/api/metric-drilldown-client";
 
 export interface MetricSummaryCardProps {
   metric: NormalizedMetricResult;
   entityId: string;
 }
-
 
 /**
  * Modality headline card: period total with peer status, plus a collapsible
@@ -37,9 +41,21 @@ export interface MetricSummaryCardProps {
  * legend). The breakdown section renders only when at least two groups have
  * data — a single-source metric reads as a plain summary card.
  */
-export function MetricSummaryCard({ metric, entityId }: MetricSummaryCardProps) {
+export function MetricSummaryCard({
+  metric,
+  entityId,
+}: MetricSummaryCardProps) {
   const [open, setOpen] = useState(false);
   const { focusMode } = useSettings();
+  const evidence = metric.drilldown
+    ? evidenceSelection(
+        metric.selection,
+        entityId,
+        undefined,
+        undefined,
+        metric.breakdown?.dimensions
+      )
+    : null;
 
   const data = forEntity(metric, entityId);
   const value = data.value;
@@ -69,14 +85,15 @@ export function MetricSummaryCard({ metric, entityId }: MetricSummaryCardProps) 
   const displayUnit = metricDisplayUnit(metric.format, metric.unit);
 
   return (
-    <Card className={cn("h-full", stripeClass)}>
+    <Card className={cn("relative h-full", stripeClass)}>
+      <MetricCardActions evidence={evidence} label={metric.label} />
       <CardContent className="flex h-full flex-col gap-3">
         {/* KPI-tile line structure — label, sublabel slot, then the
             value on its own line — so narrow cards never truncate the label
             against the number, and all cards in a row share geometry (the
             sublabel reserves two lines whenever explanations are on). */}
         <div className="flex min-w-0 flex-col gap-1">
-          <span className="truncate text-sm font-semibold">
+          <span className="truncate pr-8 text-sm font-semibold">
             {metric.label}
           </span>
           <MetricSublabel
@@ -88,7 +105,7 @@ export function MetricSummaryCard({ metric, entityId }: MetricSummaryCardProps) 
           <span
             className={cn(
               "text-3xl font-semibold",
-              status !== "neutral" && STATUS_TEXT_CLASS[status],
+              status !== "neutral" && STATUS_TEXT_CLASS[status]
             )}
           >
             {value == null
@@ -98,9 +115,7 @@ export function MetricSummaryCard({ metric, entityId }: MetricSummaryCardProps) 
                 : formatMetricNumber(value, metric.format)}
           </span>
           {value != null && displayUnit ? (
-            <span className="text-sm text-muted-foreground">
-              {displayUnit}
-            </span>
+            <span className="text-sm text-muted-foreground">{displayUnit}</span>
           ) : null}
         </span>
 
@@ -150,8 +165,12 @@ export function MetricSummaryCard({ metric, entityId }: MetricSummaryCardProps) 
                         />
                         <span className="truncate">{row.label}</span>
                       </span>
-                      <span className="shrink-0 tabular-nums text-muted-foreground">
-                        {formatMetricValue(row.value, metric.format, metric.unit)}
+                      <span className="shrink-0 text-muted-foreground tabular-nums">
+                        {formatMetricValue(
+                          row.value,
+                          metric.format,
+                          metric.unit
+                        )}
                       </span>
                     </li>
                   ))}

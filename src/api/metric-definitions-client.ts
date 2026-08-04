@@ -11,6 +11,7 @@
 import { AnalyticsApiError } from "@/api/analytics-client";
 import { fetchWithAuth } from "@/api/fetch-with-auth";
 import type {
+  MetricDrilldownCapability,
   MetricDirection,
   MetricFormat,
 } from "@/api/metric-results-client";
@@ -18,7 +19,7 @@ import type {
 const BASE =
   (import.meta.env.VITE_API_BASE as string | undefined) ?? "/api/analytics/v1";
 
-export type MetricDefinitionSchemaStatus = "ok" | "error" | "unchecked";
+type MetricDefinitionSchemaStatus = "ok" | "error" | "unchecked";
 
 export interface MetricDefinition {
   metric_key: string;
@@ -36,9 +37,10 @@ export interface MetricDefinition {
   schema_error_code: MetricSchemaErrorCode | null;
   /** ISO date of the newest observation ever seen; null = no data yet. */
   last_observed_date: string | null;
+  drilldown?: MetricDrilldownCapability;
 }
 
-export type MetricSchemaErrorCode =
+type MetricSchemaErrorCode =
   | "table_not_found"
   | "column_not_found"
   | "dimension_not_covered"

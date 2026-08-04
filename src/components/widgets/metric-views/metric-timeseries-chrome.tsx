@@ -126,6 +126,7 @@ export function TimeseriesBody({
   selectedMetricKey,
   multiMetric,
   table,
+  onEvidence,
 }: {
   isPending: boolean;
   isFetching: boolean;
@@ -137,6 +138,11 @@ export function TimeseriesBody({
   selectedMetricKey: string;
   multiMetric: MetricTimeseriesChartConfig["multiMetric"];
   table?: MetricTimeseriesTableConfig;
+  onEvidence?: (
+    metricKey: string,
+    columnKey: string,
+    bucketStart: string | null
+  ) => void;
 }) {
   return (
     <div className="relative min-h-0 flex-1">
@@ -160,12 +166,17 @@ export function TimeseriesBody({
       ) : empty ? (
         <ChartEmpty message="No data in this period" className="h-full" />
       ) : presentation === "table" ? (
-        <MetricTimeseriesTable model={model} config={table} />
+        <MetricTimeseriesTable
+          model={model}
+          config={table}
+          onEvidence={onEvidence}
+        />
       ) : (
         <MetricTimeseriesChart
           model={model}
           selectedMetricKey={selectedMetricKey}
           multiMetric={multiMetric}
+          onEvidence={onEvidence}
         />
       )}
     </div>

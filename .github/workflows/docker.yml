@@ -124,7 +124,7 @@ jobs:
           touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload digest
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: digests-frontend-${{ matrix.arch }}
           path: /tmp/digests/*
@@ -148,7 +148,7 @@ jobs:
       build_tag: ${{ needs.prepare.outputs.build_tag }}
     steps:
       - name: Download digests
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           path: /tmp/digests
           pattern: digests-frontend-*
@@ -289,12 +289,14 @@ jobs:
     steps:
       - name: Mint chart-release App token (scoped to umbrella repo)
         id: app-token
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
         with:
           app-id: ${{ vars.AUTOMATION_APP_ID }}
           private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ vars.AUTOMATION_INSIGHT_UMBRELLA_REPO }}
+          # Least privilege: the token is only used to dispatch a workflow run.
+          permission-actions: write
 
       - name: Dispatch umbrella build-images workflow
         env:
