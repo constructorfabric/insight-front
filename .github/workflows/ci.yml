@@ -2,8 +2,7 @@ name: CI
 
 # Quality gates that run on every PR and on pushes to main: the Vitest unit +
 # Storybook component suites (with merged coverage), ESLint, and the TypeScript
-# type check. docker.yml only fires on main and just builds the image — these
-# are the checks that actually validate the code before it lands. The three jobs
+# type check — the checks that validate the code before it lands. The three jobs
 # run in parallel.
 on:
   pull_request:
