@@ -260,11 +260,11 @@ export const TestGroupByAndFilters: Story = {
     );
 
     await userEvent.click(canvas.getByRole("button", { name: "Source" }));
-    await expect(
-      await canvas.findByText("Weekly by source")
-    ).toBeInTheDocument();
-    await expect(canvas.getByText("GitHub")).toBeInTheDocument();
+    // The caption follows local state; only a series label proves the
+    // re-grouped collection arrived.
+    await expect(await canvas.findByText("GitHub")).toBeInTheDocument();
     await expect(canvas.getByText("GitLab")).toBeInTheDocument();
+    await expect(canvas.getByText("Weekly by source")).toBeInTheDocument();
   },
 };
 
