@@ -1,27 +1,15 @@
 name: TruffleHog Secrets
 
-# Secret detection over the full git history (constructorfabric/insight-front#231).
+# Secret detection (#231). BLOCKING — the history baseline is empty.
 #
-# Report-only, like every other security check here: findings render in the job summary and the
-# run stays green. The baseline is empty — a full-history scan over all 62 refs returns 0
-# findings and 0 detector hits — so there is nothing to triage, and making this blocking is a
-# one-line change tracked separately. Until then the zero-leak policy is a convention, not an
-# enforced one: a committed credential must be revoked and rotated, and rewriting history is
-# not remediation.
+#   secrets      — pull requests and pushes: full history of the ref under test.
+#   secrets-api  — nightly, GitHub API: orphaned objects, PR and issue comments, wikis.
 #
-# `--results` is the load-bearing flag. TruffleHog's default (`verified,unknown`) HIDES
-# findings whose live verification failed, so an already-revoked or inactive key in the
-# history produces a green run — for a public repository that is still a leak. All four
-# result kinds are requested so the scan sees what the default would drop.
-#
-# Raw secret values are never printed to the log or the job summary, and no report artifact
-# is uploaded: Actions artifacts and logs on a public repository are world-readable, so
-# echoing a hit would publish the very value this scan exists to surface. The summary carries
-# detector name, commit and path — enough to locate and rotate.
-#
-# Scope note: this scans commits reachable from refs. Objects left unreachable by a force
-# push or a deleted branch still live on the remote and are NOT covered here; auditing those
-# needs a GitHub-source scan (`trufflehog github --repo`) against the API.
+# Do not change without reading why:
+#   - `--results=verified,unknown,unverified,filtered_unverified` — the default hides findings
+#     whose verification failed, which on a public repository is still a leak.
+#   - keep the API pass unauthenticated — `GITHUB_TOKEN` gets 403 on `GET /user`.
+#   - raw values never reach a log, summary or artifact — this repository is public.
 
 on:
   pull_request:
@@ -54,11 +42,7 @@ jobs:
 
       - name: Fetch every branch (nightly / manual sweep)
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-        # PR and push runs scan the history behind the ref under test — that is the merge
-        # gate. The sweep additionally pulls every other live branch so a secret parked on a
-        # long-lived feature branch is caught before it reaches main. Explicit authenticated
-        # URL because `persist-credentials: false` leaves no credential on `origin`; the
-        # token is masked in logs by Actions.
+        # The sweep adds every other live branch; `persist-credentials: false` leaves no credential.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -68,11 +52,7 @@ jobs:
             '+refs/heads/*:refs/remotes/origin/*'
 
       - name: TruffleHog scan (git history)
-        # Digest-pinned image via `docker run`, matching semgrep.yml. stdout (JSON findings,
-        # one object per line, containing raw secret values) is redirected to a file that
-        # stays on the runner; stderr (progress + the scan summary) is the only thing that
-        # reaches the log. `--fail` is deliberately NOT used: the summary step below decides
-        # the exit code, so a failing run still renders a readable report first.
+        # stdout holds raw values and stays on the runner; only stderr reaches the log.
         run: |
           set -euo pipefail
           docker run --rm \
@@ -84,10 +64,9 @@ jobs:
               --results=verified,unknown,unverified,filtered_unverified \
             > trufflehog-findings.jsonl
 
-      - name: Summarize (redacted)
+      - name: Summarize (redacted) and fail on any finding
         if: always()
-        # Null-guarded append (repo convention, cf. ci.yml). Prints detector / commit / path
-        # only — never `Raw`, `RawV2` or the surrounding line.
+        # Prints detector, commit and path only — never the value.
         run: |
           [ -f trufflehog-findings.jsonl ] || exit 0
           python3 - trufflehog-findings.jsonl "${GITHUB_STEP_SUMMARY:-/dev/null}" <<'PY'
@@ -137,15 +116,11 @@ jobs:
           w("\n**Revoke and rotate every credential listed above.** Removing the commit is not "
             "remediation — assume the value is compromised the moment it was pushed.\n")
           out.close()
+          sys.exit(1)
           PY
 
-  # The git scan above only reaches commits that some ref still points at. Two classes of leak
-  # sit outside it, and only the GitHub API can see them: objects orphaned by a force push or a
-  # deleted branch, which remain fetchable by SHA, and secrets pasted into pull request or issue
-  # comments, where they arrive more often than in code.
-  #
-  # Off pull requests because it depends on API availability and rate limits, and a transient
-  # outage should not colour a pull request at all.
+  # Covers what refs cannot reach: orphaned objects, PR and issue comments, wikis.
+  # Off pull requests — it depends on API availability.
   secrets-api:
     name: secrets (GitHub API)
     if: github.event_name != 'pull_request'
@@ -153,9 +128,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: TruffleHog scan (GitHub API — comments, wikis, unreachable objects)
-        # Deliberately unauthenticated, and it must stay that way: TruffleHog's GitHub source
-        # calls `GET /user`, which an installation token cannot read — passing `GITHUB_TOKEN`
-        # fails the job with 403. The repository is public, so no token is needed.
+        # Unauthenticated on purpose — see the header.
         run: |
           set -euo pipefail
           docker run --rm \
