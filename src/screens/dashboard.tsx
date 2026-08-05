@@ -24,6 +24,7 @@ import {
   projectViews,
   type MetricCollectionConfig,
 } from "@/lib/metrics/collection";
+import { IdentityApiError } from "@/api/identity-client";
 import { normalizePersonId } from "@/lib/metrics/entity";
 import { useIcPerson } from "@/queries/ic-dashboard";
 import {
@@ -74,6 +75,11 @@ export function DashboardScreen({ personId }: DashboardScreenProps) {
   );
 
   const [openGroup, setOpenGroup] = useState<GroupId | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const openDetails = (group: GroupId) => {
+    setOpenGroup(group);
+    setDetailsOpen(true);
+  };
 
   // Full collection for the open metrics group only (drives the drilldown's
   // chart blocks + peer story). Disabled while nothing is open — empty ids
@@ -89,7 +95,7 @@ export function DashboardScreen({ personId }: DashboardScreenProps) {
     dateRange
   );
 
-  // Never fall back to the raw id (an email) — a person outside the viewer's
+  // Never fall back to the raw id (a UUID) — a person outside the viewer's
   // cached tree resolves in a beat; the title stays blank until then.
   const displayName = person?.display_name ?? "";
   const role = person?.job_title;
@@ -98,6 +104,12 @@ export function DashboardScreen({ personId }: DashboardScreenProps) {
   // queries has no data. A period change mints new query keys, so the same
   // gate re-trips — no per-widget loaders, no partial paints.
   const isLoading = kpiData.isPending || collectionSetPending(groupData);
+  // Identity failing is not a metric failure: with no person there is no name,
+  // no reports, and the metrics below are unauthorized anyway. A 404 means the
+  // id is gone or outside the viewer's visible set — say so, rather than paint
+  // a nameless dashboard over requests that all fail.
+  const personMissing =
+    personQ.error instanceof IdentityApiError && personQ.error.status === 404;
 
   const tiles = metricKpiTiles(
     kpiData.byKey,
@@ -123,6 +135,7 @@ export function DashboardScreen({ personId }: DashboardScreenProps) {
   if (personId !== prevPersonId) {
     setPrevPersonId(personId);
     setOpenGroup(null);
+    setDetailsOpen(false);
   }
 
   return (
@@ -134,7 +147,18 @@ export function DashboardScreen({ personId }: DashboardScreenProps) {
         hasReports={(person?.subordinates?.length ?? 0) > 0}
       />
       <main className="flex flex-1 flex-col gap-8 p-4 md:p-6">
-        {isLoading ? (
+        {personQ.isError ? (
+          <ComingSoon
+            variant="card"
+            state="error"
+            label={
+              personMissing
+                ? "This person is not available"
+                : "Unable to load this person"
+            }
+            onRetry={personMissing ? undefined : () => void personQ.refetch()}
+          />
+        ) : isLoading ? (
           <CenteredSpinner className="min-h-[70vh]" />
         ) : (
           <>
@@ -150,7 +174,7 @@ export function DashboardScreen({ personId }: DashboardScreenProps) {
                       <KpiTile
                         key={key}
                         tile={tile}
-                        onOpenGroup={setOpenGroup}
+                        onOpenGroup={openDetails}
                       />
                     );
                   }
@@ -171,7 +195,7 @@ export function DashboardScreen({ personId }: DashboardScreenProps) {
 
             <IcNeedsAttention
               items={attentionItems}
-              onOpenGroup={setOpenGroup}
+              onOpenGroup={openDetails}
             />
 
             <section className="flex flex-col gap-3">
@@ -188,7 +212,7 @@ export function DashboardScreen({ personId }: DashboardScreenProps) {
                       def={def}
                       data={result}
                       entityId={entityId}
-                      onOpen={() => setOpenGroup(def.id)}
+                      onOpen={() => openDetails(def.id)}
                     />
                   );
                 })}
@@ -201,8 +225,11 @@ export function DashboardScreen({ personId }: DashboardScreenProps) {
       {GROUPS.map((def) => (
         <GroupDrilldownSheet
           key={def.id}
-          open={openGroup === def.id}
-          onOpenChange={(o) => setOpenGroup(o ? def.id : null)}
+          open={detailsOpen && openGroup === def.id}
+          onOpenChange={setDetailsOpen}
+          onOpenChangeComplete={(open) => {
+            if (!open && openGroup === def.id) setOpenGroup(null);
+          }}
           def={def}
           metricTarget={{
             kind: "person",

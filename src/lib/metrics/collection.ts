@@ -73,6 +73,8 @@ export type NormalizedMetricResult = {
   peer?: PeerView;
   breakdown?: BreakdownView;
   histogram?: HistogramView;
+  drilldown?: MetricResult["drilldown"];
+  selection?: MetricResult["selection"];
 };
 
 export type PeerEntityStats = PeerView["values"][number];
@@ -146,6 +148,8 @@ export function normalizeMetricResult(
     direction: metric.direction,
     scale: metric.computation === "ratio" ? metric.scale : undefined,
   };
+  if (metric.drilldown) normalized.drilldown = metric.drilldown;
+  if (metric.selection) normalized.selection = metric.selection;
 
   for (const view of metric.views) {
     switch (view.view) {

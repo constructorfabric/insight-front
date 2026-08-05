@@ -2,8 +2,7 @@ name: CI
 
 # Quality gates that run on every PR and on pushes to main: the Vitest unit +
 # Storybook component suites (with merged coverage), ESLint, and the TypeScript
-# type check. docker.yml only fires on main and just builds the image — these
-# are the checks that actually validate the code before it lands. The three jobs
+# type check — the checks that validate the code before it lands. The three jobs
 # run in parallel.
 on:
   pull_request:
@@ -31,7 +30,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         # Read-only CI: don't persist the GITHUB_TOKEN in .git/config for
         # later steps (supply-chain hardening).
         with:
@@ -41,10 +40,10 @@ jobs:
       # resolve the store. The pnpm version comes from the `packageManager`
       # field in package.json (pnpm@10.33.0).
       - name: Set up pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
 
       - name: Set up Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -64,7 +63,7 @@ jobs:
       # `coverage` job, which renders the summary and runs the code-coverage gate.
       - name: Upload coverage report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: coverage-report
           path: coverage/
@@ -77,17 +76,17 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         # Read-only CI: don't persist the GITHUB_TOKEN in .git/config for
         # later steps (supply-chain hardening).
         with:
           persist-credentials: false
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
 
       - name: Set up Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -104,17 +103,17 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         # Read-only CI: don't persist the GITHUB_TOKEN in .git/config for
         # later steps (supply-chain hardening).
         with:
           persist-credentials: false
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
 
       - name: Set up Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -136,7 +135,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # diff-cover needs the merge-base with the base branch, so fetch full history.
           fetch-depth: 0
@@ -144,13 +143,13 @@ jobs:
 
       # Reuse the Cobertura the `test` job already produced — don't re-run tests.
       - name: Download coverage report
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: coverage-report
           path: coverage/
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
@@ -163,7 +162,9 @@ jobs:
       # --- Code-coverage gate (diff): pull requests only (needs a base to diff against) ---
       - name: Fetch base branch
         if: github.event_name == 'pull_request'
-        run: git fetch --no-tags origin "${{ github.base_ref }}"
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: git fetch --no-tags origin "$BASE_REF"
 
       - name: Install diff-cover
         if: github.event_name == 'pull_request'

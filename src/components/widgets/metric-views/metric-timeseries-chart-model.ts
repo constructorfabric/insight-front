@@ -5,6 +5,8 @@ import type { MetricTimeseriesChartConfig } from "@/lib/metrics/timeseries-chart
 
 interface MetricTimeseriesChartSeries {
   key: string;
+  metricKey: string;
+  columnKey: string;
   colorSeed: string;
   label: string;
   points: Map<string, number | null>;
@@ -15,6 +17,34 @@ export interface MetricTimeseriesChartModel {
   grouped: boolean;
   valueMetric: NormalizedMetricResult;
   series: MetricTimeseriesChartSeries[];
+}
+
+export interface TimeseriesNullRun {
+  startIndex: number;
+  endIndex: number;
+}
+
+export function commonNullRuns(
+  buckets: string[],
+  series: Array<Map<string, number | null>>
+): TimeseriesNullRun[] {
+  if (series.length === 0) return [];
+
+  const runs: TimeseriesNullRun[] = [];
+  let startIndex: number | null = null;
+  for (let index = 0; index <= buckets.length; index += 1) {
+    const bucket = buckets[index];
+    const isMissing =
+      bucket !== undefined &&
+      series.every((points) => points.get(bucket) == null);
+    if (isMissing && startIndex == null) {
+      startIndex = index;
+    } else if (!isMissing && startIndex != null) {
+      runs.push({ startIndex, endIndex: index - 1 });
+      startIndex = null;
+    }
+  }
+  return runs;
 }
 
 export function shouldCombineTimeseriesMetrics(
@@ -45,6 +75,8 @@ export function buildMetricTimeseriesChartModel(
       valueMetric: selectedMetric,
       series: model.metrics.map((metric) => ({
         key: safeSeriesKey(metric.metric_key),
+        metricKey: metric.metric_key,
+        columnKey: column?.key ?? "",
         colorSeed: metric.metric_key,
         label: metric.label,
         points: column?.points.get(metric.metric_key) ?? new Map(),
@@ -58,6 +90,8 @@ export function buildMetricTimeseriesChartModel(
     valueMetric: selectedMetric,
     series: model.columns.map((column) => ({
       key: column.key,
+      metricKey: selectedMetric.metric_key,
+      columnKey: column.key,
       colorSeed: column.colorSeed,
       label: column.label,
       points: column.points.get(selectedMetric.metric_key) ?? new Map(),

@@ -1,6 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { Navigate, createFileRoute } from "@tanstack/react-router";
 
-import { useViewer } from "@/auth";
+import { isPersonId } from "@/lib/metrics/entity";
 import { TeamViewScreen } from "@/screens/team-view";
 
 export const Route = createFileRoute("/ic/$person/team")({
@@ -9,7 +9,10 @@ export const Route = createFileRoute("/ic/$person/team")({
 
 function TeamScreen() {
   const { person } = Route.useParams();
-  const { email: viewerEmail } = useViewer();
-  const viewer = viewerEmail ?? person;
-  return <TeamViewScreen teamId={person} viewerEmail={viewer} />;
+  // Not a canonical person id (a pre-cutover email URL, the nil UUID, a typo):
+  // the root dashboard, not the metrics API, where it is an unactionable 400.
+  if (!isPersonId(person)) {
+    return <Navigate to="/" replace />;
+  }
+  return <TeamViewScreen teamId={person} />;
 }

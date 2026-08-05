@@ -38,6 +38,7 @@ export type MetricDrilldownTarget =
 export interface GroupDrilldownSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onOpenChangeComplete?: (open: boolean) => void;
   def: MetricGroup;
   metricTarget?: MetricDrilldownTarget;
   range?: DateRange;
@@ -48,6 +49,7 @@ export interface GroupDrilldownSheetProps {
 export function GroupDrilldownSheet({
   open,
   onOpenChange,
+  onOpenChangeComplete,
   def,
   metricTarget,
   range,
@@ -55,7 +57,11 @@ export function GroupDrilldownSheet({
   cohortLabel = "department",
 }: GroupDrilldownSheetProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      onOpenChangeComplete={onOpenChangeComplete}
+    >
       <DialogContent
         showCloseButton={false}
         className="flex w-fit max-w-none! flex-col gap-0 overflow-hidden p-0"

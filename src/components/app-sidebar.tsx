@@ -24,29 +24,35 @@ import {
 import { useIcPerson } from "@/queries/ic-dashboard";
 import type { IdentityPerson } from "@/types/insight";
 
-function emailEq(a: string, b: string): boolean {
+// The identity contract admits people with no email and no display name (a
+// person whose log carries neither). Their node still has to be clickable.
+const UNNAMED_PERSON = "Unnamed person";
+
+function personIdEq(a: string, b: string): boolean {
   return a.toLowerCase() === b.toLowerCase();
 }
 
-function containsEmail(node: IdentityPerson, email: string): boolean {
-  if (emailEq(node.email, email)) return true;
-  return node.subordinates.some((s) => containsEmail(s, email));
+function containsPerson(node: IdentityPerson, personId: string): boolean {
+  if (personIdEq(node.person_id, personId)) return true;
+  return node.subordinates.some((s) => containsPerson(s, personId));
 }
 
 function PersonNode({
   node,
   depth,
-  activeEmail,
+  activePersonId,
 }: {
   node: IdentityPerson;
   depth: number;
-  activeEmail: string | null;
+  activePersonId: string | null;
 }) {
   const hasReports = node.subordinates.length > 0;
-  const isActive = activeEmail ? emailEq(activeEmail, node.email) : false;
+  const isActive = activePersonId
+    ? personIdEq(activePersonId, node.person_id)
+    : false;
   const hasActiveDescendant =
-    hasReports && activeEmail
-      ? node.subordinates.some((s) => containsEmail(s, activeEmail))
+    hasReports && activePersonId
+      ? node.subordinates.some((s) => containsPerson(s, activePersonId))
       : false;
   const open = depth === 0 || isActive || hasActiveDescendant;
   return (
@@ -55,7 +61,10 @@ function PersonNode({
         <SidebarMenuButton
           isActive={isActive}
           render={
-            <Link to="/ic/$person/personal" params={{ person: node.email }} />
+            <Link
+              to="/ic/$person/personal"
+              params={{ person: node.person_id }}
+            />
           }
           style={{ paddingLeft: `${0.5 + depth * 0.875}rem` }}
         >
@@ -69,16 +78,18 @@ function PersonNode({
             <span className="w-4 shrink-0" />
           )}
           {hasReports ? <Users /> : <User />}
-          <span className="truncate">{node.display_name || node.email}</span>
+          <span className="truncate">
+            {node.display_name || node.email || UNNAMED_PERSON}
+          </span>
         </SidebarMenuButton>
       </SidebarMenuItem>
       {hasReports && open
         ? node.subordinates.map((sub) => (
             <PersonNode
-              key={sub.email}
+              key={sub.person_id}
               node={sub}
               depth={depth + 1}
-              activeEmail={activeEmail}
+              activePersonId={activePersonId}
             />
           ))
         : null}
@@ -88,16 +99,18 @@ function PersonNode({
 
 export function AppSidebar() {
   const { t } = useTranslation();
-  const { email: viewerEmail } = useViewer();
-  const viewerQ = useIcPerson(viewerEmail ?? "");
+  const { email: viewerEmail, personId: viewerPersonId } = useViewer();
+  const viewerQ = useIcPerson(viewerPersonId ?? "");
   const viewer = viewerQ.data ?? null;
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const activeEmail = useMemo(() => {
+  // The URL segment is the person id since the identity cutover; a legacy
+  // email URL simply highlights nothing for the moment its redirect takes.
+  const activePersonId = useMemo(() => {
     const m = /^\/ic\/([^/]+)/.exec(pathname);
     if (m) return decodeURIComponent(m[1]!);
-    if (pathname === "/" && viewerEmail) return viewerEmail;
+    if (pathname === "/" && viewerPersonId) return viewerPersonId;
     return null;
-  }, [pathname, viewerEmail]);
+  }, [pathname, viewerPersonId]);
 
   return (
     <Sidebar>
@@ -116,7 +129,7 @@ export function AppSidebar() {
           <SidebarGroupContent>
             {viewer ? (
               <SidebarMenu>
-                <PersonNode node={viewer} depth={0} activeEmail={activeEmail} />
+                <PersonNode node={viewer} depth={0} activePersonId={activePersonId} />
               </SidebarMenu>
             ) : null}
           </SidebarGroupContent>

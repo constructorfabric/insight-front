@@ -14,6 +14,7 @@
  */
 
 import path from "path";
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
@@ -68,6 +69,12 @@ export default defineConfig({
       {
         extends: true,
         plugins: [
+          // `.storybook/preview.tsx` imports `@/index.css`, but without the
+          // Tailwind plugin its `@import "tailwindcss"` yields no utilities:
+          // every element collapses to content size and size-driven widgets
+          // (recharts measures its container) never paint. Storybook's own
+          // builder gets this from `vite.config.ts`; this project does not.
+          tailwindcss(),
           storybookTest({
             configDir: path.resolve(__dirname, ".storybook"),
             tags: { include: ["test"], exclude: [], skip: ["skip-test"] },

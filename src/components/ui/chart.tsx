@@ -136,6 +136,7 @@ function YAxis({
 }: React.ComponentProps<typeof RechartsPrimitive.YAxis>) {
   return <RechartsPrimitive.YAxis tickFormatter={tickFormatter} {...props} />;
 }
+const ReferenceArea = RechartsPrimitive.ReferenceArea;
 const ReferenceLine = RechartsPrimitive.ReferenceLine;
 const ResponsiveContainer = RechartsPrimitive.ResponsiveContainer;
 const ChartTooltip = RechartsPrimitive.Tooltip;
@@ -491,6 +492,7 @@ export {
   ChartTreemap,
   ComposedChart,
   LineChart,
+  ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
   XAxis,

@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import "@/i18n";
@@ -25,6 +26,14 @@ beforeAll(() => {
   }
 });
 
+// Section names now repeat across the release and Coming next, so assertions
+// scope themselves to the block whose header they mean.
+function sectionFor(label: string): HTMLElement {
+  const section = screen.getByText(label).closest("section");
+  if (!section) throw new Error(`no section headed "${label}"`);
+  return section;
+}
+
 function renderScreen() {
   return render(
     <TooltipProvider>
@@ -39,44 +48,111 @@ describe("WhatsNewScreen", () => {
   it("renders the release header and stamp", () => {
     renderScreen();
     expect(
-      screen.getByRole("heading", { name: "What's new — 13 July 2026" })
+      screen.getByRole("heading", { name: "What's new · 31 July 2026" })
     ).toBeInTheDocument();
-    expect(screen.getByText("9 improvements")).toBeInTheDocument();
+    expect(screen.getByText("0.4.69")).toBeInTheDocument();
+    expect(screen.getByText("5 improvements")).toBeInTheDocument();
     expect(
-      screen.getByText("data accuracy & completeness")
+      screen.getByText("the new interface, two new pages")
     ).toBeInTheDocument();
   });
 
-  it("renders every improvement entry with its category", () => {
+  it("groups the release into sections, as the written notes do", () => {
     renderScreen();
+    // "Platform" names a section in both the release and Coming next, so scope
+    // the assertions to the release card.
+    const release = within(sectionFor("Improvements you'll notice"));
+    for (const title of ["New UI", "Dashboards", "Platform"]) {
+      expect(release.getByRole("heading", { name: title })).toBeInTheDocument();
+    }
     for (const title of [
-      "“Direct reports only” toggle is back",
-      "Full metrics when you expand a team member",
-      "Bitbucket pull requests now counted",
-      "Consistent commit & lines-of-code metrics",
-      "Readable quarterly & yearly Git charts",
-      "Jira Task Delivery metrics now populate",
-      "Zoom meeting data restored",
-      "AI adoption graphs fixed",
-      "Claude Code cost shown as currency",
+      "We've moved to the new interface for good",
+      "Activity over time, by repository",
+      "Metric catalog",
+      "“No data” instead of a misleading zero",
+      "Steadier data across your connectors",
+    ]) {
+      expect(release.getByRole("heading", { name: title })).toBeInTheDocument();
+    }
+    // The section names the area, so entries no longer repeat it as a category
+    // label of their own.
+    expect(screen.queryByText("Git output")).not.toBeInTheDocument();
+  });
+
+  it("renders the connector entry under the Platform section", () => {
+    renderScreen();
+    expect(
+      screen.getByText(/plus the data preparation behind them/)
+    ).toBeInTheDocument();
+  });
+
+  it("states today's limitation inside each coming-next entry", () => {
+    renderScreen();
+    const coming = within(sectionFor("Coming next"));
+    // Coming next is grouped and connected like the release above it.
+    for (const title of ["Trust", "Platform"]) {
+      expect(coming.getByRole("heading", { name: title })).toBeInTheDocument();
+    }
+    for (const title of [
+      "See the records behind a number",
+      "Better people matching",
+      "Compare like with like",
+    ]) {
+      expect(coming.getByRole("heading", { name: title })).toBeInTheDocument();
+    }
+    // The separate "still on our list" callout is gone; the limitations it
+    // listed have to survive inside the entries that address them.
+    expect(screen.queryByText("Still on our list")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/email doesn't match still isn't attributed/)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/but not the records themselves/)
+    ).toBeInTheDocument();
+  });
+
+  it("keeps earlier releases on the page, collapsed", async () => {
+    const user = userEvent.setup();
+    renderScreen();
+
+    expect(screen.getByText("Earlier releases")).toBeInTheDocument();
+    const entry = screen.getByRole("button", {
+      name: /What's new — 13 July 2026/,
+    });
+    expect(entry).toHaveTextContent("0.3.42");
+    expect(entry).toHaveTextContent("9 improvements");
+    expect(
+      screen.queryByRole("heading", { name: "Zoom meeting data restored" })
+    ).not.toBeInTheDocument();
+
+    await user.click(entry);
+
+    expect(
+      screen.getByRole("heading", { name: "Zoom meeting data restored" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Bitbucket pull requests now counted",
+      })
+    ).toBeInTheDocument();
+  });
+
+  it("groups an archived release into sections, like the current one", async () => {
+    const user = userEvent.setup();
+    renderScreen();
+
+    await user.click(
+      screen.getByRole("button", { name: /What's new — 13 July 2026/ })
+    );
+
+    for (const title of [
+      "Team dashboards",
+      "Git & code reviews",
+      "Task delivery",
+      "Collaboration",
+      "AI adoption",
     ]) {
       expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
     }
-    expect(screen.getAllByText("Team dashboards")).toHaveLength(2);
-    expect(screen.getAllByText("Git & code reviews")).toHaveLength(3);
-    expect(screen.getAllByText("AI adoption")).toHaveLength(2);
-  });
-
-  it("renders the known-gaps callout and the coming-next section", () => {
-    renderScreen();
-    expect(screen.getByText("Still on our list")).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent("GitLab lines-of-code");
-    expect(screen.getByText("Coming next")).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "One accurate metrics engine" })
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Better people matching" })
-    ).toBeInTheDocument();
   });
 });

@@ -2,7 +2,7 @@ import { Outlet, createRootRoute, useRouterState } from "@tanstack/react-router"
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { getPerson } from "@/api/identity-client";
-import { authStore, getViewerEmail, signIn } from "@/auth";
+import { authStore, getViewerPersonId, signIn } from "@/auth";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AuthGate } from "@/components/auth-gate";
 import { CenteredSpinner } from "@/components/widgets/centered-spinner";
@@ -11,15 +11,19 @@ import { ViewAsBanner } from "@/components/view-as-banner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { PortalLayout } from "@/components/portal/portal-layout";
 import { usePortalEnabled } from "@/lib/portal/portal-store";
+import { normalizePersonId } from "@/lib/metrics/entity";
 import { queryClient } from "@/query-client";
+import { MetricEvidenceDialogProvider } from "@/components/metric-evidence-dialog-provider";
 
-async function prefetchViewerIdentity(): Promise<void> {
-  const email = getViewerEmail();
-  if (!email) return;
-  const key = email.toLowerCase();
+// Warms the exact key `useIcPerson` reads, so the shell mounts with the
+// viewer's tree already cached. Keyed by person_id since the identity cutover:
+// an email here would both miss that key and make identity answer 400.
+export async function prefetchViewerIdentity(): Promise<void> {
+  const personId = getViewerPersonId();
+  if (!personId) return;
   await queryClient.prefetchQuery({
-    queryKey: ["identity", "person", key],
-    queryFn: () => getPerson(email),
+    queryKey: ["identity", "person", normalizePersonId(personId)],
+    queryFn: () => getPerson(personId),
   });
 }
 
@@ -60,20 +64,25 @@ function RootLayout() {
     pathname === "/portal" || /^\/ic\/[^/]+\/(personal|team)\/?$/.test(pathname);
   return (
     <TooltipProvider>
-      <AuthGate>
-        {portal && portalRoute ? (
-          <PortalLayout />
-        ) : (
-          <SidebarProvider>
-            <AppSidebar />
-            <SidebarInset className="min-w-0 overflow-x-clip">
-              <MockBanner />
-              <ViewAsBanner />
-              <Outlet />
-            </SidebarInset>
-          </SidebarProvider>
-        )}
-      </AuthGate>
+      {/* Upstream's evidence-dialog provider wraps everything; the portal
+          branch lives inside it, so a drilldown opened from a portal surface
+          finds the same provider the legacy screens use. */}
+      <MetricEvidenceDialogProvider>
+        <AuthGate>
+          {portal && portalRoute ? (
+            <PortalLayout />
+          ) : (
+            <SidebarProvider>
+              <AppSidebar />
+              <SidebarInset className="min-w-0 overflow-x-clip">
+                <MockBanner />
+                <ViewAsBanner />
+                <Outlet />
+              </SidebarInset>
+            </SidebarProvider>
+          )}
+        </AuthGate>
+      </MetricEvidenceDialogProvider>
     </TooltipProvider>
   );
 }
