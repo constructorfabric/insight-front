@@ -69,7 +69,6 @@ export function formatDate(iso: string, pattern = "d MMM"): string {
   return format(parseISO(iso), pattern, { locale: enUS });
 }
 
-
 /** "1.0k" reads worse than "1k" on an axis. */
 function trimTrailingZero(s: string): string {
   return s.endsWith(".0") ? s.slice(0, -2) : s;

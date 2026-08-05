@@ -292,4 +292,3 @@ export const MANAGE_ITEMS: readonly PaneItem[] = [
   { id: "config", label: "Config & setup", icon: Settings2, readiness: "unbuilt" },
   { id: "whats-new", label: "What's new", icon: Megaphone, readiness: "unbuilt" },
 ];
-

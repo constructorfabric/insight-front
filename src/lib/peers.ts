@@ -84,4 +84,3 @@ export function peerStatusVsQuartiles(
   if (value >= stats.p75 && value > stats.p50) return "bottom"
   return "in_pack"
 }
-
