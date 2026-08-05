@@ -13,25 +13,37 @@ const METRIC_CURRENCY_FORMAT = new Intl.NumberFormat(LOCALE, {
 });
 
 /**
+ * The em-dash stands in for a metric that has no honest value — a null,
+ * undefined, or non-finite result. It reads as "no data", never as a real
+ * zero (insight#1977).
+ */
+export const NO_METRIC_VALUE = "—";
+
+/**
  * Formatting for `/v1/metric-results` values: the wire `format` decides
  * rounding and presentation; `unit` is a display suffix only. Bare number —
  * no unit/percent suffix (use `formatMetricValue` for the suffixed form,
  * `metricDisplayUnit` when the unit renders as a separate element).
+ *
+ * A null/undefined/non-finite value renders as `NO_METRIC_VALUE`, never a
+ * fabricated `0`: honesty is guaranteed here rather than left to each caller.
  */
 export function formatMetricNumber(
-  v: number,
+  v: number | null | undefined,
   fmt: MetricFormat,
 ): string {
+  if (v == null || !Number.isFinite(v)) return NO_METRIC_VALUE;
   if (fmt === "currency") return METRIC_CURRENCY_FORMAT.format(v);
   const rounded = fmt === "decimal" ? Math.round(v * 10) / 10 : Math.round(v);
   return NF_THOUSANDS.format(rounded);
 }
 
 export function formatMetricValue(
-  v: number,
+  v: number | null | undefined,
   fmt: MetricFormat,
   unit?: string | null,
 ): string {
+  if (v == null || !Number.isFinite(v)) return NO_METRIC_VALUE;
   const s = formatMetricNumber(v, fmt);
   if (fmt === "currency") return s;
   if (fmt === "percent") return `${s}%`;
