@@ -14,33 +14,37 @@ import {
 import { useIcPerson } from "@/queries/ic-dashboard";
 import type { IdentityPerson } from "@/types/insight";
 
-function emailEq(a: string, b: string): boolean {
+// Person ids, not emails: the identity cutover made the id the key the route
+// segment, `?scope=` and the metric entity ids all carry.
+function personIdEq(a: string, b: string): boolean {
   return a.toLowerCase() === b.toLowerCase();
 }
 
-function containsEmail(node: IdentityPerson, email: string): boolean {
-  if (emailEq(node.email, email)) return true;
-  return node.subordinates.some((s) => containsEmail(s, email));
+function containsPerson(node: IdentityPerson, personId: string): boolean {
+  if (personIdEq(node.person_id, personId)) return true;
+  return node.subordinates.some((s) => containsPerson(s, personId));
 }
 
 function PersonNode({
   node,
   depth,
-  activeEmail,
+  activePersonId,
   leadsToTeam,
 }: {
   node: IdentityPerson;
   depth: number;
-  activeEmail: string | null;
+  activePersonId: string | null;
   /** Lead (has reports) links to their team roster instead of their own page. */
   leadsToTeam: boolean;
 }) {
   const { setScope } = usePortalNavActions();
   const hasReports = node.subordinates.length > 0;
-  const isActive = activeEmail ? emailEq(activeEmail, node.email) : false;
+  const isActive = activePersonId
+    ? personIdEq(activePersonId, node.person_id)
+    : false;
   const hasActiveDescendant =
-    hasReports && activeEmail
-      ? node.subordinates.some((s) => containsEmail(s, activeEmail))
+    hasReports && activePersonId
+      ? node.subordinates.some((s) => containsPerson(s, activePersonId))
       : false;
   const open = depth === 0 || isActive || hasActiveDescendant;
   // A lead's name lands on their team; an IC's on their own page. (The two
@@ -51,11 +55,11 @@ function PersonNode({
     hasReports && leadsToTeam ? (
       <Link
         to="/ic/$person/team"
-        params={{ person: node.email }}
-        onClick={() => setScope({ root: node.email })}
+        params={{ person: node.person_id }}
+        onClick={() => setScope({ root: node.person_id })}
       />
     ) : (
-      <Link to="/ic/$person/personal" params={{ person: node.email }} />
+      <Link to="/ic/$person/personal" params={{ person: node.person_id }} />
     );
   return (
     <>
@@ -81,10 +85,10 @@ function PersonNode({
       {hasReports && open
         ? node.subordinates.map((sub) => (
             <PersonNode
-              key={sub.email}
+              key={sub.person_id}
               node={sub}
               depth={depth + 1}
-              activeEmail={activeEmail}
+              activePersonId={activePersonId}
               leadsToTeam={leadsToTeam}
             />
           ))
@@ -99,16 +103,16 @@ function PersonNode({
  * without duplicating the traversal / active-node logic.
  */
 export function OrgTree({ leadsToTeam = false }: { leadsToTeam?: boolean } = {}) {
-  const { email: viewerEmail } = useViewer();
-  const viewerQ = useIcPerson(viewerEmail ?? "");
+  const { personId: viewerPersonId } = useViewer();
+  const viewerQ = useIcPerson(viewerPersonId ?? "");
   const viewer = viewerQ.data ?? null;
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const activeEmail = useMemo(() => {
+  const activePersonId = useMemo(() => {
     const m = /^\/ic\/([^/]+)/.exec(pathname);
     if (m) return decodeURIComponent(m[1]!);
-    if (pathname === "/" && viewerEmail) return viewerEmail;
+    if (pathname === "/" && viewerPersonId) return viewerPersonId;
     return null;
-  }, [pathname, viewerEmail]);
+  }, [pathname, viewerPersonId]);
 
   if (!viewer) return null;
 
@@ -117,7 +121,7 @@ export function OrgTree({ leadsToTeam = false }: { leadsToTeam?: boolean } = {})
       <PersonNode
         node={viewer}
         depth={0}
-        activeEmail={activeEmail}
+        activePersonId={activePersonId}
         leadsToTeam={leadsToTeam}
       />
     </SidebarMenu>

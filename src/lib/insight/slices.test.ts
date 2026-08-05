@@ -11,6 +11,7 @@ import {
 
 function person(over: Partial<IdentityPerson>): IdentityPerson {
   return {
+    person_id: "00000000-0000-4000-8000-000000000001",
     email: "p@t",
     display_name: "P",
     department: "",
@@ -73,14 +74,25 @@ describe("availableSlices — data-driven gates", () => {
 
 describe("collectRosterAttrs", () => {
   it("walks the whole subtree and keys entities via keyOf", () => {
+    // Keys are person ids (upper-cased here to prove `keyOf` is applied), not
+    // emails — the map feeds metric entity lookups.
     const root = person({
-      email: "Boss@T",
+      person_id: "AAAAAAAA-0000-4000-8000-000000000001",
       division: "R&D",
-      subordinates: [person({ email: "kid@t", division: "Sales" })],
+      subordinates: [
+        person({
+          person_id: "bbbbbbbb-0000-4000-8000-000000000002",
+          division: "Sales",
+        }),
+      ],
     });
-    const m = collectRosterAttrs(root, (e) => e.toLowerCase());
-    expect(m.get("boss@t")?.division?.value).toBe("R&D");
-    expect(m.get("kid@t")?.division?.value).toBe("Sales");
+    const m = collectRosterAttrs(root, (id) => id.toLowerCase());
+    expect(m.get("aaaaaaaa-0000-4000-8000-000000000001")?.division?.value).toBe(
+      "R&D",
+    );
+    expect(m.get("bbbbbbbb-0000-4000-8000-000000000002")?.division?.value).toBe(
+      "Sales",
+    );
   });
 
   it("returns an empty map for a null root", () => {

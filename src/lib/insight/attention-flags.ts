@@ -8,7 +8,8 @@ import {
 export type FlagKind = "outlier" | "decline" | "collapse";
 
 export interface AttentionFlag {
-  email: string;
+  /** Person id (the identity-cutover key), not an email. */
+  personId: string;
   name: string;
   metricKey: string;
   metricLabel: string;
@@ -31,7 +32,7 @@ export interface FlagParams {
   /** Cohort key per member — flags are computed within each person's cohort. */
   cohortOf: (id: string) => string | null;
   nameOf: (id: string) => string;
-  emailOf: (id: string) => string;
+  personIdOf: (id: string) => string;
   /** How the cohort is named in reasons ("team" / "division" / …). */
   cohortLabel: string;
 }
@@ -65,7 +66,7 @@ export function computeAttentionFlags({
   memberIds,
   cohortOf,
   nameOf,
-  emailOf,
+  personIdOf,
   cohortLabel,
 }: FlagParams): AttentionFlag[] {
   const out: AttentionFlag[] = [];
@@ -126,7 +127,7 @@ export function computeAttentionFlags({
     for (const { id, v, c } of points) {
       const st = stats.get(c);
       const name = nameOf(id);
-      const email = emailOf(id);
+      const personId = personIdOf(id);
       const valueText = formatMetricValue(v, r.format, r.unit);
       const label = r.short_label ?? r.label;
       const relGap = st
@@ -143,7 +144,7 @@ export function computeAttentionFlags({
         const sev = severityIn(st.scale, st.p50 - v);
         if (sev != null) {
           out.push({
-            email, name, metricKey: key, metricLabel: label, kind: "collapse",
+            personId, name, metricKey: key, metricLabel: label, kind: "collapse",
             valueText, reason: `no ${label.toLowerCase()} (${cohortLabel} median ${st.medianText})`,
             severity: sev,
           });
@@ -159,7 +160,7 @@ export function computeAttentionFlags({
         const sev = severityIn(st.scale, higherIsBetter ? st.p50 - v : v - st.p50);
         if (sev != null) {
           out.push({
-            email, name, metricKey: key, metricLabel: label, kind: "outlier",
+            personId, name, metricKey: key, metricLabel: label, kind: "outlier",
             valueText,
             reason: `${higherIsBetter ? "unusually low" : "unusually high"} · ${cohortLabel} median ${st.medianText}`,
             severity: sev,
@@ -181,7 +182,7 @@ export function computeAttentionFlags({
             const moved = higherIsBetter ? pv - v : v - pv;
             const sev = st ? severityIn(st.scale, moved) : null;
             out.push({
-              email, name, metricKey: key, metricLabel: label, kind: "decline",
+              personId, name, metricKey: key, metricLabel: label, kind: "decline",
               valueText,
               reason: `${higherIsBetter ? "down" : "up"} ${Math.round(adverse * 100)}% vs last period`,
               severity: sev ?? adverse,
@@ -194,7 +195,7 @@ export function computeAttentionFlags({
   // Strongest flag per (person, metric); ranked by severity.
   const best = new Map<string, AttentionFlag>();
   for (const f of out) {
-    const k = `${f.email}::${f.metricKey}`;
+    const k = `${f.personId}::${f.metricKey}`;
     const cur = best.get(k);
     if (!cur || f.severity > cur.severity) best.set(k, f);
   }

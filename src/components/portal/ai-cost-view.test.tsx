@@ -16,10 +16,11 @@ import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { NormalizedMetricResult } from "@/lib/metrics/collection";
+import { identityPerson, pid } from "@/test/identity";
 import type { IdentityPerson, TeamMember } from "@/types/insight";
 
 const mocks = vi.hoisted(() => ({
-  email: "boss@x" as string | null,
+  personId: null as string | null,
   tree: undefined as IdentityPerson | undefined,
   members: [] as TeamMember[],
   grid: {
@@ -40,7 +41,9 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/auth", () => ({ useViewer: () => ({ email: mocks.email }) }));
+vi.mock("@/auth", () => ({
+  useViewer: () => ({ email: "boss@x", personId: mocks.personId }),
+}));
 vi.mock("@/lib/portal/use-cohort-label", () => ({
   useCohortLabel: () => "team",
 }));
@@ -60,11 +63,10 @@ vi.mock("@/hooks/use-portal-period", () => ({
 import { AiCostView } from "./ai-cost-view";
 
 const person = (
-  email: string,
+  label: string,
   over: Partial<IdentityPerson> = {},
   subs: IdentityPerson[] = [],
-): IdentityPerson =>
-  ({ email, display_name: email.split("@")[0], subordinates: subs, ...over }) as unknown as IdentityPerson;
+): IdentityPerson => identityPerson(label, over, subs);
 
 const member = (id: string): TeamMember =>
   ({ person_id: id, name: `Name ${id.split("@")[0]}` }) as unknown as TeamMember;
@@ -104,28 +106,30 @@ function toolBreakdown(
   } as unknown as NormalizedMetricResult;
 }
 
-const IDS = ["a@x", "b@x", "c@x", "d@x"];
+// Roster entity ids are person UUIDs (identity cutover).
+const LABELS = ["a", "b", "c", "d"];
+const IDS = LABELS.map(pid);
 
 beforeEach(() => {
-  mocks.email = "boss@x";
-  mocks.tree = person("boss@x", {}, IDS.map((id) => person(id)));
+  mocks.personId = pid("boss");
+  mocks.tree = person("boss", {}, LABELS.map((l) => person(l)));
   mocks.members = IDS.map(member);
   mocks.grid.isPending = false;
   mocks.grid.isError = false;
   mocks.tools.isError = false;
   // 3 of 4 use AI; costs are Claude-only.
   mocks.grid.byKey = new Map([
-    ["ai.cost", metric("ai.cost", [["a@x", 100], ["b@x", 50], ["c@x", 0], ["d@x", 0]], { format: "currency", unit: "USD" } as never)],
-    ["ai.active_days", metric("ai.active_days", [["a@x", 5], ["b@x", 3], ["c@x", 1], ["d@x", 0]])],
-    ["ai.accepted_lines", metric("ai.accepted_lines", [["a@x", 700], ["b@x", 200], ["c@x", 100], ["d@x", 0]])],
+    ["ai.cost", metric("ai.cost", [[pid("a"), 100], [pid("b"), 50], [pid("c"), 0], [pid("d"), 0]], { format: "currency", unit: "USD" } as never)],
+    ["ai.active_days", metric("ai.active_days", [[pid("a"), 5], [pid("b"), 3], [pid("c"), 1], [pid("d"), 0]])],
+    ["ai.accepted_lines", metric("ai.accepted_lines", [[pid("a"), 700], [pid("b"), 200], [pid("c"), 100], [pid("d"), 0]])],
   ]);
   mocks.grid.previousByKey = new Map();
   mocks.tools.byKey = new Map([
-    ["ai.cost", toolBreakdown("ai.cost", [["a@x", "claude_code", 100], ["b@x", "claude_code", 50]])],
+    ["ai.cost", toolBreakdown("ai.cost", [[pid("a"), "claude_code", 100], [pid("b"), "claude_code", 50]])],
     ["ai.accepted_lines", toolBreakdown("ai.accepted_lines", [
-      ["a@x", "claude_code", 600],
-      ["b@x", "chatgpt", 300],
-      ["c@x", "chatgpt", 100],
+      [pid("a"), "claude_code", 600],
+      [pid("b"), "chatgpt", 300],
+      [pid("c"), "chatgpt", 100],
     ])],
   ]);
   act(() => {
@@ -185,11 +189,11 @@ describe("AiCostView", () => {
   });
 
   it("groups cost and adoption by unit when a slice is active", () => {
-    mocks.tree = person("boss@x", {}, [
-      person("a@x", { division: "R&D" } as never),
-      person("b@x", { division: "R&D" } as never),
-      person("c@x", { division: "Sales" } as never),
-      person("d@x", { division: "Sales" } as never),
+    mocks.tree = person("boss", {}, [
+      person("a", { division: "R&D" } as never),
+      person("b", { division: "R&D" } as never),
+      person("c", { division: "Sales" } as never),
+      person("d", { division: "Sales" } as never),
     ]);
     act(() => portalRouter.set({ slice: "division" }));
     render(<AiCostView item="by-unit-role" />);
@@ -199,7 +203,7 @@ describe("AiCostView", () => {
 
   it("gates on an empty scope instead of rendering zero KPIs", () => {
     mocks.members = [];
-    mocks.tree = person("boss@x");
+    mocks.tree = person("boss");
     render(<AiCostView item={null} />);
     expect(screen.getByText(/No people in the current scope/)).toBeInTheDocument();
     expect(screen.queryByText("AI cost")).not.toBeInTheDocument();

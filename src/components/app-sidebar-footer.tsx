@@ -22,8 +22,8 @@ import { useIcPerson } from "@/queries/ic-dashboard";
  */
 export function AppSidebarFooter() {
   const { t } = useTranslation();
-  const { email: viewerEmail } = useViewer();
-  const viewerQ = useIcPerson(viewerEmail ?? "");
+  const { email: viewerEmail, personId: viewerPersonId } = useViewer();
+  const viewerQ = useIcPerson(viewerPersonId ?? "");
   const viewer = viewerQ.data ?? null;
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 

@@ -18,9 +18,12 @@ import {
 
 import { AttentionList } from "./attention-list";
 
+// Person ids, not emails: rows link by the identity-cutover key.
+const ID = (n: number) => `0000000${n}-1111-4111-8111-111111111111`;
+
 function flag(over: Partial<AttentionFlag>): AttentionFlag {
   return {
-    email: "p@t",
+    personId: ID(0),
     name: "Person",
     metricKey: "t.metric",
     metricLabel: "Commits",
@@ -33,7 +36,7 @@ function flag(over: Partial<AttentionFlag>): AttentionFlag {
 }
 
 const FLAGS = Array.from({ length: 5 }, (_, i) =>
-  flag({ email: `p${i}@t`, name: `Person ${i}`, severity: 5 - i }),
+  flag({ personId: ID(i), name: `Person ${i}`, severity: 5 - i }),
 );
 
 describe("AttentionList", () => {
@@ -51,10 +54,10 @@ describe("AttentionList", () => {
   });
 
   it("links every row to that person's personal page", () => {
-    render(<AttentionList flags={[flag({ email: "who@t" })]} summary="s" />);
+    render(<AttentionList flags={[flag({ personId: ID(7) })]} summary="s" />);
     expect(screen.getByRole("link")).toHaveAttribute(
       "href",
-      "/ic/$person/personal".replace("$person", "who%40t"),
+      `/ic/${ID(7)}/personal`,
     );
   });
 

@@ -56,7 +56,7 @@ export function TeamStateView() {
   const members = useMemo<TeamMember[]>(
     () =>
       (roster ?? []).map((entry) => ({
-        person_id: entry.email,
+        person_id: entry.person_id,
         name: entry.display_name,
       })),
     [roster],
@@ -69,7 +69,7 @@ export function TeamStateView() {
     () => new Map(members.map((m) => [normalizePersonId(m.person_id), m.name])),
     [members],
   );
-  const emailByEntity = useMemo(
+  const personIdByEntity = useMemo(
     () => new Map(members.map((m) => [normalizePersonId(m.person_id), m.person_id])),
     [members],
   );
@@ -147,7 +147,7 @@ export function TeamStateView() {
         memberIds,
         cohortOf,
         nameOf: (id) => nameByEntity.get(id) ?? id,
-        emailOf: (id) => emailByEntity.get(id) ?? id,
+        personIdOf: (id) => personIdByEntity.get(id) ?? id,
         cohortLabel,
       }),
     [
@@ -156,7 +156,7 @@ export function TeamStateView() {
       grid.previousByKey,
       memberIds,
       nameByEntity,
-      emailByEntity,
+      personIdByEntity,
       cohortOf,
       cohortLabel,
     ],
@@ -203,7 +203,7 @@ export function TeamStateView() {
   });
   if (gate) return gate;
 
-  const flaggedPeople = new Set(flags.map((f) => f.email)).size;
+  const flaggedPeople = new Set(flags.map((f) => f.personId)).size;
 
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6">

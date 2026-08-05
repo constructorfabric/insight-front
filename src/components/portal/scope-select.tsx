@@ -18,14 +18,14 @@ import { cn } from "@/lib/utils";
  * subtree; optionally narrow to direct reports. The active scope is the frame
  * every org zone (Overview / Directions / AI & Cost / People) computes in.
  *
- * `pivotEmail` and `managerNodes[].email` both come from the same identity
- * tree walk in `useOrgScope` (see use-org-scope.ts), so they carry the same
- * raw casing — a plain `===` is safe without lowercasing.
+ * Options carry person ids since the identity cutover — the same key the routes
+ * and the metric requests use. `pivotPersonId` and `managerNodes[].person_id`
+ * come from one identity tree walk in `useOrgScope`, so a plain `===` is safe.
  */
 export function ScopeSelect() {
   const { setScope } = usePortalNavActions();
   const scope = usePortalScope();
-  const { label, count, managerNodes, pivotEmail, canDirectOnly } = useOrgScope();
+  const { label, count, managerNodes, pivotPersonId, canDirectOnly } = useOrgScope();
   if (!managerNodes.length) return null;
 
   return (
@@ -50,18 +50,18 @@ export function ScopeSelect() {
         <div className="max-h-80 overflow-y-auto">
           {managerNodes.map((m) => (
             <button
-              key={m.email}
+              key={m.person_id}
               type="button"
-              onClick={() => setScope({ root: m.depth === 0 ? null : m.email })}
+              onClick={() => setScope({ root: m.depth === 0 ? null : m.person_id })}
               className={cn(
                 "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent",
-                m.email === pivotEmail && "bg-accent/60",
+                m.person_id === pivotPersonId && "bg-accent/60",
               )}
               style={{ paddingLeft: `${0.5 + m.depth * 0.875}rem` }}
             >
               <span className="min-w-0 flex-1 truncate">{m.name}</span>
               <span className="text-xs text-muted-foreground">{m.teamSize}</span>
-              {m.email === pivotEmail ? <Check className="size-4" aria-hidden /> : null}
+              {m.person_id === pivotPersonId ? <Check className="size-4" aria-hidden /> : null}
             </button>
           ))}
         </div>

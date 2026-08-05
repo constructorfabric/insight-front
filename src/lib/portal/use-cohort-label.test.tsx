@@ -14,11 +14,14 @@ import { renderHook } from "@testing-library/react";
 import { act } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { identityPerson, pid } from "@/test/identity";
 import type { IdentityPerson } from "@/types/insight";
 
 const mocks = vi.hoisted(() => ({ tree: undefined as IdentityPerson | undefined }));
 
-vi.mock("@/auth", () => ({ useViewer: () => ({ email: "boss@x" }) }));
+vi.mock("@/auth", () => ({
+  useViewer: () => ({ email: "boss@x", personId: pid("boss") }),
+}));
 vi.mock("@/queries/ic-dashboard", () => ({
   useIcPerson: () => ({ data: mocks.tree }),
 }));
@@ -28,24 +31,18 @@ import { portalRouter } from "@/test/portal-router";
 import { useCohortLabel } from "./use-cohort-label";
 
 const person = (
-  email: string,
+  label: string,
   attrs: Partial<IdentityPerson> = {},
   subs: IdentityPerson[] = [],
-): IdentityPerson =>
-  ({
-    email,
-    display_name: email.split("@")[0],
-    subordinates: subs,
-    ...attrs,
-  }) as unknown as IdentityPerson;
+): IdentityPerson => identityPerson(label, attrs, subs);
 
 beforeEach(() => {
   portalRouter.reset();
   // A roster that offers two real dimensions, so a slice has something to name.
-  mocks.tree = person("boss@x", {}, [
-    person("a@x", { division: "R&D", job_title: "Engineer" }),
-    person("b@x", { division: "Sales", job_title: "Rep" }),
-    person("c@x", { division: "R&D", job_title: "Engineer" }),
+  mocks.tree = person("boss", {}, [
+    person("a", { division: "R&D", job_title: "Engineer" }),
+    person("b", { division: "Sales", job_title: "Rep" }),
+    person("c", { division: "R&D", job_title: "Engineer" }),
   ]);
 });
 

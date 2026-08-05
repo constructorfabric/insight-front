@@ -27,7 +27,7 @@ export interface PortalSearch {
   /** Expanded direction + its active lens, within the Directions zone. */
   dir?: string;
   lens?: string;
-  /** Org-scope root: a manager's email. Absent = the viewer's own subtree. */
+  /** Org-scope root: a manager's person id. Absent = the viewer's own subtree. */
   scope?: string;
   /** Narrow the scope to direct reports only. */
   direct?: boolean;
@@ -72,6 +72,10 @@ export function validatePortalSearch(raw: Record<string, unknown>): PortalSearch
     item: str(raw.item),
     dir: str(raw.dir),
     lens: str(raw.lens),
+    // Lower-cased to match `normalizePersonId`: the same id reaches us from a
+    // link, an identity record or a hand-edited URL, and the resolver compares
+    // it as a string. An id outside the viewer's subtree (or a pre-cutover
+    // email) resolves to nothing and the scope falls back to the viewer.
     scope: str(raw.scope)?.toLowerCase(),
     // Omit rather than serialise `false`: a default has no business in a URL
     // people read and share.

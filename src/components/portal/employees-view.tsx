@@ -22,8 +22,11 @@ import { useIcPerson } from "@/queries/ic-dashboard";
 import type { IdentityPerson } from "@/types/insight";
 import { cn } from "@/lib/utils";
 
+// Mirrors the rail: a person with neither display name nor email is still a row.
+const UNNAMED_PERSON = "Unnamed person";
+
 interface EmployeeRow {
-  email: string;
+  personId: string;
   displayName: string;
   jobTitle: string;
   department: string;
@@ -34,14 +37,16 @@ interface EmployeeRow {
 
 /** Flatten the org tree (root + every descendant) into a de-duplicated roster. */
 function collectEmployees(root: IdentityPerson): EmployeeRow[] {
-  const byEmail = new Map<string, EmployeeRow>();
+  // Keyed by person id, not email: the identity contract admits people with no
+  // email, and their row still has to be listed and clickable.
+  const byId = new Map<string, EmployeeRow>();
   const walk = (node: IdentityPerson) => {
-    if (node.email) {
-      const key = node.email.toLowerCase();
-      if (!byEmail.has(key)) {
-        byEmail.set(key, {
-          email: node.email,
-          displayName: node.display_name || node.email,
+    if (node.person_id) {
+      const key = node.person_id.toLowerCase();
+      if (!byId.has(key)) {
+        byId.set(key, {
+          personId: node.person_id,
+          displayName: node.display_name || node.email || UNNAMED_PERSON,
           jobTitle: node.job_title ?? "",
           department: node.department ?? "",
           division: node.division ?? "",
@@ -53,7 +58,7 @@ function collectEmployees(root: IdentityPerson): EmployeeRow[] {
     node.subordinates.forEach(walk);
   };
   walk(root);
-  return [...byEmail.values()].sort((a, b) =>
+  return [...byId.values()].sort((a, b) =>
     a.displayName.localeCompare(b.displayName),
   );
 }
@@ -66,8 +71,8 @@ function collectEmployees(root: IdentityPerson): EmployeeRow[] {
  */
 export function EmployeesView() {
   const { setZone } = usePortalNavActions();
-  const { email: viewerEmail } = useViewer();
-  const { data, isPending, isError, refetch } = useIcPerson(viewerEmail ?? "");
+  const { personId: viewerPersonId } = useViewer();
+  const { data, isPending, isError, refetch } = useIcPerson(viewerPersonId ?? "");
   const [query, setQuery] = useState("");
 
   const employees = useMemo(
@@ -129,11 +134,11 @@ export function EmployeesView() {
           </TableHeader>
           <TableBody>
             {filtered.map((e) => (
-              <TableRow key={e.email}>
+              <TableRow key={e.personId}>
                 <TableCell>
                   <Link
                     to="/ic/$person/personal"
-                    params={{ person: e.email }}
+                    params={{ person: e.personId }}
                     // Clear the pinned Manage zone so the route-driven Person
                     // zone takes over (same pattern as the rail).
                     onClick={() => setZone(null)}

@@ -18,7 +18,8 @@ import { useIcPerson } from "@/queries/ic-dashboard";
 import type { IdentityPerson } from "@/types/insight";
 
 export interface ManagerNode {
-  email: string;
+  /** Canonical person id — what links, `?scope=` and metric ids all carry. */
+  person_id: string;
   name: string;
   depth: number;
   teamSize: number;
@@ -44,14 +45,16 @@ export interface ResolvedScope {
  */
 export function resolveScopeRoster(
   tree: IdentityPerson | null,
-  viewerEmail: string | null,
+  viewerPersonId: string | null,
   scope: OrgScope,
 ): ResolvedScope {
   if (!tree) {
     return { pivot: null, roster: null, label: "", count: 0, managerNodes: [], canDirectOnly: false };
   }
+  // Person id, not email: since the identity cutover that is the only key the
+  // tree, the routes and the metric entity ids agree on.
   const viewerNode =
-    (viewerEmail ? findIdentityNode(tree, viewerEmail) : null) ?? tree;
+    (viewerPersonId ? findIdentityNode(tree, viewerPersonId) : null) ?? tree;
   const pivot =
     (scope.root ? findIdentityNode(viewerNode, scope.root) : null) ?? viewerNode;
   const full = flattenSubordinates(pivot);
@@ -62,7 +65,7 @@ export function resolveScopeRoster(
   const walk = (node: IdentityPerson, depth: number): void => {
     if (node.subordinates.length > 0) {
       managerNodes.push({
-        email: node.email,
+        person_id: node.person_id,
         name: node.display_name || node.email,
         depth,
         teamSize: flattenSubordinates(node).length,
@@ -87,20 +90,21 @@ export function useOrgScope(): ResolvedScope & {
   isLoading: boolean;
   isError: boolean;
   refetch: () => void;
-  pivotEmail: string;
+  /** The pivot's person id — the roster key every org query is built from. */
+  pivotPersonId: string;
 } {
-  const { email } = useViewer();
-  const viewerQ = useIcPerson(email ?? "");
+  const { personId } = useViewer();
+  const viewerQ = useIcPerson(personId ?? "");
   const scope = usePortalScope();
   const resolved = useMemo(
-    () => resolveScopeRoster(viewerQ.data ?? null, email, scope),
-    [viewerQ.data, email, scope],
+    () => resolveScopeRoster(viewerQ.data ?? null, personId, scope),
+    [viewerQ.data, personId, scope],
   );
   return {
     ...resolved,
     isLoading: viewerQ.isLoading,
     isError: viewerQ.isError,
     refetch: () => viewerQ.refetch(),
-    pivotEmail: resolved.pivot?.email ?? email ?? "",
+    pivotPersonId: resolved.pivot?.person_id ?? personId ?? "",
   };
 }

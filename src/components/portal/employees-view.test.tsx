@@ -12,10 +12,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { identityPerson, pid } from "@/test/identity";
 import type { IdentityPerson } from "@/types/insight";
 
 const mocks = vi.hoisted(() => ({
-  email: "boss@x" as string | null,
+  personId: null as string | null,
   ic: {
     data: undefined as IdentityPerson | undefined,
     isPending: false,
@@ -24,26 +25,28 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/auth", () => ({ useViewer: () => ({ email: mocks.email }) }));
+vi.mock("@/auth", () => ({
+  useViewer: () => ({ email: "boss@x", personId: mocks.personId }),
+}));
 vi.mock("@/queries/ic-dashboard", () => ({ useIcPerson: () => mocks.ic }));
 
 import { EmployeesView } from "./employees-view";
 
 const person = (
-  email: string,
+  label: string,
   over: Partial<IdentityPerson> = {},
   subs: IdentityPerson[] = [],
-): IdentityPerson =>
-  ({ email, display_name: email.split("@")[0], subordinates: subs, ...over }) as unknown as IdentityPerson;
+): IdentityPerson => identityPerson(label, over, subs);
 
 beforeEach(() => {
+  mocks.personId = pid("boss");
   mocks.ic.isPending = false;
   mocks.ic.isError = false;
-  mocks.ic.data = person("boss@x", { display_name: "Boss", job_title: "Director" }, [
-    person("zoe@x", { display_name: "Zoe", job_title: "QA Engineer", department: "Quality" } as never),
-    person("adam@x", { display_name: "Adam", job_title: "Backend Dev" } as never, [
-      // duplicate email deeper in the tree must NOT double a row
-      person("zoe@x", { display_name: "Zoe" } as never),
+  mocks.ic.data = person("boss", { display_name: "Boss", job_title: "Director" }, [
+    person("zoe", { display_name: "Zoe", job_title: "QA Engineer", department: "Quality" } as never),
+    person("adam", { display_name: "Adam", job_title: "Backend Dev" } as never, [
+      // the same person deeper in the tree must NOT double a row
+      person("zoe", { display_name: "Zoe" } as never),
     ]),
   ]);
 });
@@ -60,7 +63,7 @@ describe("EmployeesView", () => {
     render(<EmployeesView />);
     expect(screen.getAllByRole("link")[2]).toHaveAttribute(
       "href",
-      "/ic/zoe%40x/personal",
+      `/ic/${pid("zoe")}/personal`,
     );
   });
 

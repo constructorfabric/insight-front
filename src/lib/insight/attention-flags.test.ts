@@ -39,7 +39,7 @@ function params(over: Partial<FlagParams>): FlagParams {
     memberIds: IDS,
     cohortOf: () => "team",
     nameOf: (id) => `Name ${id}`,
-    emailOf: (id) => `${id}@t`,
+    personIdOf: (id) => `person-${id}`,
     cohortLabel: "team",
     ...over,
   };
@@ -51,7 +51,11 @@ describe("computeAttentionFlags", () => {
       params({ byKey: new Map([["t.metric", fixture([...BASE, ["x", 0]])]]) }),
     );
     expect(flags).toHaveLength(1);
-    expect(flags[0]).toMatchObject({ kind: "collapse", email: "x@t", name: "Name x" });
+    expect(flags[0]).toMatchObject({
+      kind: "collapse",
+      personId: "person-x",
+      name: "Name x",
+    });
     expect(flags[0]!.reason).toContain("no commits");
     expect(flags[0]!.reason).toContain("team median 10");
   });
@@ -162,11 +166,11 @@ describe("computeAttentionFlags", () => {
         memberIds: [...IDS, "y"],
       }),
     );
-    const x = flags.filter((f) => f.email === "x@t");
+    const x = flags.filter((f) => f.personId === "person-x");
     expect(x).toHaveLength(1);
     expect(x[0]!.kind).toBe("collapse");
     // collapse severity (1 + relGap) outranks y's outlier severity (relGap)
-    expect(flags[0]!.email).toBe("x@t");
+    expect(flags[0]!.personId).toBe("person-x");
   });
 });
 
@@ -206,7 +210,7 @@ describe("severity is scale-free", () => {
   ];
 
   it("ranks identically when every value is scaled by 1000", () => {
-    const order = (fs: ReturnType<typeof flagsFor>) => fs.map((f) => f.email).join(",");
+    const order = (fs: ReturnType<typeof flagsFor>) => fs.map((f) => f.personId).join(",");
     expect(order(flagsFor(SPREAD, 1000))).toBe(order(flagsFor(SPREAD)));
   });
 
@@ -228,7 +232,7 @@ describe("severity is scale-free", () => {
     const collapses = flagsFor(values, 1, (id) => (id.startsWith("t") ? "tight" : "wide")).filter(
       (f) => f.kind === "collapse",
     );
-    expect(collapses.map((f) => f.email)).toEqual(["t0@t", "w0@t"]);
+    expect(collapses.map((f) => f.personId)).toEqual(["person-t0", "person-w0"]);
     expect(collapses[0]!.severity).toBeGreaterThan(collapses[1]!.severity);
   });
 

@@ -121,7 +121,7 @@ export function AiCostView({ item }: { item: string | null }) {
   const members = useMemo<TeamMember[]>(
     () =>
       (roster ?? []).map((entry) => ({
-        person_id: entry.email,
+        person_id: entry.person_id,
         name: entry.display_name,
       })),
     [roster],

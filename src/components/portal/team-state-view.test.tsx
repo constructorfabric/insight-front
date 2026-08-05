@@ -16,10 +16,11 @@ import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { NormalizedMetricResult } from "@/lib/metrics/collection";
+import { identityPerson, pid } from "@/test/identity";
 import type { IdentityPerson } from "@/types/insight";
 
 const mocks = vi.hoisted(() => ({
-  email: "boss@x" as string | null,
+  personId: null as string | null,
   tree: undefined as IdentityPerson | undefined,
   grid: {
     byKey: new Map<string, NormalizedMetricResult>(),
@@ -31,7 +32,9 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/auth", () => ({ useViewer: () => ({ email: mocks.email }) }));
+vi.mock("@/auth", () => ({
+  useViewer: () => ({ email: "boss@x", personId: mocks.personId }),
+}));
 vi.mock("@/lib/portal/use-cohort-label", () => ({
   useCohortLabel: () => "team",
 }));
@@ -46,8 +49,8 @@ vi.mock("@/hooks/use-portal-period", () => ({
 
 import { TeamStateView } from "./team-state-view";
 
-const person = (email: string, subs: IdentityPerson[] = []): IdentityPerson =>
-  ({ email, display_name: email.split("@")[0], subordinates: subs }) as unknown as IdentityPerson;
+const person = (label: string, subs: IdentityPerson[] = []): IdentityPerson =>
+  identityPerson(label, {}, subs);
 
 
 function metric(
@@ -68,19 +71,21 @@ function metric(
   } as unknown as NormalizedMetricResult;
 }
 
-const IDS = ["a@x", "b@x", "c@x", "d@x"];
+// Roster entity ids: person UUIDs, the same key the metric grid returns.
+const LABELS = ["a", "b", "c", "d"];
+const IDS = LABELS.map(pid);
 
 beforeEach(() => {
-  mocks.email = "boss@x";
-  mocks.tree = person("boss@x", IDS.map((id) => person(id)));
+  mocks.personId = pid("boss");
+  mocks.tree = person("boss", LABELS.map((l) => person(l)));
   mocks.grid.isPending = false;
   mocks.grid.isError = false;
   // git.commits is a real headline key (GROUPS card.preview) — the view
   // only renders columns from that set.
   mocks.grid.byKey = new Map([
-    ["git.commits", metric("git.commits", [["a@x", 10], ["b@x", 20], ["c@x", 30], ["d@x", 40]], { label: "Commits" })],
+    ["git.commits", metric("git.commits", [[pid("a"), 10], [pid("b"), 20], [pid("c"), 30], [pid("d"), 40]], { label: "Commits" })],
     // a ratio metric: must roll up as MEDIAN, not a summed percentage
-    ["collab.focus_time_pct", metric("collab.focus_time_pct", [["a@x", 40], ["b@x", 50], ["c@x", 60], ["d@x", 70]], {
+    ["collab.focus_time_pct", metric("collab.focus_time_pct", [[pid("a"), 40], [pid("b"), 50], [pid("c"), 60], [pid("d"), 70]], {
       computation: "avg",
       label: "Focus Time",
       format: "percent",
@@ -101,8 +106,8 @@ describe("TeamStateView", () => {
     expect(screen.getByText("boss's team")).toBeInTheDocument();
     expect(screen.getByText(/4 people · state & attention/)).toBeInTheDocument();
     // Names come from identity now — the roster is the member list.
-    for (const id of IDS) {
-      expect(screen.getByText(id.split("@")[0]!)).toBeInTheDocument();
+    for (const label of LABELS) {
+      expect(screen.getByText(label)).toBeInTheDocument();
     }
   });
 
@@ -127,7 +132,7 @@ describe("TeamStateView", () => {
   });
 
   it("gates on the empty roster with the People-specific label", () => {
-    mocks.tree = person("boss@x"); // a manager with nobody under them
+    mocks.tree = person("boss"); // a manager with nobody under them
     render(<TeamStateView />);
     expect(
       screen.getByText(

@@ -99,7 +99,7 @@ function PersonNode({
 
 export function AppSidebar() {
   const { t } = useTranslation();
-  const { email: viewerEmail, personId: viewerPersonId } = useViewer();
+  const { personId: viewerPersonId } = useViewer();
   const viewerQ = useIcPerson(viewerPersonId ?? "");
   const viewer = viewerQ.data ?? null;
   const pathname = useRouterState({ select: (s) => s.location.pathname });

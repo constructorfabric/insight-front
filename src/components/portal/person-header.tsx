@@ -33,14 +33,16 @@ export function PersonHeader({ person }: { person: string }) {
   const { setScope, setZone } = usePortalNavActions();
   const navigate = useNavigate();
   const { data } = useIcPerson(person);
-  const supervisorEmail = data?.supervisor_email ?? data?.parent_email ?? null;
+  // Ids, not emails, since the identity cutover: the same key the route
+  // segment, `?scope=` and the metric entity ids carry.
+  const supervisorPersonId = data?.parent_person_id ?? null;
   // Fetch the manager to enumerate siblings; the query self-disables on "".
-  const { data: manager } = useIcPerson(supervisorEmail ?? "");
+  const { data: manager } = useIcPerson(supervisorPersonId ?? "");
   // Every node the org scope can actually resolve to — identity serves the
   // viewer only their own subtree, so anything outside it is unreachable.
   const { managerNodes } = useOrgScope();
   const scopeRoots = useMemo(
-    () => new Set(managerNodes.map((n) => n.email.toLowerCase())),
+    () => new Set(managerNodes.map((n) => n.person_id.toLowerCase())),
     [managerNodes],
   );
 
@@ -52,7 +54,7 @@ export function PersonHeader({ person }: { person: string }) {
   const supervisorName = data.supervisor_name ?? null;
   const isManager = data.subordinates.length > 0;
   // Manager → their own team; IC → their manager's team (peers).
-  const teamTarget = isManager ? data.email : supervisorEmail;
+  const teamTarget = isManager ? data.person_id : supervisorPersonId;
   // An IC viewer's own supervisor sits ABOVE them, outside the subtree identity
   // serves — scoping there resolves to the viewer's (empty) org and the People
   // zone would render "no people". Hide the button instead of dead-ending,
@@ -62,22 +64,22 @@ export function PersonHeader({ person }: { person: string }) {
     : false;
 
   const peers = [...(manager?.subordinates ?? [])]
-    .filter((p) => p.email)
+    .filter((p) => p.person_id)
     .sort((a, b) =>
       (a.display_name || a.email).localeCompare(b.display_name || b.email),
     );
   const hasPeers = peers.length > 1;
 
-  function goPerson(email: string) {
+  function goPerson(personId: string) {
     setZone(null);
-    void navigate({ to: "/ic/$person/personal", params: { person: email } });
+    void navigate({ to: "/ic/$person/personal", params: { person: personId } });
   }
-  function goTeam(email: string) {
+  function goTeam(personId: string) {
     setZone(null);
     // Jumping to a team makes that node the visible org scope (design §6), so
     // the topbar badge and every org zone agree with where you just landed.
-    setScope({ root: email });
-    void navigate({ to: "/ic/$person/team", params: { person: email } });
+    setScope({ root: personId });
+    void navigate({ to: "/ic/$person/team", params: { person: personId } });
   }
 
   const title = (
@@ -144,12 +146,12 @@ export function PersonHeader({ person }: { person: string }) {
       </div>
 
       <div className="ml-auto flex items-center gap-2">
-        {supervisorEmail && supervisorName ? (
+        {supervisorPersonId && supervisorName ? (
           <Button
             variant="ghost"
             size="sm"
             className="h-8 gap-1 text-muted-foreground"
-            onClick={() => goPerson(supervisorEmail)}
+            onClick={() => goPerson(supervisorPersonId)}
           >
             <ChevronUp className="size-3.5" />
             <span className="max-w-40 truncate">{supervisorName}</span>

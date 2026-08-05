@@ -17,8 +17,8 @@ import { useIcPerson } from "@/queries/ic-dashboard";
  */
 export function usePersonCohort(entityId: string): string[] {
   const slice = usePortalSlice();
-  const { email } = useViewer();
-  const tree = useIcPerson(email ?? "").data ?? null;
+  const { personId } = useViewer();
+  const tree = useIcPerson(personId ?? "").data ?? null;
   const attrByEntity = useMemo(
     () => collectRosterAttrs(tree, normalizePersonId),
     [tree],

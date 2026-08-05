@@ -15,15 +15,15 @@ import { useIcPerson } from "@/queries/ic-dashboard";
  * should treat pending as "assume manager" to avoid hiding zones on a flash.
  */
 export function useViewerIsManager(): { isManager: boolean; isPending: boolean } {
-  const { email } = useViewer();
-  const q = useIcPerson(email ?? "");
+  const { personId } = useViewer();
+  const q = useIcPerson(personId ?? "");
 
   const isManager = useMemo(() => {
     const tree = q.data ?? null;
-    if (!tree || !email) return false;
-    const node = findIdentityNode(tree, email) ?? tree;
+    if (!tree || !personId) return false;
+    const node = findIdentityNode(tree, personId) ?? tree;
     return (node.subordinates?.length ?? 0) > 0;
-  }, [q.data, email]);
+  }, [q.data, personId]);
 
   return { isManager, isPending: q.isPending };
 }

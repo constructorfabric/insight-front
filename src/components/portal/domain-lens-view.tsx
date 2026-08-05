@@ -106,7 +106,7 @@ export function DomainLensView({
   const members = useMemo<TeamMember[]>(
     () =>
       (roster ?? []).map((entry) => ({
-        person_id: entry.email,
+        person_id: entry.person_id,
         name: entry.display_name,
       })),
     [roster],
@@ -235,7 +235,7 @@ export function DomainLensView({
     () => new Map(members.map((m) => [normalizePersonId(m.person_id), m.name])),
     [members],
   );
-  const emailByEntity = useMemo(
+  const personIdByEntity = useMemo(
     () => new Map(members.map((m) => [normalizePersonId(m.person_id), m.person_id])),
     [members],
   );
@@ -296,7 +296,7 @@ export function DomainLensView({
           cohortOf={cohortOf}
           cohortLabel={cohortLabel}
           nameByEntity={nameByEntity}
-          emailByEntity={emailByEntity}
+          personIdByEntity={personIdByEntity}
         />
       ))}
 
@@ -341,7 +341,7 @@ function Section({
   cohortOf,
   cohortLabel,
   nameByEntity,
-  emailByEntity,
+  personIdByEntity,
 }: {
   spec: SectionSpec;
   grid: GridData;
@@ -354,7 +354,7 @@ function Section({
   eventIsError: boolean;
   memberIds: readonly string[];
   nameByEntity: Map<string, string>;
-  emailByEntity: Map<string, string>;
+  personIdByEntity: Map<string, string>;
   cohortOf: (id: string) => string | null;
   cohortLabel: string;
 }) {
@@ -411,7 +411,7 @@ function Section({
           cohortOf={cohortOf}
           cohortLabel={cohortLabel}
           nameByEntity={nameByEntity}
-          emailByEntity={emailByEntity}
+          personIdByEntity={personIdByEntity}
         />
       );
     case "direction-cards":
@@ -938,7 +938,7 @@ function AttentionSection({
   cohortOf,
   cohortLabel,
   nameByEntity,
-  emailByEntity,
+  personIdByEntity,
 }: {
   spec: Extract<SectionSpec, { kind: "attention" }>;
   grid: GridData;
@@ -946,7 +946,7 @@ function AttentionSection({
   cohortOf: (id: string) => string | null;
   cohortLabel: string;
   nameByEntity: Map<string, string>;
-  emailByEntity: Map<string, string>;
+  personIdByEntity: Map<string, string>;
 }) {
   const flags = useMemo(
     () =>
@@ -957,13 +957,13 @@ function AttentionSection({
         memberIds,
         cohortOf,
         nameOf: (id) => nameByEntity.get(id) ?? id,
-        emailOf: (id) => emailByEntity.get(id) ?? id,
+        personIdOf: (id) => personIdByEntity.get(id) ?? id,
         cohortLabel,
       }),
-    [spec.metrics, grid.byKey, grid.previousByKey, memberIds, cohortOf, cohortLabel, nameByEntity, emailByEntity],
+    [spec.metrics, grid.byKey, grid.previousByKey, memberIds, cohortOf, cohortLabel, nameByEntity, personIdByEntity],
   );
   if (!memberIds.length) return null;
-  const flaggedPeople = new Set(flags.map((f) => f.email)).size;
+  const flaggedPeople = new Set(flags.map((f) => f.personId)).size;
   return (
     <AttentionList
       flags={flags}

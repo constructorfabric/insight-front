@@ -23,8 +23,8 @@ let lastRouteSync: string | null = null;
  * pipeline; Employees is a live identity directory.
  *
  * The People route is the one place where a route still *sets* the org scope:
- * landing on /ic/<email>/team (a link, a drill, or a pasted URL) makes that
- * node the visible scope, after which every org zone reads it from the store.
+ * landing on /ic/<person_id>/team (a link, a drill, or a pasted URL) makes that
+ * node the visible scope, after which every org zone reads it from the URL.
  */
 export function PeopleView({
   person,

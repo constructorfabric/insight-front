@@ -21,8 +21,8 @@ import { useIcPerson } from "@/queries/ic-dashboard";
  */
 export function useCohortLabel(): string {
   const slice = usePortalSlice();
-  const { email } = useViewer();
-  const tree = useIcPerson(email ?? "").data ?? null;
+  const { personId } = useViewer();
+  const tree = useIcPerson(personId ?? "").data ?? null;
   const dims = useMemo(
     () => availableSlices(collectRosterAttrs(tree, normalizePersonId).values()),
     [tree],

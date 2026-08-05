@@ -18,12 +18,13 @@ import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { NormalizedMetricResult } from "@/lib/metrics/collection";
+import { identityPerson, pid } from "@/test/identity";
 import type { IdentityPerson } from "@/types/insight";
 
 /* ── module mocks ────────────────────────────────────────────────────── */
 
 const mocks = vi.hoisted(() => ({
-  email: "boss@x" as string | null,
+  personId: null as string | null,
   tree: undefined as IdentityPerson | undefined,
   grid: {
     byKey: new Map<string, NormalizedMetricResult>(),
@@ -41,7 +42,9 @@ const mocks = vi.hoisted(() => ({
   }>,
 }));
 
-vi.mock("@/auth", () => ({ useViewer: () => ({ email: mocks.email }) }));
+vi.mock("@/auth", () => ({
+  useViewer: () => ({ email: "boss@x", personId: mocks.personId }),
+}));
 vi.mock("@/queries/ic-dashboard", () => ({
   useIcPerson: () => ({
     data: mocks.tree,
@@ -122,24 +125,25 @@ function metric(
 }
 
 const person = (
-  email: string,
+  label: string,
   over: Partial<IdentityPerson> = {},
   subordinates: IdentityPerson[] = [],
-): IdentityPerson =>
-  ({ email, display_name: email.split("@")[0], subordinates, ...over }) as unknown as IdentityPerson;
+): IdentityPerson => identityPerson(label, over, subordinates);
 
 
-const IDS = ["a@x", "b@x", "c@x", "d@x"];
+// Roster entity ids are person UUIDs (identity cutover); labels stay legible.
+const LABELS = ["a", "b", "c", "d"];
+const IDS = LABELS.map(pid);
 
 function seedHappyOrg() {
-  mocks.email = "boss@x";
-  mocks.tree = person("boss@x", {}, IDS.map((id) => person(id)));
+  mocks.personId = pid("boss");
+  mocks.tree = person("boss", {}, LABELS.map((l) => person(l)));
   // 4 members, 10+20+30+40 = 100 commits; everyone active.
   mocks.grid.byKey = new Map([
-    ["t.commits", metric("t.commits", [["a@x", 10], ["b@x", 20], ["c@x", 30], ["d@x", 40]], { short_label: "Commits", unit: "commits" })],
+    ["t.commits", metric("t.commits", [[pid("a"), 10], [pid("b"), 20], [pid("c"), 30], [pid("d"), 40]], { short_label: "Commits", unit: "commits" })],
   ]);
   mocks.grid.previousByKey = new Map([
-    ["t.commits", metric("t.commits", [["a@x", 20], ["b@x", 40], ["c@x", 60], ["d@x", 80]])],
+    ["t.commits", metric("t.commits", [[pid("a"), 20], [pid("b"), 40], [pid("c"), 60], [pid("d"), 80]])],
   ]);
   mocks.collections = [emptyCollection(), emptyCollection(), emptyCollection()];
 }
@@ -177,7 +181,7 @@ describe("headline (rules 1–2: per-capita + PoP delta)", () => {
 
   it("divides by ACTIVE people only — zeros don't dilute the denominator", () => {
     mocks.grid.byKey = new Map([
-      ["t.commits", metric("t.commits", [["a@x", 0], ["b@x", 0], ["c@x", 30], ["d@x", 70]], { short_label: "Commits", unit: "commits" })],
+      ["t.commits", metric("t.commits", [[pid("a"), 0], [pid("b"), 0], [pid("c"), 30], [pid("d"), 70]], { short_label: "Commits", unit: "commits" })],
     ]);
     mocks.grid.previousByKey = new Map();
     render(<DomainLensView config={HEADLINE_CONFIG} />);
@@ -206,7 +210,7 @@ describe("rule 6: honest not-ingested gate", () => {
 
 describe("org-scope gates", () => {
   it("shows the empty-roster label instead of a fabricated dashboard", () => {
-    mocks.tree = person("boss@x");
+    mocks.tree = person("boss");
     render(<DomainLensView config={HEADLINE_CONFIG} />);
     expect(screen.getByText(/No team in the current scope/)).toBeInTheDocument();
   });
@@ -222,7 +226,7 @@ describe("stat-tiles (medians, never sums)", () => {
   it("renders the cohort median for ratio metrics under a section title", () => {
     mocks.grid.byKey.set(
       "t.cycle",
-      metric("t.cycle", [["a@x", 10], ["b@x", 20], ["c@x", 30], ["d@x", 40]], {
+      metric("t.cycle", [[pid("a"), 10], [pid("b"), 20], [pid("c"), 30], [pid("d"), 40]], {
         computation: "avg",
         label: "PR cycle",
         format: "float",
@@ -246,7 +250,7 @@ describe("stat-tiles (medians, never sums)", () => {
 describe("distribution (rule 4: integer 1/2/5 bins, self-suppressing)", () => {
   it("suppresses a degenerate single-bin distribution entirely", () => {
     mocks.grid.byKey = new Map([
-      ["t.commits", metric("t.commits", [["a@x", 5], ["b@x", 5], ["c@x", 5], ["d@x", 5]], { short_label: "Commits" })],
+      ["t.commits", metric("t.commits", [[pid("a"), 5], [pid("b"), 5], [pid("c"), 5], [pid("d"), 5]], { short_label: "Commits" })],
     ]);
     render(
       <DomainLensView
@@ -347,7 +351,7 @@ describe("participation (rule 8 variant: N of M active)", () => {
   it("counts members with a non-zero value and shows the share", () => {
     mocks.grid.byKey.set(
       "t.active",
-      metric("t.active", [["a@x", 3], ["b@x", 0], ["c@x", 2], ["d@x", 0]], { label: "Active days" }),
+      metric("t.active", [[pid("a"), 3], [pid("b"), 0], [pid("c"), 2], [pid("d"), 0]], { label: "Active days" }),
     );
     render(
       <DomainLensView
@@ -373,12 +377,12 @@ describe("by-unit auto-section (rule 7: slice cohorts inside scope)", () => {
 
   function seedSliced() {
     // Two divisions of 4 people each with very different output.
-    const ids = ["a1@x", "a2@x", "a3@x", "a4@x", "b1@x", "b2@x", "b3@x", "b4@x"];
-    mocks.tree = person("boss@x", {}, ids.map((id) =>
-      person(id, { division: id.startsWith("a") ? "R&D" : "Sales" } as never),
+    const labels = ["a1", "a2", "a3", "a4", "b1", "b2", "b3", "b4"];
+    mocks.tree = person("boss", {}, labels.map((l) =>
+      person(l, { division: l.startsWith("a") ? "R&D" : "Sales" } as never),
     ));
     mocks.grid.byKey = new Map([
-      ["t.commits", metric("t.commits", ids.map((id) => [id, id.startsWith("a") ? 10 : 30]), { short_label: "Commits" })],
+      ["t.commits", metric("t.commits", labels.map((l) => [pid(l), l.startsWith("a") ? 10 : 30]), { short_label: "Commits" })],
     ]);
     mocks.grid.previousByKey = new Map();
   }
@@ -409,10 +413,10 @@ describe("by-unit auto-section (rule 7: slice cohorts inside scope)", () => {
 describe("direction-cards / coverage-radar / attention sections", () => {
   it("renders attention rows for cohort outliers, named and linked (O3)", () => {
     // 7 healthy + 1 collapsed member
-    const ids = ["m1@x", "m2@x", "m3@x", "m4@x", "m5@x", "m6@x", "m7@x", "z@x"];
-    mocks.tree = person("boss@x", {}, ids.map((id) => person(id)));
+    const labels = ["m1", "m2", "m3", "m4", "m5", "m6", "m7", "z"];
+    mocks.tree = person("boss", {}, labels.map((l) => person(l)));
     mocks.grid.byKey = new Map([
-      ["t.commits", metric("t.commits", ids.map((id) => [id, id === "z@x" ? 0 : 10]), { label: "Commits" })],
+      ["t.commits", metric("t.commits", labels.map((l) => [pid(l), l === "z" ? 0 : 10]), { label: "Commits" })],
     ]);
     mocks.grid.previousByKey = new Map();
     render(
@@ -430,7 +434,7 @@ describe("direction-cards / coverage-radar / attention sections", () => {
   });
 
   it("suppresses the coverage radar below the minimum cohort", () => {
-    mocks.tree = person("boss@x", {}, [person("a@x"), person("b@x")]);
+    mocks.tree = person("boss", {}, [person("a"), person("b")]);
     render(
       <DomainLensView
         config={{ title: "T", sections: [

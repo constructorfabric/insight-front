@@ -62,9 +62,9 @@ export function AttentionList({
             const Icon = FLAG_ICON[f.kind];
             return (
               <Link
-                key={`${f.email}-${f.metricKey}`}
+                key={`${f.personId}-${f.metricKey}`}
                 to="/ic/$person/personal"
-                params={{ person: f.email }}
+                params={{ person: f.personId }}
                 // A pinned theme zone (Overview, Manage) wins over the route in
                 // `useActiveZone` — clear it so the navigation actually lands
                 // on the Person zone (same pattern as the rail).

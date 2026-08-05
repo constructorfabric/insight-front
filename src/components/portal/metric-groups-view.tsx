@@ -42,7 +42,7 @@ const CLOSED_DRILLDOWN_DATA = {
 } as const;
 
 export interface MetricGroupsViewProps {
-  /** Person email the lens is scoped to (org-level rollup is a backend follow-up). */
+  /** Person id the lens is scoped to (org-level rollup is a backend follow-up). */
   personId: string;
   /** Which metric-family groups to render; empty ⇒ nothing available yet. */
   groupIds: readonly GroupId[];

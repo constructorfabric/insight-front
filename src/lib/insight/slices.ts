@@ -110,11 +110,13 @@ export function availableSlices(
 /** Walk an org tree into `entityId → attribute map` (entity id via `keyOf`). */
 export function collectRosterAttrs(
   root: IdentityPerson | null,
-  keyOf: (email: string) => string,
+  keyOf: (personId: string) => string,
 ): Map<string, Record<string, SliceAttr>> {
   const m = new Map<string, Record<string, SliceAttr>>();
   const walk = (n: IdentityPerson) => {
-    if (n.email) m.set(keyOf(n.email), personAttributes(n));
+    // Keyed by person id (the metric entity id), not email: a person with no
+    // email still belongs to a cohort.
+    if (n.person_id) m.set(keyOf(n.person_id), personAttributes(n));
     n.subordinates.forEach(walk);
   };
   if (root) walk(root);
