@@ -1,6 +1,7 @@
 name: GHCR cleanup
 
-# Retention for the images this repo publishes (see docker.yml):
+# Retention for the `insight-front` package, whose images are built and pushed by
+# constructorfabric/insight:
 #
 #   • trunk tags (`YYYY.MM.DD.HH.MM-sha7`, suffix-less) — deleted after 4
 #     weeks on a daily schedule, keeping the 15 newest as a backstop.
@@ -54,7 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      # Same sanitizer as the build-tag computation in docker.yml —
+      # Same sanitizer as the build-tag computation in the publishing workflow —
       # the deleted branch's tags end with `.<sanitized-branch>`.
       - name: Sanitize branch name
         id: suffix

@@ -6,7 +6,8 @@ name: Trivy SCA
 #              log and never reaches a SARIF upload. BLOCKING.
 #   report   — every severity, dev dependencies included.
 #
-# Image layers are not visible here — docker.yml scans the pushed manifest.
+# Image layers are not visible here — the published manifest is scanned by
+# constructorfabric/insight's trivy-images.yml.
 #
 # Do not change without reading why:
 #   - keep `-w /src`; do not switch to `--ignorefile` — it exits FATAL when the file is absent.
