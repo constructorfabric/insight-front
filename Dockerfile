@@ -1,4 +1,4 @@
-FROM node:25-bookworm-slim AS builder
+FROM node:26-bookworm-slim AS builder
 
 RUN corepack enable
 
