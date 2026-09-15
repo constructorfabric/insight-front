@@ -67,3 +67,6 @@ __pycache__/
 # Cypilot
 cypilot.*.backup/
 cypilot/.plans/
+
+# code-ranker reports
+.code-ranker/
