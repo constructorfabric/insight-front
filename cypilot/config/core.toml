@@ -7,7 +7,7 @@ project_root = ".."
 [kits.sdlc]
 format = "Cypilot"
 path = "config/kits/sdlc"
-source = "github:cyberfabric/cyber-pilot-kit-sdlc"
+source = "github:constructorfabric/cyber-pilot-kit-sdlc"
 version = "v1.3.0"
 
 [kits.sdlc.resources]

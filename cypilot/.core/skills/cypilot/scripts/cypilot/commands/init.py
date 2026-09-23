@@ -340,7 +340,7 @@ def _inject_managed_block(target_file: Path, install_dir: str, dry_run: bool = F
     return "updated"
     # @cpt-end:cpt-cypilot-algo-core-infra-inject-root-agents:p1:inst-return-agents-path
 
-_DEFAULT_KIT_SOURCE = "cyberfabric/cyber-pilot-kit-sdlc"
+_DEFAULT_KIT_SOURCE = "constructorfabric/cyber-pilot-kit-sdlc"
 
 
 def _prompt_kit_install_flag(interactive: bool) -> bool:
